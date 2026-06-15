@@ -1,10 +1,10 @@
 using Azure.Core;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
-using InvoiceIndexer.Configuration;
 using Microsoft.Extensions.Logging;
+using ProtocolsIndexer.Configuration;
 
-namespace InvoiceIndexer.Services;
+namespace ProtocolsIndexer.Services;
 
 public class IndexService : IIndexService
 {
@@ -40,13 +40,7 @@ public class IndexService : IIndexService
         var semanticConfig = new SemanticConfiguration("semantic-config", new SemanticPrioritizedFields
         {
             ContentFields  = { new SemanticField("content") },
-            // Semantic keywords — minor boost to ranking for key fields
-            KeywordsFields =
-            {
-                new SemanticField("customer"),
-                new SemanticField("category"),
-                new SemanticField("order_id")
-            }
+            KeywordsFields = { new SemanticField("richtlijn_name") }
         });
 
         var semanticSearch = new SemanticSearch();
@@ -55,31 +49,22 @@ public class IndexService : IIndexService
 
         var index = new SearchIndex(_config.SearchIndexName)
         {
-            // Index description — helps LLM decide whether to query this index
-            Description = "Contains SuperStore invoices with customer names, order amounts, " +
-                          "discounts, product categories, ship modes and order IDs. " +
-                          "Use this index to answer questions about invoice amounts, " +
-                          "customer spending, product categories and order history.",
+            Description = "Contains Dutch medical protocols (richtlijnen) with full text content. " +
+                          "Use this index to find clinical guidelines, treatment protocols, and medical recommendations " +
+                          "for specific conditions or diseases.",
             VectorSearch   = vectorSearch,
             SemanticSearch = semanticSearch,
             Fields =
             {
-                new SimpleField("id",       SearchFieldDataType.String)           { IsKey = true, IsFilterable = true },
-                new SearchableField("customer")                                   { IsFilterable = true, IsFacetable = true },
-                new SimpleField("amount",   SearchFieldDataType.Double)           { IsFilterable = true, IsSortable = true },
-                new SimpleField("discount", SearchFieldDataType.Double)           { IsFilterable = true, IsSortable = true },
-                new SearchableField("category")                                   { IsFilterable = true, IsFacetable = true },
-                new SimpleField("date",     SearchFieldDataType.DateTimeOffset)   { IsFilterable = true, IsSortable = true },
-                new SimpleField("order_id",    SearchFieldDataType.String)         { IsFilterable = true },
-                new SearchableField("ship_mode")                                  { IsFilterable = true, IsFacetable = true },
-                new SimpleField("source_file", SearchFieldDataType.String)        { IsFilterable = true },
-                new SearchableField("content")                                    { AnalyzerName = "en.microsoft" },
-                new VectorSearchField("content_vector", 3072, "vector-profile")  { IsHidden = true, IsStored = false }
+                new SimpleField("id",              SearchFieldDataType.String) { IsKey = true, IsFilterable = true },
+                new SearchableField("richtlijn_name")                          { IsFilterable = true, IsFacetable = true },
+                new SimpleField("source_file",     SearchFieldDataType.String) { IsFilterable = true },
+                new SearchableField("content")                                 { AnalyzerName = "nl.microsoft" },
+                new VectorSearchField("content_vector", 3072, "vector-profile") { IsHidden = true, IsStored = false }
             }
         };
 
         await _indexClient.CreateOrUpdateIndexAsync(index);
-
         _logger.LogInformation("Index '{Name}' created or updated", _config.SearchIndexName);
     }
 }
