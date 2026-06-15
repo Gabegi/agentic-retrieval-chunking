@@ -148,7 +148,7 @@ resource "azurerm_monitor_diagnostic_setting" "openai" {
 
 # 4. GPT-4o extraction latency > 10 seconds
 resource "azurerm_monitor_scheduled_query_rules_alert_v2" "gpt_latency" {
-  name                = "alert-openai-gpt-latency-dev"
+  name                = "alert-chunking-openai-gpt-latency-dev"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
