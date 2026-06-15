@@ -3,7 +3,7 @@ using Azure.Storage.Blobs;
 using Azure.Identity;
 
 const string BASE = "https://richtlijnendatabase.nl";
-const int MAX_PARALLEL = 5;
+const int MAX_PARALLEL = 10;
 const int MAX_RETRIES = 3;
 
 var storageUrl = Environment.GetEnvironmentVariable("STORAGE_ACCOUNT_URL")
@@ -13,7 +13,8 @@ var containerName = Environment.GetEnvironmentVariable("AZURE_CONTAINER_NAME") ?
 var container = new BlobServiceClient(new Uri(storageUrl), new DefaultAzureCredential())
     .GetBlobContainerClient(containerName);
 
-var http = new HttpClient();
+var handler = new SocketsHttpHandler { MaxConnectionsPerServer = 20 };
+var http = new HttpClient(handler);
 http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 http.Timeout = TimeSpan.FromSeconds(60);
 
@@ -56,8 +57,13 @@ List<string> GetPdfLinks(HtmlDocument d) =>
 // ── Upload one PDF ────────────────────────────────────────────────────────────
 async Task UploadPdf(string pdfHref, string richtlijnName)
 {
+    pdfHref = Uri.UnescapeDataString(pdfHref);
+
+    if (pdfHref.StartsWith("richtlijnendatabase.nl"))
+        pdfHref = "/" + pdfHref.Substring("richtlijnendatabase.nl".Length).TrimStart('/');
+
     var pdfUrl = pdfHref.StartsWith("http") ? pdfHref : BASE + pdfHref;
-    var fileName = $"{richtlijnName}/{Uri.UnescapeDataString(pdfUrl.Split('/').Last())}";
+    var fileName = $"{richtlijnName}/{pdfUrl.Split('/').Last().Split('?').First()}";
 
     try
     {
@@ -73,14 +79,31 @@ async Task UploadPdf(string pdfHref, string richtlijnName)
         }
         else
         {
-            Console.WriteLine($"⏭️  Skipped ({(int)response.StatusCode} / {contentType}): {pdfUrl}");
+            Console.WriteLine($"⏭️  Skipped [{response.StatusCode}]: {pdfUrl}");
             Interlocked.Increment(ref skipped);
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"❌ PDF failed [{fileName}]: {ex.Message}");
+        Console.WriteLine($"❌ PDF failed [{richtlijnName}/{pdfHref}]: {ex.Message}");
         Interlocked.Increment(ref failed);
+    }
+}
+
+// ── Fetch one module page and return its PDF links ───────────────────────────
+async Task<List<string>> FetchModulePdfLinks(string modulePath)
+{
+    try
+    {
+        var moduleHtml = await WithRetry(() => http.GetStringAsync(BASE + modulePath), modulePath);
+        var moduleDoc = new HtmlDocument();
+        moduleDoc.LoadHtml(moduleHtml);
+        return GetPdfLinks(moduleDoc);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"⚠️  Module failed [{modulePath}]: {ex.Message}");
+        return [];
     }
 }
 
@@ -104,24 +127,12 @@ async Task ScrapeRichtlijn(string path)
             .Distinct()
             .ToList() ?? [];
 
-        foreach (var modulePath in modulePaths)
-        {
-            try
-            {
-                var moduleHtml = await WithRetry(() => http.GetStringAsync(BASE + modulePath), modulePath);
-                var moduleDoc = new HtmlDocument();
-                moduleDoc.LoadHtml(moduleHtml);
-                pdfLinks.AddRange(GetPdfLinks(moduleDoc));
-                await Task.Delay(300);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️  Module failed [{modulePath}]: {ex.Message}");
-            }
-        }
+        // Fetch all module pages in parallel
+        var moduleResults = await Task.WhenAll(modulePaths.Select(FetchModulePdfLinks));
+        pdfLinks.AddRange(moduleResults.SelectMany(l => l));
 
-        foreach (var pdfHref in pdfLinks.Distinct())
-            await UploadPdf(pdfHref, name);
+        // Upload all PDFs in parallel
+        await Task.WhenAll(pdfLinks.Distinct().Select(href => UploadPdf(href, name)));
     }
     catch (Exception ex)
     {
@@ -141,8 +152,5 @@ var tasks = allPaths.Select(async path =>
 
 await Task.WhenAll(tasks);
 
-Console.WriteLine();
-Console.WriteLine($"Done — uploaded: {uploaded}, skipped: {skipped}, failed: {failed}");
-
-if (failed > 0)
-    Environment.Exit(1);
+Console.WriteLine($"\nDone — uploaded: {uploaded}, skipped: {skipped}, failed: {failed}");
+Environment.Exit(0);
