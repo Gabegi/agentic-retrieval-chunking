@@ -116,7 +116,7 @@ async Task FetchPage(string url, string richtlijnName)
         foreach (var href in GetPdfLinks(doc))
         {
             var pdfUrl  = NormalizeUrl(href);
-            var blobName = $"{richtlijnName}/{pdfUrl.Split('/').Last().Split('?').First()}";
+            var blobName = BlobName(pdfUrl, richtlijnName);
             await channel.Writer.WriteAsync((pdfUrl, blobName));
         }
     }
