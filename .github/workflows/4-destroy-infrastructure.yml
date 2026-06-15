@@ -20,7 +20,7 @@ jobs:
 
       - name: Warning
         run: |
-          echo "⚠️  WARNING: This will permanently destroy all infrastructure in rg-support-agent-dev."
+          echo "⚠️  WARNING: This will permanently destroy all infrastructure in rg-agentic-rag-chunking."
           echo "Proceeding in 10 seconds..."
           sleep 10
 
