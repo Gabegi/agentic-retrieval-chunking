@@ -20,11 +20,6 @@ jobs:
         with:
           dotnet-version: "8.0"
 
-      - name: Debug homepage links
-        run: |
-          curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            "https://richtlijnendatabase.nl" | grep -o 'href="/richtlijn/[^"]*"' | head -20
-
       - name: Run scraper
         working-directory: scraper
         env:
