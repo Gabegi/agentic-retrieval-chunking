@@ -1,0 +1,28 @@
+name: 2 - Scrape Protocols
+
+on:
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: [self-hosted]
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0"
+
+      - name: Run scraper
+        working-directory: scraper
+        env:
+          STORAGE_ACCOUNT_URL: https://staccountchunkingrag.blob.core.windows.net/
+          AZURE_CONTAINER_NAME: documents
+        run: dotnet run --configuration Release
