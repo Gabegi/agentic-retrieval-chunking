@@ -10,7 +10,7 @@ on:
 jobs:
   destroy:
     runs-on: [self-hosted]
-    environment: destroy
+    environment: prod
     steps:
       - name: Confirm destruction intent
         if: ${{ github.event.inputs.confirmation != 'DESTROY' }}
