@@ -99,6 +99,7 @@ static string NormalizeUrl(string href)
     }
     if (href.Contains("&") && !href.StartsWith("http"))
         href = href.Split('&')[0];
+    href = href.Replace(" ", "%20");
     return href.StartsWith("http") ? href : base_ + href;
 }
 
