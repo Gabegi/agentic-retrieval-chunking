@@ -90,7 +90,7 @@ resource "azurerm_container_group" "invoice_indexer" {
   }
 
   tags = {
-    project     = "support-agent"
+    project     = "agentic-rag-chunking"
     environment = "dev"
   }
 
@@ -102,7 +102,7 @@ resource "azurerm_container_group" "invoice_indexer" {
     azurerm_role_assignment.aci_indexer_openai_user,
   ]
 
-  # Prevent infra pipeline from recreating the container — image updates are managed by deploy-invoice-indexer
+  # Prevent infra pipeline from recreating the container — image updates are managed by deploy-protocols-indexer
   lifecycle {
     ignore_changes = [container]
   }
