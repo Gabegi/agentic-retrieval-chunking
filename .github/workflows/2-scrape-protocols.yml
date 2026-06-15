@@ -20,6 +20,12 @@ jobs:
         with:
           dotnet-version: "8.0"
 
+      - name: Test richtlijn page access
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -A "Mozilla/5.0" \
+            "https://richtlijnendatabase.nl/richtlijn/borstkanker"
+
       - name: Run scraper
         working-directory: scraper
         env:
