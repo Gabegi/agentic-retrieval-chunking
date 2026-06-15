@@ -14,7 +14,7 @@ var container = new BlobServiceClient(new Uri(storageUrl), new DefaultAzureCrede
     .GetBlobContainerClient(containerName);
 
 var http = new HttpClient();
-http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; protocol-scraper/1.0)");
+http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 http.Timeout = TimeSpan.FromSeconds(60);
 
 int uploaded = 0, skipped = 0, failed = 0;
@@ -35,9 +35,44 @@ async Task<T> WithRetry<T>(Func<Task<T>> action, string label)
     throw new Exception("Unreachable");
 }
 
+// ── Step 1: Paginate /zoek?page=N to collect all richtlijn paths ─────────────
+Console.WriteLine("Collecting richtlijn links via /zoek...");
+var allPaths = new HashSet<string>();
+int page = 1;
+
+while (true)
+{
+    var html = await WithRetry(() => http.GetStringAsync($"{BASE}/zoek?page={page}"), $"zoek page {page}");
+    var doc = new HtmlDocument();
+    doc.LoadHtml(html);
+
+    var pageLinks = doc.DocumentNode
+        .SelectNodes("//a[@href]")
+        ?.Select(a => a.GetAttributeValue("href", ""))
+        .Where(h => h.Contains("/richtlijn/") && !h.EndsWith(".html"))
+        .Select(h => h.StartsWith("http") ? new Uri(h).AbsolutePath : h)
+        .Select(h => h.TrimEnd('/'))
+        .ToList() ?? [];
+
+    if (pageLinks.Count == 0) break;
+
+    foreach (var l in pageLinks) allPaths.Add(l);
+    Console.WriteLine($"  Page {page}: +{pageLinks.Count} (total: {allPaths.Count})");
+
+    var hasNext = doc.DocumentNode
+        .SelectNodes("//a[@href]")
+        ?.Any(a => a.GetAttributeValue("href", "").Contains($"zoek?page={page + 1}")) ?? false;
+
+    if (!hasNext) break;
+    page++;
+    await Task.Delay(500);
+}
+
+Console.WriteLine($"Found {allPaths.Count} richtlijnen — scraping (max {MAX_PARALLEL} parallel)");
+
 // ── Extract PDF hrefs from a parsed page ─────────────────────────────────────
-List<string> GetPdfLinks(HtmlDocument doc) =>
-    doc.DocumentNode
+List<string> GetPdfLinks(HtmlDocument d) =>
+    d.DocumentNode
         .SelectNodes("//a[contains(@href,'.pdf')]")
         ?.Select(a => a.GetAttributeValue("href", ""))
         .Where(h => !string.IsNullOrEmpty(h))
@@ -86,11 +121,11 @@ async Task ScrapeRichtlijn(string path)
 
         var pdfLinks = GetPdfLinks(pageDoc);
 
-        // Module sub-pages live under /richtlijn/<name>/*.html
         var modulePaths = pageDoc.DocumentNode
-            .SelectNodes($"//a[contains(@href,'{path}/')]")
+            .SelectNodes("//a[@href]")
             ?.Select(a => a.GetAttributeValue("href", ""))
-            .Where(h => h.StartsWith(path + "/") && h.EndsWith(".html"))
+            .Where(h => h.Contains(path + "/") && h.EndsWith(".html"))
+            .Select(h => h.StartsWith("http") ? new Uri(h).AbsolutePath : h)
             .Distinct()
             .ToList() ?? [];
 
@@ -102,7 +137,7 @@ async Task ScrapeRichtlijn(string path)
                 var moduleDoc = new HtmlDocument();
                 moduleDoc.LoadHtml(moduleHtml);
                 pdfLinks.AddRange(GetPdfLinks(moduleDoc));
-                await Task.Delay(500); // be polite between module fetches
+                await Task.Delay(300);
             }
             catch (Exception ex)
             {
@@ -120,26 +155,9 @@ async Task ScrapeRichtlijn(string path)
     }
 }
 
-// ── Step 1: Discover richtlijn index links from homepage ─────────────────────
-var html = await WithRetry(() => http.GetStringAsync(BASE), "homepage");
-var doc = new HtmlDocument();
-doc.LoadHtml(html);
-
-var richtlijnPaths = doc.DocumentNode
-    .SelectNodes("//a[@href]")
-    ?.Select(a => a.GetAttributeValue("href", ""))
-    .Where(h => h.Contains("/richtlijn/") && !h.Contains(".html"))
-    .Select(h => h.StartsWith("http") ? new Uri(h).AbsolutePath : h)
-    .Select(h => h.TrimEnd('/'))
-    .Distinct()
-    .ToList() ?? [];
-
-Console.WriteLine($"Found {richtlijnPaths.Count} richtlijnen — scraping (max {MAX_PARALLEL} parallel)");
-richtlijnPaths.Take(5).ToList().ForEach(l => Console.WriteLine($"  → {l}"));
-
-// ── Step 2: Parallel scrape with throttle ────────────────────────────────────
+// ── Parallel execution with throttle ─────────────────────────────────────────
 var semaphore = new SemaphoreSlim(MAX_PARALLEL);
-var tasks = richtlijnPaths.Select(async path =>
+var tasks = allPaths.Select(async path =>
 {
     await semaphore.WaitAsync();
     try { await ScrapeRichtlijn(path); }
