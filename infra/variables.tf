@@ -22,7 +22,7 @@ variable "openai_gpt_model_name" {
 }
 
 variable "openai_extraction_deployment" {
-  description = "Name of the Azure OpenAI gpt-4.1 deployment used for invoice field extraction"
+  description = "Name of the Azure OpenAI gpt-4.1 deployment used for protocol field extraction"
   type        = string
   default     = "gpt-41-extraction"
 }
@@ -30,23 +30,23 @@ variable "openai_extraction_deployment" {
 variable "search_index_name" {
   description = "Name of the Azure AI Search index"
   type        = string
-  default     = "invoices"
+  default     = "protocols"
 }
 
 variable "knowledge_source_name" {
   description = "Name of the AI Search knowledge source"
   type        = string
-  default     = "invoices-knowledge-source"
+  default     = "protocols-knowledge-source"
 }
 
 variable "knowledge_base_name" {
   description = "Name of the AI Search knowledge base"
   type        = string
-  default     = "invoices-knowledge-base"
+  default     = "protocols-knowledge-base"
 }
 
 variable "indexer_image_tag" {
-  description = "Docker image tag for the invoice indexer container"
+  description = "Docker image tag for the protocols indexer container"
   type        = string
   default     = "latest"
 }
