@@ -22,6 +22,12 @@ resource "azurerm_storage_container" "documents" {
   container_access_type = "private"
 }
 
+resource "azurerm_storage_container" "protocols" {
+  name                  = "protocols"
+  storage_account_id    = azurerm_storage_account.documents.id
+  container_access_type = "private"
+}
+
 resource "azurerm_role_assignment" "sp_blob_contributor" {
   scope                = azurerm_storage_account.documents.id
   role_definition_name = "Storage Blob Data Contributor"

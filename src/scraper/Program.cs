@@ -62,14 +62,11 @@ async Task ScrapeRichtlijn(IPage page, string path)
                 .forEach(el => el.remove());
         }");
 
-        var pdfBytes = await page.PdfAsync(new()
+        var pdfBytes = await page.PdfAsync(new PagePdfOptions
         {
             Format          = "A4",
             PrintBackground = true,
-            MarginTop       = "20mm",
-            MarginBottom    = "20mm",
-            MarginLeft      = "15mm",
-            MarginRight     = "15mm"
+            Margin          = new Margin { Top = "20mm", Bottom = "20mm", Left = "15mm", Right = "15mm" }
         });
 
         using var stream = new MemoryStream(pdfBytes);
