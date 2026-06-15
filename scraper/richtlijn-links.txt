@@ -463,15 +463,6 @@
 /richtlijn/vermoeidheid_bij_kanker
 /richtlijn/verwarde_patienten
 /richtlijn/vitamine_d
-/richtlijn/vlekziekte_exantheem_bij_kinderen
-/richtlijn/voedingsbeleid_op_de_intensive_care
-/richtlijn/voedingsbeleid_op_de_neonatologie
-/richtlijn/voettumoren
-/richtlijn/volvulus
-/richtlijn/vonk_vuurwerk
-/richtlijn/vroeggeboorte
 /richtlijn/vulvacarcinoom
 /richtlijn/wervelmetastasen
-/richtlijn/wondinfecties
-/richtlijn/zachte_wekedelen_tumoren
 /richtlijn/ziekte_van_parkinson
