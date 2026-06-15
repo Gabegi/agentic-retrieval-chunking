@@ -1,5 +1,5 @@
 resource "azurerm_user_assigned_identity" "aci_indexer" {
-  name                = "mi-invoice-indexer-dev"
+  name                = "mi-protocols-indexer-dev"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 }
