@@ -64,9 +64,12 @@ Console.WriteLine($"Found {allPaths.Count} richtlijnen — scraping");
 // ── PDF href extraction ───────────────────────────────────────────────────────
 static List<string> GetPdfLinks(HtmlDocument doc) =>
     doc.DocumentNode
-        .SelectNodes("//a[contains(@href,'.pdf')]")
+        .SelectNodes("//a[@href]")
         ?.Select(a => a.GetAttributeValue("href", ""))
-        .Where(h => !string.IsNullOrEmpty(h))
+        .Where(h => !string.IsNullOrEmpty(h) && (
+            h.TrimEnd().EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ||
+            h.Contains("/pdf?g=")
+        ))
         .ToList() ?? [];
 
 // ── Normalize href → absolute URL ────────────────────────────────────────────
