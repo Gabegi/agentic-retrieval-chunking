@@ -6,7 +6,7 @@ on:
 jobs:
   deploy:
     runs-on: [self-hosted]
-    environment: production
+    environment: prod
     steps:
       - uses: actions/checkout@v4
       
