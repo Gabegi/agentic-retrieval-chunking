@@ -38,13 +38,16 @@ async Task<T> WithRetry<T>(Func<Task<T>> action, string label)
     for (int i = 1; i <= MAX_RETRIES; i++)
     {
         try { return await action(); }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            throw; // 404 will never recover — skip immediately, no retries
+        }
         catch (Exception ex) when (i < MAX_RETRIES)
         {
             Console.WriteLine($"⚠️  Retry {i}/{MAX_RETRIES} [{label[..Math.Min(60, label.Length)]}]: {ex.Message}");
-            await Task.Delay(500 * (int)Math.Pow(2, i)); // 1s, 2s, 4s
+            await Task.Delay(500 * (int)Math.Pow(2, i));
         }
     }
-    // final attempt — let it throw
     return await action();
 }
 
@@ -159,6 +162,10 @@ async Task ScrapeRichtlijn(string path)
         // Fetch all module pages concurrently (no extra semaphore — channel handles backpressure)
         await Task.WhenAll(modulePaths.Select(m =>
             FetchPage(m.StartsWith("http") ? m : BASE + m, name)));
+    }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+    {
+        Console.WriteLine($"⏭️  404 (removed): {path}");
     }
     catch (Exception ex)
     {
