@@ -49,7 +49,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "throttling" {
 
 # 2. Query latency — fires when average latency exceeds 2000ms
 resource "azurerm_monitor_scheduled_query_rules_alert_v2" "query_latency" {
-  name                = "alert-search-query-latency-dev"
+  name                = "alert-chunking-search-query-latency-dev"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
