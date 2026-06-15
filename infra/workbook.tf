@@ -90,7 +90,7 @@ resource "azurerm_application_insights_workbook" "main" {
           version       = "KqlItem/1.0"
           query         = <<-QUERY
             ContainerEvent_CL
-            | where ContainerGroup_s == "aci-invoice-indexer-dev"
+            | where ContainerGroup_s == "aci-protocols-indexer-dev"
             | project TimeGenerated, Message, Reason_s, Type_s
             | order by TimeGenerated desc
           QUERY
@@ -110,7 +110,7 @@ resource "azurerm_application_insights_workbook" "main" {
           version       = "KqlItem/1.0"
           query         = <<-QUERY
             ContainerEvent_CL
-            | where ContainerGroup_s == "aci-invoice-indexer-dev"
+            | where ContainerGroup_s == "aci-protocols-indexer-dev"
             | where Message contains "ExitCode"
             | where Message !contains "ExitCode 0"
             | project TimeGenerated, Message
@@ -138,7 +138,7 @@ resource "azurerm_application_insights_workbook" "main" {
           version       = "KqlItem/1.0"
           query         = <<-QUERY
             ContainerInstanceLog_CL
-            | where ContainerGroup_s == "aci-invoice-indexer-dev"
+            | where ContainerGroup_s == "aci-protocols-indexer-dev"
             | where Message contains "Pipeline started" or Message contains "Pipeline complete"
             | project TimeGenerated, Message
             | order by TimeGenerated desc
@@ -159,7 +159,7 @@ resource "azurerm_application_insights_workbook" "main" {
           version       = "KqlItem/1.0"
           query         = <<-QUERY
             ContainerInstanceLog_CL
-            | where ContainerGroup_s == "aci-invoice-indexer-dev"
+            | where ContainerGroup_s == "aci-protocols-indexer-dev"
             | where Message contains "Failed to process"
             | project TimeGenerated, Message
             | order by TimeGenerated desc
@@ -180,7 +180,7 @@ resource "azurerm_application_insights_workbook" "main" {
           version       = "KqlItem/1.0"
           query         = <<-QUERY
             ContainerInstanceLog_CL
-            | where ContainerGroup_s == "aci-invoice-indexer-dev"
+            | where ContainerGroup_s == "aci-protocols-indexer-dev"
             | where Message contains "Exception" or Message contains "Error" or Message contains "Failed"
             | project TimeGenerated, Message
             | order by TimeGenerated desc
