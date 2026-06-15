@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace InvoiceIndexer.Services;
+namespace ProtocolsIndexer.Services;
 
 public class PipelineOrchestrator : IPipelineOrchestrator
 {
@@ -27,26 +27,25 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     public async Task RunAsync(CancellationToken ct = default)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        _logger.LogInformation("Pipeline started");
 
         await _indexService.EnsureIndexAsync();
 
-        var blobs = await _documentService.ReadBlobsAsync(ct);
+        var blobs    = await _documentService.ReadBlobsAsync(ct);
         var blobList = blobs.ToList();
 
-        _logger.LogInformation("Pipeline started — {Count} blobs found", blobList.Count);
+        _logger.LogInformation("{Count} blobs to process", blobList.Count);
 
-        var extracted = await _documentService.ExtractDocumentsAsync(blobList, ct);
-        var embedded  = await _embeddingService.EmbedDocumentsAsync(extracted, ct);
-
+        var extracted    = await _documentService.ExtractDocumentsAsync(blobList, ct);
+        var embedded     = await _embeddingService.EmbedDocumentsAsync(extracted, ct);
         var embeddedList = embedded.ToList();
-        var failed       = blobList.Count - embeddedList.Count;
 
         await _embeddingService.UploadDocumentsAsync(embeddedList, ct);
 
         await _knowledgeService.EnsureKnowledgeSourceAsync(ct);
         await _knowledgeService.EnsureKnowledgeBaseAsync(ct);
 
-        _logger.LogInformation("Pipeline complete — {Success} succeeded, {Failed} failed in {Ms}ms",
-            embeddedList.Count, failed, sw.ElapsedMilliseconds);
+        _logger.LogInformation("Pipeline complete — {Count} documents indexed in {Ms}ms",
+            embeddedList.Count, sw.ElapsedMilliseconds);
     }
 }

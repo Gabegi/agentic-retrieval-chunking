@@ -1,7 +1,7 @@
-using InvoiceIndexer.Models;
+using ProtocolsIndexer.Models;
 
 public interface IEmbeddingService
 {
-    Task<IEnumerable<InvoiceDocument>> EmbedDocumentsAsync(IEnumerable<InvoiceDocument> documents, CancellationToken ct = default);
-    Task UploadDocumentsAsync(IEnumerable<InvoiceDocument> documents, CancellationToken ct = default);
+    Task<IEnumerable<ProtocolDocument>> EmbedDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default);
+    Task UploadDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default);
 }

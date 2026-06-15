@@ -3,17 +3,16 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
-using InvoiceIndexer.Configuration;
 using Microsoft.Extensions.Logging;
+using ProtocolsIndexer.Configuration;
 
-namespace InvoiceIndexer.Services;
+namespace ProtocolsIndexer.Services;
 
 public class KnowledgeService : IKnowledgeService
 {
     private readonly SearchIndexClient _indexClient;
     private readonly IndexerConfig _config;
     private readonly ILogger<KnowledgeService> _logger;
-
 
     public KnowledgeService(
         IndexerConfig config,
@@ -33,36 +32,25 @@ public class KnowledgeService : IKnowledgeService
             name: _config.KnowledgeSourceName,
             searchIndexParameters: new SearchIndexKnowledgeSourceParameters(_config.SearchIndexName)
             {
-                // Limit BM25 to fields that carry semantic meaning; avoids noise from payment_terms etc.
                 SearchFields =
                 {
                     new SearchIndexFieldReference("content"),
-                    new SearchIndexFieldReference("customer"),
-                    new SearchIndexFieldReference("category")
+                    new SearchIndexFieldReference("richtlijn_name")
                 },
-                // All structured fields returned so the model has full invoice context
                 SourceDataFields =
                 {
                     new SearchIndexFieldReference("id"),
                     new SearchIndexFieldReference("source_file"),
-                    new SearchIndexFieldReference("customer"),
-                    new SearchIndexFieldReference("category"),
-                    new SearchIndexFieldReference("amount"),
-                    new SearchIndexFieldReference("discount"),
-                    new SearchIndexFieldReference("date"),
-                    new SearchIndexFieldReference("order_id"),
-                    new SearchIndexFieldReference("ship_mode"),
+                    new SearchIndexFieldReference("richtlijn_name"),
                     new SearchIndexFieldReference("content")
                 }
-                // note: content_vector is excluded — it's hidden/not stored and not needed for LLM context
             }
         )
         {
-            Description = "Knowledge source for invoice index"
+            Description = "Knowledge source for Dutch medical protocols index"
         };
 
         await _indexClient.CreateOrUpdateKnowledgeSourceAsync(knowledgeSource);
-
         _logger.LogInformation("Knowledge source '{Name}' created or updated", _config.KnowledgeSourceName);
     }
 
@@ -82,35 +70,23 @@ public class KnowledgeService : IKnowledgeService
             knowledgeSources: new[] { new KnowledgeSourceReference(_config.KnowledgeSourceName) }
         )
         {
-            // Index description — helps LLM decide whether to query this source
-            Description = "Contains SuperStore invoices with customer names, order amounts, " +
-                          "discounts, product categories, ship modes and order IDs. " +
-                          "Use this index to answer questions about invoice amounts, " +
-                          "customer spending, product categories and order history.",
+            Description = "Contains Dutch medical protocols (richtlijnen) covering clinical guidelines, " +
+                          "treatment protocols, and medical recommendations for a wide range of conditions.",
 
-            // Retrieval instructions — guides query planning and source selection
-            RetrievalInstructions = "When answering questions about totals or aggregates, " +
-                                    "sum the amounts from all matching invoices. " +
-                                    "Always cite the order ID and customer name. " +
-                                    "For discount questions, look for percentage values. " +
-                                    "For category questions, look for product category fields.",
+            RetrievalInstructions = "Search for protocols by condition name, treatment type, or specialty. " +
+                                    "The content is in Dutch — use Dutch medical terminology when searching. " +
+                                    "Always cite the richtlijn_name and source_file in your answer.",
 
-            // Answer instructions — shapes the final response format
-            AnswerInstructions = "Provide a concise answer with specific numbers where available. " +
-                                 "Always list the relevant invoices with customer name, amount and order ID. " +
-                                 "If calculating totals, show the sum clearly.",
+            AnswerInstructions = "Provide a concise answer based on the protocol content. " +
+                                 "Always mention which richtlijn (guideline) the information comes from. " +
+                                 "If multiple protocols are relevant, summarise each separately.",
 
-            // Answer synthesis — portal returns real answers not raw grounding data
-            OutputMode = KnowledgeRetrievalOutputMode.AnswerSynthesis,
-
-            // Medium reasoning effort — deeper subquery generation for aggregate queries
+            OutputMode               = KnowledgeRetrievalOutputMode.AnswerSynthesis,
             RetrievalReasoningEffort = new KnowledgeRetrievalMediumReasoningEffort(),
-
-            Models = { new KnowledgeBaseAzureOpenAIModel(aoaiParams) }
+            Models                   = { new KnowledgeBaseAzureOpenAIModel(aoaiParams) }
         };
 
         await _indexClient.CreateOrUpdateKnowledgeBaseAsync(knowledgeBase);
-
         _logger.LogInformation("Knowledge base '{Name}' created or updated", _config.KnowledgeBaseName);
     }
 }
