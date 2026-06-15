@@ -1,13 +1,13 @@
 resource "azurerm_cognitive_account" "openai" {
-  name                  = "oai-support-agent-dev-2"
+  name                  = "oai-chuking-agentic-rag"
   resource_group_name   = azurerm_resource_group.main.name
   location              = azurerm_resource_group.main.location
   kind                  = "OpenAI"
   sku_name              = "S0"
-  custom_subdomain_name = "oai-support-agent-dev-2"
+  custom_subdomain_name = "oai-chuking-agentic-rag"
 
   tags = {
-    project     = "support-agent"
+    project     = "agentic-rag-chunking"
     environment = "dev"
   }
 }
