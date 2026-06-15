@@ -126,14 +126,16 @@ var doc = new HtmlDocument();
 doc.LoadHtml(html);
 
 var richtlijnPaths = doc.DocumentNode
-    .SelectNodes("//a[contains(@href,'/richtlijn/')]")
+    .SelectNodes("//a[@href]")
     ?.Select(a => a.GetAttributeValue("href", ""))
-    .Where(h => h.StartsWith("/richtlijn/") && !h.EndsWith(".html"))
+    .Where(h => h.Contains("/richtlijn/") && !h.Contains(".html"))
+    .Select(h => h.StartsWith("http") ? new Uri(h).AbsolutePath : h)
     .Select(h => h.TrimEnd('/'))
     .Distinct()
     .ToList() ?? [];
 
 Console.WriteLine($"Found {richtlijnPaths.Count} richtlijnen — scraping (max {MAX_PARALLEL} parallel)");
+richtlijnPaths.Take(5).ToList().ForEach(l => Console.WriteLine($"  → {l}"));
 
 // ── Step 2: Parallel scrape with throttle ────────────────────────────────────
 var semaphore = new SemaphoreSlim(MAX_PARALLEL);
