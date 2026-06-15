@@ -199,7 +199,7 @@ resource "azurerm_application_insights_workbook" "main" {
   })
 
   tags = {
-    project     = "support-agent"
+    project     = "agentic-rag-chunking"
     environment = "dev"
   }
 }
