@@ -187,7 +187,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "gpt_latency" {
 
 # 5. OpenAI throttling — fires when any 429 occurs
 resource "azurerm_monitor_scheduled_query_rules_alert_v2" "openai_throttling" {
-  name                = "alert-openai-throttling-dev"
+  name                = "alert-chunking-openai-throttling-dev"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
