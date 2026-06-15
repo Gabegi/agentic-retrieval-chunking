@@ -69,13 +69,11 @@ static List<string> GetPdfLinks(HtmlDocument doc) =>
 // ── Normalize href → absolute URL ────────────────────────────────────────────
 static string NormalizeUrl(string href)
 {
+    const string base_ = "https://richtlijnendatabase.nl";
     href = Uri.UnescapeDataString(href);
     if (href.StartsWith("richtlijnendatabase.nl"))
         href = "/" + href.Substring("richtlijnendatabase.nl".Length).TrimStart('/');
-    return href.StartsWith("http") ? href : BASE + href;
-
-    // Use the const — required since static methods can't capture instance fields
-    static string BASE => "https://richtlijnendatabase.nl";
+    return href.StartsWith("http") ? href : base_ + href;
 }
 
 // ── Producer: scrape pages and push PDF work to a channel ────────────────────
