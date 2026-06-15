@@ -39,7 +39,7 @@ resource "azurerm_role_assignment" "aci_indexer_openai_user" {
 }
 
 resource "azurerm_container_group" "invoice_indexer" {
-  name                = "aci-invoice-indexer-dev"
+  name                = "aci-protocols-indexer-dev"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   os_type             = "Linux"
@@ -56,8 +56,8 @@ resource "azurerm_container_group" "invoice_indexer" {
   }
 
   container {
-    name   = "invoice-indexer"
-    image  = "${azurerm_container_registry.main.login_server}/invoice-indexer:${var.indexer_image_tag}"
+    name   = "protocols-indexer"
+    image  = "${azurerm_container_registry.main.login_server}/protocols-indexer:${var.indexer_image_tag}"
     cpu    = "2"
     memory = "4"
 
