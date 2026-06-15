@@ -24,7 +24,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "throttling" {
     query = <<-QUERY
       AzureDiagnostics
       | where ResourceProvider == "MICROSOFT.SEARCH"
-      | where tostring(resultSignature_d) == "503"
+      | where column_ifexists("resultSignature_d", real(null)) == 503
       | summarize ThrottledRequests = count()
       | where ThrottledRequests > 0
     QUERY
@@ -200,7 +200,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "openai_throttling" {
     query = <<-QUERY
       AzureDiagnostics
       | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-      | where toint(resultSignature_d) == 429
+      | where column_ifexists("resultSignature_d", real(null)) == 429
       | summarize ThrottledRequests = count()
       | where ThrottledRequests > 0
     QUERY
