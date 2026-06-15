@@ -2,12 +2,12 @@ using System.Collections.Concurrent;
 using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Search.Documents;
-using InvoiceIndexer.Configuration;
-using InvoiceIndexer.Models;
 using Microsoft.Extensions.Logging;
 using OpenAI.Embeddings;
+using ProtocolsIndexer.Configuration;
+using ProtocolsIndexer.Models;
 
-namespace InvoiceIndexer.Services;
+namespace ProtocolsIndexer.Services;
 
 public class EmbeddingService : IEmbeddingService
 {
@@ -22,31 +22,23 @@ public class EmbeddingService : IEmbeddingService
         ILogger<EmbeddingService> logger)
     {
         _embeddingClient = openAiClient.GetEmbeddingClient(config.OpenAiEmbeddingDeployment);
-
-        _searchClient = new SearchClient(
-            new Uri(config.SearchEndpoint),
-            config.SearchIndexName,
-            credential);
-
-        _logger = logger;
+        _searchClient    = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
+        _logger          = logger;
     }
 
-    public async Task<IEnumerable<InvoiceDocument>> EmbedDocumentsAsync(
-        IEnumerable<InvoiceDocument> documents,
+    public async Task<IEnumerable<ProtocolDocument>> EmbedDocumentsAsync(
+        IEnumerable<ProtocolDocument> documents,
         CancellationToken ct = default)
     {
         var docList = documents.ToList();
         _logger.LogInformation("Embedding {Count} documents", docList.Count);
 
-        var embedded = new ConcurrentBag<InvoiceDocument>();
+        var embedded = new ConcurrentBag<ProtocolDocument>();
 
         await Parallel.ForEachAsync(docList,
             new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = ct },
             async (document, token) =>
             {
-                _logger.LogInformation("Embedding document {Id} — content length: {Chars}",
-                    document.Id, document.Content?.Length);
-
                 var result = await _embeddingClient.GenerateEmbeddingAsync(
                     document.Content, cancellationToken: token);
 
@@ -56,18 +48,16 @@ public class EmbeddingService : IEmbeddingService
                     _logger.LogError("Wrong vector dimensions {Dims} for {Id}",
                         document.ContentVector?.Length, document.Id);
 
-                _logger.LogInformation("Generated vector of {Dims} dimensions for {Id}",
-                    document.ContentVector?.Length, document.Id);
-
+                _logger.LogInformation("Embedded {Id} — {Dims} dims", document.Id, document.ContentVector?.Length);
                 embedded.Add(document);
             });
 
-        _logger.LogInformation("Documents embedded — {Count}", embedded.Count);
+        _logger.LogInformation("Embedding complete — {Count}", embedded.Count);
         return embedded;
     }
 
     public async Task UploadDocumentsAsync(
-        IEnumerable<InvoiceDocument> documents,
+        IEnumerable<ProtocolDocument> documents,
         CancellationToken ct = default)
     {
         var docList = documents.ToList();
@@ -84,7 +74,7 @@ public class EmbeddingService : IEmbeddingService
             {
                 if (!result.Succeeded)
                 {
-                    _logger.LogWarning("Failed to upload document {Key}: {Error}", result.Key, result.ErrorMessage);
+                    _logger.LogWarning("Failed to upload {Key}: {Error}", result.Key, result.ErrorMessage);
                     failed++;
                 }
                 else
@@ -94,6 +84,6 @@ public class EmbeddingService : IEmbeddingService
             }
         }
 
-        _logger.LogInformation("Documents uploaded — {Succeeded} succeeded, {Failed} failed", succeeded, failed);
+        _logger.LogInformation("Upload complete — {Succeeded} succeeded, {Failed} failed", succeeded, failed);
     }
 }
