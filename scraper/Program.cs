@@ -83,11 +83,17 @@ static string NormalizeUrl(string href)
         var idx = href.IndexOf("/gerelateerde");
         href = href.Substring(idx);
     }
-    if (href.Contains("&") && !href.StartsWith("http"))
+    if (href.Contains("&") && !href.StartsWith("http") && !href.Contains("/pdf?g="))
         href = href.Split('&')[0];
     href = href.Replace(" ", "%20");
     return href.StartsWith("http") ? href : base_ + href;
 }
+
+// ── Blob name for a PDF URL ───────────────────────────────────────────────────
+static string BlobName(string pdfUrl, string richtlijnName) =>
+    pdfUrl.Contains("/pdf?g=")
+        ? $"{richtlijnName}/richtlijn_volledig.pdf"
+        : $"{richtlijnName}/{Uri.UnescapeDataString(pdfUrl.Split('/').Last().Split('?').First())}";
 
 // ── Producer: scrape pages and push PDF work to a channel ────────────────────
 // Using a channel decouples scraping speed from upload speed
