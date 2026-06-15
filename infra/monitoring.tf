@@ -1,5 +1,5 @@
 resource "azurerm_monitor_action_group" "main" {
-  name                = "ag-support-agent-dev"
+  name                = "ag-agentic-rag-chunking-dev"
   resource_group_name = azurerm_resource_group.main.name
   short_name          = "searchalert"
 
