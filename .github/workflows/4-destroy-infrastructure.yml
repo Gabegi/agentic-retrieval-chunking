@@ -1,0 +1,50 @@
+name: 4 - Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "⚠️ Type DESTROY to confirm you want to tear down all infrastructure"
+        required: true
+
+jobs:
+  destroy:
+    runs-on: [self-hosted]
+    environment: destroy
+    steps:
+      - name: Confirm destruction intent
+        if: ${{ github.event.inputs.confirmation != 'DESTROY' }}
+        run: |
+          echo "❌ Confirmation failed. You must type DESTROY exactly to proceed."
+          exit 1
+
+      - name: Warning
+        run: |
+          echo "⚠️  WARNING: This will permanently destroy all infrastructure in rg-support-agent-dev."
+          echo "Proceeding in 10 seconds..."
+          sleep 10
+
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v2
+
+      - run: terraform init
+        working-directory: ./infra
+        env:
+          ARM_USE_MSI: true
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+      - run: terraform destroy -auto-approve -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+        working-directory: ./infra
+        env:
+          ARM_USE_MSI: true
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_admin_object_id: ${{ secrets.ADMIN_OBJECT_ID }}
