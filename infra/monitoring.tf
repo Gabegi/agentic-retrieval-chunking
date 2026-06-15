@@ -87,7 +87,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "query_latency" {
 
 # 3. Indexing impact — fires when indexing and high latency overlap
 resource "azurerm_monitor_scheduled_query_rules_alert_v2" "indexing_impact" {
-  name                = "alert-search-indexing-impact-dev"
+  name                = "alert-chunking-search-indexing-impact-dev"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
