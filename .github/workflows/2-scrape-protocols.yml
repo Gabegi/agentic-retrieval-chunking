@@ -20,11 +20,19 @@ jobs:
         with:
           dotnet-version: "8.0"
 
-      - name: Test richtlijn page access
+      - name: Test redirect follow
         run: |
           curl -s -o /dev/null -w "%{http_code}" \
+            -L \
             -A "Mozilla/5.0" \
             "https://richtlijnendatabase.nl/richtlijn/borstkanker"
+
+      - name: Test redirect location
+        run: |
+          curl -s -I \
+            -A "Mozilla/5.0" \
+            "https://richtlijnendatabase.nl/richtlijn/borstkanker" \
+            | grep -i location
 
       - name: Run scraper
         working-directory: scraper
