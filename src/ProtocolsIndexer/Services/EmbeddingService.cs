@@ -1,11 +1,4 @@
 using System.Collections.Concurrent;
-using Azure.AI.OpenAI;
-using Azure.Core;
-using Azure.Search.Documents;
-using Microsoft.Extensions.Logging;
-using OpenAI.Embeddings;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
