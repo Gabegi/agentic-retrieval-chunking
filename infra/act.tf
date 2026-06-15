@@ -1,17 +1,17 @@
 data "azurerm_virtual_machine" "runner" {
-  name                = "vm-github-runner"
+  name                = "vm-github-runner-lz-ai"
   resource_group_name = "rg-github-runner"
 }
 
 resource "azurerm_container_registry" "main" {
-  name                = "crragtest"
+  name                = "chuningtestacr"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = "Basic"
   admin_enabled       = false # Use managed identity, not admin credentials
 
   tags = {
-    project     = "support-agent"
+    project     = "agentic-rag-chunking"
     environment = "dev"
   }
 }
