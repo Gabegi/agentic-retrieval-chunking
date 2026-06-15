@@ -35,38 +35,13 @@ async Task<T> WithRetry<T>(Func<Task<T>> action, string label)
     throw new Exception("Unreachable");
 }
 
-// ── Step 1: Paginate /zoek?page=N to collect all richtlijn paths ─────────────
-Console.WriteLine("Collecting richtlijn links via /zoek...");
-var allPaths = new HashSet<string>();
-int page = 1;
-
-while (true)
-{
-    var html = await WithRetry(() => http.GetStringAsync($"{BASE}/zoek?page={page}"), $"zoek page {page}");
-    var doc = new HtmlDocument();
-    doc.LoadHtml(html);
-
-    var pageLinks = doc.DocumentNode
-        .SelectNodes("//a[@href]")
-        ?.Select(a => a.GetAttributeValue("href", ""))
-        .Where(h => h.Contains("/richtlijn/") && !h.EndsWith(".html"))
-        .Select(h => h.StartsWith("http") ? new Uri(h).AbsolutePath : h)
-        .Select(h => h.TrimEnd('/'))
-        .ToList() ?? [];
-
-    if (pageLinks.Count == 0) break;
-
-    foreach (var l in pageLinks) allPaths.Add(l);
-    Console.WriteLine($"  Page {page}: +{pageLinks.Count} (total: {allPaths.Count})");
-
-    var hasNext = doc.DocumentNode
-        .SelectNodes("//a[@href]")
-        ?.Any(a => a.GetAttributeValue("href", "").Contains($"zoek?page={page + 1}")) ?? false;
-
-    if (!hasNext) break;
-    page++;
-    await Task.Delay(500);
-}
+// ── Step 1: Load richtlijn paths from committed file ─────────────────────────
+Console.WriteLine("Loading richtlijn links from file...");
+var allPaths = File.ReadAllLines("richtlijn-links.txt")
+    .Select(l => l.Trim())
+    .Where(l => l.StartsWith("/richtlijn/"))
+    .Distinct()
+    .ToList();
 
 Console.WriteLine($"Found {allPaths.Count} richtlijnen — scraping (max {MAX_PARALLEL} parallel)");
 
