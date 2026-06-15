@@ -139,7 +139,7 @@ async Task ScrapeRichtlijn(string path)
         foreach (var href in GetPdfLinks(pageDoc))
         {
             var pdfUrl   = NormalizeUrl(href);
-            var blobName = $"{name}/{pdfUrl.Split('/').Last().Split('?').First()}";
+            var blobName = BlobName(pdfUrl, name);
             await channel.Writer.WriteAsync((pdfUrl, blobName));
         }
 
