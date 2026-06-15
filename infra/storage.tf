@@ -4,14 +4,14 @@
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_storage_account" "documents" {
-  name                     = "stinvdocstest"
+  name                     = "staccountchunkingrag"
   resource_group_name      = azurerm_resource_group.main.name
   location                 = azurerm_resource_group.main.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
 
   tags = {
-    project     = "support-agent"
+    project     = "agentic-rag-chunking"
     environment = "dev"
   }
 }
