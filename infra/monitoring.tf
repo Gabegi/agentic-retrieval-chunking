@@ -11,7 +11,7 @@ resource "azurerm_monitor_action_group" "main" {
 
 # 1. Throttling — fires when any 503 occurs
 resource "azurerm_monitor_scheduled_query_rules_alert_v2" "throttling" {
-  name                = "alert-search-throttling-dev"
+  name                = "alert-chunking-search-throttling-dev"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
