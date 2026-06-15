@@ -1,5 +1,5 @@
 resource "azurerm_search_service" "main" {
-  name                = "srch-rag-invoices-test"
+  name                = "srch-rag-chunking-dev"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = "standard" # Required for semantic ranker + vector search
@@ -12,7 +12,7 @@ resource "azurerm_search_service" "main" {
   }
 
   tags = {
-    project     = "support-agent"
+    project     = "agentic-rag-chunking"
     environment = "dev"
   }
 }
