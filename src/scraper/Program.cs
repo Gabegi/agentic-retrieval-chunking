@@ -1,164 +1,81 @@
-using HtmlAgilityPack;
+using Microsoft.Playwright;
 using Azure.Storage.Blobs;
 using Azure.Identity;
-using System.Threading.Channels;
 
-const string BASE = "https://richtlijnendatabase.nl";
-const int SCRAPE_PARALLEL = 20;   // concurrent richtlijn pages
-const int UPLOAD_PARALLEL = 40;   // concurrent blob uploads (separate pool)
-const int MAX_RETRIES = 3;
+const string BASE = "https://lci.rivm.nl";
+const int MAX_PARALLEL = 3; // be gentle — headless browser is heavier than HTTP
 
 var storageUrl = Environment.GetEnvironmentVariable("STORAGE_ACCOUNT_URL")
     ?? throw new Exception("STORAGE_ACCOUNT_URL is required");
-var containerName = Environment.GetEnvironmentVariable("AZURE_CONTAINER_NAME") ?? "documents";
+var containerName = Environment.GetEnvironmentVariable("AZURE_CONTAINER_NAME") ?? "protocols";
 
-var blobService = new BlobServiceClient(new Uri(storageUrl), new DefaultAzureCredential());
-var container = blobService.GetBlobContainerClient(containerName);
+var container = new BlobServiceClient(new Uri(storageUrl), new DefaultAzureCredential())
+    .GetBlobContainerClient(containerName);
+
 await container.CreateIfNotExistsAsync();
 
-// ── Single HttpClient with tuned connection pool ──────────────────────────────
-var handler = new SocketsHttpHandler
-{
-    MaxConnectionsPerServer = 30,
-    PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-    EnableMultipleHttp2Connections = true
-};
-var http = new HttpClient(handler)
-{
-    Timeout = TimeSpan.FromSeconds(30) // fail fast, retry handles the rest
-};
-http.DefaultRequestHeaders.Add("User-Agent",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-
-int uploaded = 0, skipped = 0, failed = 0;
-
-// ── Retry with exponential backoff ───────────────────────────────────────────
-async Task<T> WithRetry<T>(Func<Task<T>> action, string label)
-{
-    for (int i = 1; i <= MAX_RETRIES; i++)
-    {
-        try { return await action(); }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            throw; // 404 will never recover — skip immediately, no retries
-        }
-        catch (Exception ex) when (i < MAX_RETRIES)
-        {
-            Console.WriteLine($"⚠️  Retry {i}/{MAX_RETRIES} [{label[..Math.Min(60, label.Length)]}]: {ex.Message}");
-            await Task.Delay(500 * (int)Math.Pow(2, i));
-        }
-    }
-    return await action();
-}
-
-// ── Load richtlijn paths ──────────────────────────────────────────────────────
-Console.WriteLine("Loading richtlijn links from file...");
 var allPaths = File.ReadAllLines("richtlijn-links.txt")
     .Select(l => l.Trim())
-    .Where(l => l.StartsWith("/richtlijn/"))
+    .Where(l => l.StartsWith("/richtlijnen/"))
     .Distinct()
     .ToList();
 
-Console.WriteLine($"Found {allPaths.Count} richtlijnen — scraping");
+Console.WriteLine($"Found {allPaths.Count} richtlijnen");
 
-// ── PDF href extraction ───────────────────────────────────────────────────────
-static List<string> GetPdfLinks(HtmlDocument doc) =>
-    doc.DocumentNode
-        .SelectNodes("//a[@href]")
-        ?.Select(a => a.GetAttributeValue("href", ""))
-        .Where(h => !string.IsNullOrEmpty(h) && (
-            h.TrimEnd().EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ||
-            h.Contains("/pdf?g=")
-        ))
-        .ToList() ?? [];
+// Skip already uploaded blobs
+Console.WriteLine("Fetching existing blobs...");
+var existingBlobs = new HashSet<string>();
+await foreach (var blob in container.GetBlobsAsync())
+    existingBlobs.Add(blob.Name);
+Console.WriteLine($"{existingBlobs.Count} already uploaded — will skip");
 
-// ── Normalize href → absolute URL ────────────────────────────────────────────
-static string NormalizeUrl(string href)
+// Install Playwright browsers if not already present
+var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+if (exitCode != 0) throw new Exception("Playwright browser install failed");
+
+int uploaded = 0, skipped = 0, failed = 0;
+
+async Task ScrapeRichtlijn(IPage page, string path)
 {
-    const string base_ = "https://richtlijnendatabase.nl";
-    href = System.Net.WebUtility.HtmlDecode(href);
-    href = Uri.UnescapeDataString(href);
-    if (href.Contains("richtlijnendatabase.nl/gerelateerde"))
+    var slug     = path.Split('/').Last();
+    var blobName = $"lci_{slug}/{slug}.pdf";
+
+    if (existingBlobs.Contains(blobName))
     {
-        var idx = href.IndexOf("/gerelateerde");
-        href = href.Substring(idx);
+        Console.WriteLine($"⏭️  Exists: {blobName}");
+        Interlocked.Increment(ref skipped);
+        return;
     }
-    if (href.Contains("&") && !href.StartsWith("http") && !href.Contains("/pdf?g="))
-        href = href.Split('&')[0];
-    href = href.Replace(" ", "%20");
-    return href.StartsWith("http") ? href : base_ + href;
-}
 
-// ── Blob name for a PDF URL ───────────────────────────────────────────────────
-static string BlobName(string pdfUrl, string richtlijnName) =>
-    pdfUrl.Contains("/pdf?g=")
-        ? $"{richtlijnName}/richtlijn_volledig.pdf"
-        : $"{richtlijnName}/{Uri.UnescapeDataString(pdfUrl.Split('/').Last().Split('?').First())}";
-
-// ── Producer: scrape pages and push PDF work to a channel ────────────────────
-// Using a channel decouples scraping speed from upload speed
-var channel = Channel.CreateBounded<(string url, string blobName)>(
-    new BoundedChannelOptions(500)
-    {
-        FullMode = BoundedChannelFullMode.Wait,
-        SingleReader = false,
-        SingleWriter = false
-    });
-
-async Task FetchPage(string url, string richtlijnName)
-{
     try
     {
-        var html = await WithRetry(() => http.GetStringAsync(url), url);
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
+        await page.GotoAsync(BASE + path, new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30_000 });
 
-        foreach (var href in GetPdfLinks(doc))
+        // Accept cookie banner if present
+        var cookieBtn = page.Locator("button:has-text('Accepteren')");
+        if (await cookieBtn.CountAsync() > 0)
+            await cookieBtn.ClickAsync();
+
+        // Strip nav/chrome for a clean PDF
+        await page.EvaluateAsync(@"() => {
+            document.querySelectorAll('header, footer, nav, .breadcrumb, #navbar-main, .cookie-banner')
+                .forEach(el => el.remove());
+        }");
+
+        var pdfBytes = await page.PdfAsync(new()
         {
-            var pdfUrl  = NormalizeUrl(href);
-            var blobName = BlobName(pdfUrl, richtlijnName);
-            await channel.Writer.WriteAsync((pdfUrl, blobName));
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"⚠️  Page failed [{url}]: {ex.Message}");
-    }
-}
+            Format          = "A4",
+            PrintBackground = true,
+            MarginTop       = "20mm",
+            MarginBottom    = "20mm",
+            MarginLeft      = "15mm",
+            MarginRight     = "15mm"
+        });
 
-async Task ScrapeRichtlijn(string path)
-{
-    var name = path.Trim('/').Replace("/", "_");
-    try
-    {
-        var pageHtml = await WithRetry(() => http.GetStringAsync(BASE + path), path);
-        var pageDoc = new HtmlDocument();
-        pageDoc.LoadHtml(pageHtml);
-
-        // Queue PDFs from index page
-        foreach (var href in GetPdfLinks(pageDoc))
-        {
-            var pdfUrl   = NormalizeUrl(href);
-            var blobName = BlobName(pdfUrl, name);
-            await channel.Writer.WriteAsync((pdfUrl, blobName));
-        }
-
-        // Collect module sub-pages
-        var modulePaths = pageDoc.DocumentNode
-            .SelectNodes("//a[@href]")
-            ?.Select(a => a.GetAttributeValue("href", ""))
-            .Where(h => h.Contains(path + "/") && h.EndsWith(".html"))
-            .Select(h => h.StartsWith("http") ? new Uri(h).AbsolutePath : h)
-            .Distinct()
-            .ToList() ?? [];
-
-        // Fetch all module pages concurrently (no extra semaphore — channel handles backpressure)
-        await Task.WhenAll(modulePaths.Select(m =>
-            FetchPage(m.StartsWith("http") ? m : BASE + m, name)));
-    }
-    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-    {
-        Console.WriteLine($"⏭️  404 (removed): {path}");
+        using var stream = new MemoryStream(pdfBytes);
+        await container.GetBlobClient(blobName).UploadAsync(stream, overwrite: true);
+        Console.WriteLine($"✅ {blobName} ({pdfBytes.Length / 1024}kb)");
+        Interlocked.Increment(ref uploaded);
     }
     catch (Exception ex)
     {
@@ -167,64 +84,24 @@ async Task ScrapeRichtlijn(string path)
     }
 }
 
-// ── Consumer: upload PDFs from channel ───────────────────────────────────────
-// Deduplicate by blob name to avoid re-uploading the same file from multiple pages
-var seen = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
+using var playwright = await Playwright.CreateAsync();
+await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
 
-async Task UploadWorker()
+var semaphore = new SemaphoreSlim(MAX_PARALLEL);
+
+var tasks = allPaths.Select(async path =>
 {
-    await foreach (var (pdfUrl, blobName) in channel.Reader.ReadAllAsync())
+    await semaphore.WaitAsync();
+    var page = await browser.NewPageAsync();
+    try { await ScrapeRichtlijn(page, path); }
+    finally
     {
-        if (!seen.TryAdd(blobName, 0)) continue; // already queued
-
-        try
-        {
-            var response = await WithRetry(() => http.GetAsync(pdfUrl, HttpCompletionOption.ResponseHeadersRead), pdfUrl);
-            var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-
-            if (response.IsSuccessStatusCode && contentType.Contains("pdf"))
-            {
-                // Stream directly to blob — no buffering in memory
-                await using var stream = await response.Content.ReadAsStreamAsync();
-                await container.GetBlobClient(blobName).UploadAsync(stream, overwrite: true);
-                Console.WriteLine($"✅ {blobName}");
-                Interlocked.Increment(ref uploaded);
-            }
-            else
-            {
-                Console.WriteLine($"⏭️  Skipped [{response.StatusCode}]: {pdfUrl}");
-                Interlocked.Increment(ref skipped);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Upload failed [{blobName}]: {ex.Message}");
-            Interlocked.Increment(ref failed);
-        }
+        await page.CloseAsync();
+        semaphore.Release();
     }
-}
-
-// ── Run producer + consumer concurrently ─────────────────────────────────────
-var scrapeSemaphore = new SemaphoreSlim(SCRAPE_PARALLEL);
-
-var producerTask = Task.Run(async () =>
-{
-    var tasks = allPaths.Select(async path =>
-    {
-        await scrapeSemaphore.WaitAsync();
-        try { await ScrapeRichtlijn(path); }
-        finally { scrapeSemaphore.Release(); }
-    });
-    await Task.WhenAll(tasks);
-    channel.Writer.Complete(); // signal consumers we're done
 });
 
-var consumerTasks = Enumerable
-    .Range(0, UPLOAD_PARALLEL)
-    .Select(_ => UploadWorker())
-    .ToArray();
+await Task.WhenAll(tasks);
 
-await producerTask;
-await Task.WhenAll(consumerTasks);
-
-Console.WriteLine($"\n🎉 Done — uploaded: {uploaded}, skipped: {skipped}, failed: {failed}");
+Console.WriteLine();
+Console.WriteLine($"Done — uploaded: {uploaded}, skipped: {skipped}, failed: {failed}");
