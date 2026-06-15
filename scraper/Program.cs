@@ -70,9 +70,15 @@ static List<string> GetPdfLinks(HtmlDocument doc) =>
 static string NormalizeUrl(string href)
 {
     const string base_ = "https://richtlijnendatabase.nl";
+    href = System.Net.WebUtility.HtmlDecode(href);
     href = Uri.UnescapeDataString(href);
-    if (href.StartsWith("richtlijnendatabase.nl"))
-        href = "/" + href.Substring("richtlijnendatabase.nl".Length).TrimStart('/');
+    if (href.Contains("richtlijnendatabase.nl/gerelateerde"))
+    {
+        var idx = href.IndexOf("/gerelateerde");
+        href = href.Substring(idx);
+    }
+    if (href.Contains("&") && !href.StartsWith("http"))
+        href = href.Split('&')[0];
     return href.StartsWith("http") ? href : base_ + href;
 }
 
