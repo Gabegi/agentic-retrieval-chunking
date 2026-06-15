@@ -53,26 +53,9 @@ async Task<T> WithRetry<T>(Func<Task<T>> action, string label)
 
 // ── Load richtlijn paths ──────────────────────────────────────────────────────
 Console.WriteLine("Loading richtlijn links from file...");
-var skip404 = new HashSet<string>
-{
-    "/richtlijn/vlekziekte_exantheem_bij_kinderen",
-    "/richtlijn/voedingsbeleid_op_de_intensive_care",
-    "/richtlijn/voedingsbeleid_op_de_neonatologie",
-    "/richtlijn/voettumoren",
-    "/richtlijn/volvulus",
-    "/richtlijn/vonk_vuurwerk",
-    "/richtlijn/vroeggeboorte",
-    "/richtlijn/wondinfecties",
-    "/richtlijn/zachte_wekedelen_tumoren",
-    "/richtlijn/zelfverwonding",
-    "/richtlijn/ziekte_van_huntington",
-    "/richtlijn/ziekte_van_peyronie",
-    "/richtlijn/zorgpad_hartfalen",
-};
-
 var allPaths = File.ReadAllLines("richtlijn-links.txt")
     .Select(l => l.Trim())
-    .Where(l => l.StartsWith("/richtlijn/") && !skip404.Contains(l))
+    .Where(l => l.StartsWith("/richtlijn/"))
     .Distinct()
     .ToList();
 
