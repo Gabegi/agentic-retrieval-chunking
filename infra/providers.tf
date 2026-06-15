@@ -33,11 +33,11 @@ provider "azurerm" {
 }
 
 resource "azurerm_resource_group" "main" {
-  name     = "rg-support-agent-dev"
+  name     = "rg-agentic-rag-chunking"
   location = "eastus"
 
   tags = {
-    project     = "support-agent"
+    project     = "agentic-rag-chunking"
     environment = "dev"
   }
 }
