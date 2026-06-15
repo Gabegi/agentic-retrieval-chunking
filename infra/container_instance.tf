@@ -50,11 +50,6 @@ resource "azurerm_container_group" "invoice_indexer" {
     identity_ids = [azurerm_user_assigned_identity.aci_indexer.id]
   }
 
-  image_registry_credential {
-    server                    = azurerm_container_registry.main.login_server
-    user_assigned_identity_id = azurerm_user_assigned_identity.aci_indexer.id
-  }
-
   container {
     name   = "protocols-indexer"
     image  = "mcr.microsoft.com/azuredocs/aci-helloworld:latest"
