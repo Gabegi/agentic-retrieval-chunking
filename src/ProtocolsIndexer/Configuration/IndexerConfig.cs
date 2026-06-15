@@ -1,4 +1,4 @@
-namespace InvoiceIndexer.Configuration;
+namespace ProtocolsIndexer.Configuration;
 
 public class IndexerConfig
 {
