@@ -55,3 +55,9 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Local dev config — fill from `terraform output`, never commit
+appsettings.Development.json
+
+# Comparison output from --compare mode
+comparison-output/
