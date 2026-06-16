@@ -1,1 +1,0 @@
-// Replaced by ProtocolDocument.cs
