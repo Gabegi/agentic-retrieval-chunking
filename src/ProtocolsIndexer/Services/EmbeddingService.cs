@@ -40,7 +40,7 @@ public class EmbeddingService : IEmbeddingService
             async (document, token) =>
             {
                 var result = await _embeddingClient.GenerateEmbeddingAsync(
-                    document.Content, cancellationToken: token);
+                    document.EmbeddingText, cancellationToken: token);
 
                 document.ContentVector = result.Value.ToFloats().ToArray();
 
