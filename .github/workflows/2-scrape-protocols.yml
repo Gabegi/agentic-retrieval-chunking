@@ -20,9 +20,16 @@ jobs:
         with:
           dotnet-version: "8.0"
 
+      - name: Install Playwright system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
+            libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2
+
       - name: Run scraper
         working-directory: src/scraper
         env:
           STORAGE_ACCOUNT_URL: https://staccountchunkingrag.blob.core.windows.net/
-          AZURE_CONTAINER_NAME: documents
+          AZURE_CONTAINER_NAME: protocols
         run: dotnet run --configuration Release

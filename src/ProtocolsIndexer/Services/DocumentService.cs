@@ -1,4 +1,13 @@
 using System.Collections.Concurrent;
+using Azure.Core;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Search.Documents;
+using Azure.Search.Documents.Models;
+using Microsoft.Extensions.Logging;
+using ProtocolsIndexer.Configuration;
+using ProtocolsIndexer.Models;
+using UglyToad.PdfPig;
 
 namespace ProtocolsIndexer.Services;
 

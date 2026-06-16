@@ -29,8 +29,8 @@ await foreach (var blob in container.GetBlobsAsync())
     existingBlobs.Add(blob.Name);
 Console.WriteLine($"{existingBlobs.Count} already uploaded — will skip");
 
-// Install Playwright browsers if not already present
-var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+// Install Playwright browsers + all OS-level system dependencies
+var exitCode = Microsoft.Playwright.Program.Main(["install", "--with-deps", "chromium"]);
 if (exitCode != 0) throw new Exception("Playwright browser install failed");
 
 int uploaded = 0, skipped = 0, failed = 0;
