@@ -58,3 +58,7 @@ nunit-*.xml
 
 # Comparison output from --compare mode
 comparison-output/
+
+# Terraform local var overrides (developer_object_id etc.)
+*.tfvars
+*.tfvars.json
