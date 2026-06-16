@@ -99,6 +99,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
 
         foreach (var chunk in sample)
         {
+            var text   = chunk.EmbeddingText;
             var prompt = $"""
                 Rate the following Dutch medical text chunk on coherence from 1 to 5.
                 5 = complete thought, starts and ends naturally, fully self-contained.
@@ -106,7 +107,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 Reply with a single integer 1-5 and nothing else.
 
                 ---
-                {chunk.Content[..Math.Min(800, chunk.Content.Length)]}
+                {text[..Math.Min(800, text.Length)]}
                 ---
                 """;
 
