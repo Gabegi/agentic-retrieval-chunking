@@ -37,6 +37,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     // ── Compare mode ─────────────────────────────────────────────────────
     public async Task CompareAsync(CancellationToken ct = default)
     {
+        bool evalCoherence = Environment.GetCommandLineArgs().Contains("--eval-coherence");
+
         Directory.CreateDirectory(OutputDir);
         Console.WriteLine(new string('═', 88));
 
@@ -47,6 +49,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         {
             count++;
             var runs = await Task.WhenAll(_services.Select(s => s.ExtractAsync(item, bytes, ct)));
+
+            if (evalCoherence)
+                await Task.WhenAll(runs.Select(r => ScoreLlmCoherenceAsync(r, ct)));
+
             PrintRow(item.Name, runs);
             WriteChunks(item.Name, runs);
 
@@ -54,6 +60,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             {
                 var t = totals[run.ServiceName];
                 t.Chunks     += run.ChunkCount;
+                t.Coherent   += run.CoherentChunks;
                 t.Empty      += run.EmptyChunks;
                 t.Oversized  += run.OversizedChunks;
                 t.Undersized += run.UndersizedChunks;
@@ -62,11 +69,62 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 t.Ms         += run.ElapsedMs;
                 t.Cost       += run.EstimatedCostUsd;
                 t.Errors     += run.Error != null ? 1 : 0;
+                if (run.AvgLlmCoherence.HasValue)
+                {
+                    t.LlmCoherenceSum   += run.AvgLlmCoherence.Value;
+                    t.LlmCoherenceCount++;
+                }
             }
         }
 
         _logger.LogInformation("Compared {Count} PDFs across {N} services", count, _services.Length);
         PrintTotals(count, totals);
+    }
+
+    // ── LLM coherence scorer — samples up to 5 non-trivial chunks per run ─
+    private async Task ScoreLlmCoherenceAsync(ExtractionRun run, CancellationToken ct)
+    {
+        if (run.Error != null || run.ChunkCount == 0) return;
+
+        var sample = run.Chunks
+            .Where(c => !c.IsEmpty && !c.IsUndersized)
+            .OrderBy(_ => Guid.NewGuid())
+            .Take(5)
+            .ToList();
+
+        if (sample.Count == 0) return;
+
+        var chat = _openAi.GetChatClient(_config.OpenAiGptDeployment);
+        var scores = new List<double>();
+
+        foreach (var chunk in sample)
+        {
+            var prompt = $"""
+                Rate the following Dutch medical text chunk on coherence from 1 to 5.
+                5 = complete thought, starts and ends naturally, fully self-contained.
+                1 = cut off mid-sentence, missing context, or incoherent fragment.
+                Reply with a single integer 1-5 and nothing else.
+
+                ---
+                {chunk.Content[..Math.Min(800, chunk.Content.Length)]}
+                ---
+                """;
+
+            try
+            {
+                var response = await chat.CompleteChatAsync(
+                    [new UserChatMessage(prompt)],
+                    new ChatCompletionOptions { MaxOutputTokenCount = 5 },
+                    ct);
+
+                if (int.TryParse(response.Value.Content[0].Text.Trim(), out var score) && score is >= 1 and <= 5)
+                    scores.Add(score);
+            }
+            catch { /* non-fatal — skip this chunk */ }
+        }
+
+        if (scores.Count > 0)
+            run.AvgLlmCoherence = scores.Average();
     }
 
     // ── Run mode ─────────────────────────────────────────────────────────
@@ -123,6 +181,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         Row("Chunks",             r => r.ChunkCount.ToString());
         Row("Avg tokens",         r => $"{r.AvgTokens:F0}");
         Row("Headings detected",  r => r.HeadingsDetected.ToString());
+        Row("Coherent chunks",    r => r.ChunkCount > 0 ? $"{r.CoherentChunks} ({100*r.CoherentChunks/r.ChunkCount}%)" : "—");
+        Row("LLM coherence",      r => r.AvgLlmCoherence.HasValue ? $"{r.AvgLlmCoherence:F1}/5" : "—");
         Row("Empty chunks",       r => r.EmptyChunks.ToString());
         Row("Oversized (>1024t)", r => r.OversizedChunks.ToString());
         Row("Undersized (<20t)",  r => r.UndersizedChunks.ToString());
