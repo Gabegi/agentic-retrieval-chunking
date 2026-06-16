@@ -1,3 +1,5 @@
+namespace ProtocolsIndexer.Services;
+
 public interface IKnowledgeService
 {
     Task EnsureKnowledgeSourceAsync(CancellationToken ct = default);
