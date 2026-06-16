@@ -11,17 +11,17 @@ using UglyToad.PdfPig;
 
 namespace ProtocolsIndexer.Services;
 
-public class DocumentService : IDocumentService
+public class ExtractionService : IExtractionService
 {
     private readonly BlobContainerClient _containerClient;
     private readonly SearchClient _searchClient;
-    private readonly ILogger<DocumentService> _logger;
+    private readonly ILogger<ExtractionService> _logger;
 
-    public DocumentService(
+    public ExtractionService(
         IndexerConfig config,
         BlobServiceClient blobServiceClient,
         TokenCredential credential,
-        ILogger<DocumentService> logger)
+        ILogger<ExtractionService> logger)
     {
         _containerClient = blobServiceClient.GetBlobContainerClient(config.StorageContainer);
         _searchClient    = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);

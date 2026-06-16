@@ -44,7 +44,7 @@ var host = Host.CreateDefaultBuilder(args)
             new AzureOpenAIClient(new Uri(config.OpenAiEndpoint), credential));
 
         services.AddSingleton<IIndexService, IndexService>();
-        services.AddSingleton<IDocumentService, DocumentService>();
+        services.AddSingleton<IExtractionService, ExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
         services.AddSingleton<IPipelineOrchestrator, PipelineOrchestrator>();
