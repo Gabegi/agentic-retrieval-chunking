@@ -40,7 +40,7 @@ public class IndexService : IIndexService
         var semanticConfig = new SemanticConfiguration("semantic-config", new SemanticPrioritizedFields
         {
             ContentFields  = { new SemanticField("content") },
-            KeywordsFields = { new SemanticField("richtlijn_name") }
+            KeywordsFields = { new SemanticField("richtlijn_name"), new SemanticField("heading") }
         });
 
         var semanticSearch = new SemanticSearch();
