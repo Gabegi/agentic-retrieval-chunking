@@ -6,6 +6,7 @@ public class ExtractionRun
     public string                 BlobName         { get; set; } = "";
     public List<ProtocolDocument> Chunks           { get; set; } = [];
     public long                   ElapsedMs        { get; set; }
+    public decimal                EstimatedCostUsd { get; set; }
     public bool                   UsedFallback     { get; set; }
     public string?                Error            { get; set; }
 
