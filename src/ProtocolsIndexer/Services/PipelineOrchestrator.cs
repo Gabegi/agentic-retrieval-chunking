@@ -30,15 +30,14 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     public async Task CompareAsync(CancellationToken ct = default)
     {
         Directory.CreateDirectory(OutputDir);
-
-        var blobs = await LoadBlobsAsync(ct);
-        _logger.LogInformation("Comparing {Count} PDFs across {N} services", blobs.Count, _services.Length);
-        Console.WriteLine($"Found {blobs.Count} PDFs\n{new string('═', 88)}");
+        Console.WriteLine(new string('═', 88));
 
         var totals = _services.ToDictionary(s => s.Name, _ => new Totals());
+        int count  = 0;
 
-        foreach (var (item, bytes) in blobs)
+        await foreach (var (item, bytes) in StreamBlobsAsync(ct))
         {
+            count++;
             var runs = await Task.WhenAll(_services.Select(s => s.ExtractAsync(item, bytes, ct)));
             PrintRow(item.Name, runs);
             WriteChunks(item.Name, runs);
@@ -58,7 +57,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             }
         }
 
-        PrintTotals(blobs.Count, totals);
+        _logger.LogInformation("Compared {Count} PDFs across {N} services", count, _services.Length);
+        PrintTotals(count, totals);
     }
 
     // ── Run mode ─────────────────────────────────────────────────────────
@@ -67,13 +67,14 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         if (_services.Length == 0)
             throw new InvalidOperationException("No extraction service registered.");
 
-        var service = _services[0];
-        _logger.LogInformation("Pipeline starting with {Service}", service.Name);
+        var serviceName = Environment.GetEnvironmentVariable("EXTRACTION_SERVICE") ?? "pdfpig";
+        var service     = _services.FirstOrDefault(s =>
+                              s.Name.Contains(serviceName, StringComparison.OrdinalIgnoreCase))
+                          ?? _services[0];
 
-        var blobs = await LoadBlobsAsync(ct);
-        _logger.LogInformation("{Count} blobs to process", blobs.Count);
+        _logger.LogInformation("Pipeline using {Service}", service.Name);
 
-        foreach (var (item, bytes) in blobs)
+        await foreach (var (item, bytes) in StreamBlobsAsync(ct))
         {
             var run = await service.ExtractAsync(item, bytes, ct);
             if (run.Error != null)
@@ -87,18 +88,17 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         }
     }
 
-    // ── Blob loading ─────────────────────────────────────────────────────
-    private async Task<List<(BlobItem Item, byte[] Bytes)>> LoadBlobsAsync(CancellationToken ct)
+    // ── Streaming blob download (one PDF at a time, not all in RAM) ───────
+    private async IAsyncEnumerable<(BlobItem Item, byte[] Bytes)> StreamBlobsAsync(
+        [EnumeratorCancellation] CancellationToken ct)
     {
-        var blobs = new List<(BlobItem, byte[])>();
         await foreach (var item in _container.GetBlobsAsync(cancellationToken: ct))
         {
             if (!item.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
             using var ms = new MemoryStream();
             await _container.GetBlobClient(item.Name).DownloadToAsync(ms, ct);
-            blobs.Add((item, ms.ToArray()));
+            yield return (item, ms.ToArray());
         }
-        return blobs;
     }
 
     // ── Console output ────────────────────────────────────────────────────
