@@ -34,23 +34,38 @@ public class DocumentIntelligenceExtractionService : IExtractionService
             var analysis  = operation.Value;
             var pageCount = analysis.Pages?.Count ?? 0;
 
-            // Parse metadata from full text of first two pages
-            var firstPagesText = string.Join(" ",
+            // Preserve newlines so multiline regexes in LciMetadataParser anchor correctly
+            var firstPagesText = string.Join("\n",
                 analysis.Paragraphs?
                     .Where(p => (p.BoundingRegions?.FirstOrDefault()?.PageNumber ?? 0) <= 2)
                     .Select(p => p.Content) ?? []);
 
-            var meta = LciMetadataParser.Parse(firstPagesText, blob.Name);
-
-            ProtocolDocument? current = null;
+            var meta       = LciMetadataParser.Parse(firstPagesText, blob.Name);
             int chunkIndex = 0;
+            ProtocolDocument? current = null;
 
+            // ChunkIndex assigned on flush — not on body-accumulator creation
             void FlushChunk()
             {
-                if (current == null || string.IsNullOrWhiteSpace(current.Content)) return;
+                if (current == null
+                    || string.IsNullOrWhiteSpace(current.Content)
+                    || current.Content.Split(' ').Length < 5) return;
+
+                current.ChunkIndex = chunkIndex++;
                 run.Chunks.Add(current);
                 current = null;
             }
+
+            ProtocolDocument BaseDoc(int pageNum) => new()
+            {
+                Id              = $"{blob.Name}::pending",
+                SourceFile      = blob.Name,
+                RichtlijnName   = meta.RichtlijnName,
+                PublicationDate = meta.PublicationDate,
+                Version         = meta.Version,
+                PageNumber      = pageNum,
+                Content         = ""
+            };
 
             foreach (var para in analysis.Paragraphs ?? [])
             {
@@ -65,35 +80,29 @@ public class DocumentIntelligenceExtractionService : IExtractionService
                     || para.Role == DocumentParagraphRole.SectionHeading)
                 {
                     FlushChunk();
-                    current = new ProtocolDocument
-                    {
-                        Id              = $"{blob.Name}::{chunkIndex}",
-                        SourceFile      = blob.Name,
-                        RichtlijnName   = meta.RichtlijnName,
-                        PublicationDate = meta.PublicationDate,
-                        Version         = meta.Version,
-                        Heading         = para.Content,
-                        PageNumber      = pageNum,
-                        ChunkIndex      = chunkIndex++,
-                        Content         = ""
-                    };
+                    current         = BaseDoc(pageNum);
+                    current.Heading = para.Content;
                 }
                 else
                 {
-                    current ??= new ProtocolDocument
-                    {
-                        Id              = $"{blob.Name}::{chunkIndex}",
-                        SourceFile      = blob.Name,
-                        RichtlijnName   = meta.RichtlijnName,
-                        PublicationDate = meta.PublicationDate,
-                        Version         = meta.Version,
-                        PageNumber      = pageNum,
-                        ChunkIndex      = chunkIndex++,
-                        Content         = ""
-                    };
-
+                    current ??= BaseDoc(pageNum);
                     current.Content += (current.Content.Length > 0 ? " " : "") + para.Content;
                 }
+            }
+
+            // Tables: append to current chunk (dosage tables, diagnostic criteria, etc.)
+            foreach (var table in analysis.Tables ?? [])
+            {
+                var pageNum   = table.BoundingRegions?.FirstOrDefault()?.PageNumber ?? 0;
+                var tableText = string.Join(" | ", table.Cells
+                    .OrderBy(c => c.RowIndex).ThenBy(c => c.ColumnIndex)
+                    .Select(c => c.Content.Trim())
+                    .Where(c => !string.IsNullOrWhiteSpace(c)));
+
+                if (string.IsNullOrWhiteSpace(tableText)) continue;
+
+                current ??= BaseDoc(pageNum);
+                current.Content += (current.Content.Length > 0 ? " " : "") + tableText;
             }
 
             FlushChunk();
