@@ -34,6 +34,20 @@ resource "azurerm_role_assignment" "sp_blob_contributor" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+resource "azurerm_role_assignment" "developer_blob_reader" {
+  count                = var.developer_object_id != "" ? 1 : 0
+  scope                = azurerm_storage_account.documents.id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = var.developer_object_id
+}
+
+resource "azurerm_role_assignment" "developer_document_intelligence" {
+  count                = var.developer_object_id != "" ? 1 : 0
+  scope                = azurerm_cognitive_account.document_intelligence.id
+  role_definition_name = "Cognitive Services User"
+  principal_id         = var.developer_object_id
+}
+
 output "sp_object_id" {
   value       = data.azurerm_client_config.current.object_id
   description = "Object ID used for the Storage Blob Data Contributor role assignment"

@@ -55,3 +55,9 @@ variable "admin_object_id" {
   description = "Object ID of the admin user account for portal access to the search service"
   type        = string
 }
+
+variable "developer_object_id" {
+  description = "Object ID of the developer's user account for local dev blob and Document Intelligence access"
+  type        = string
+  default     = ""
+}
