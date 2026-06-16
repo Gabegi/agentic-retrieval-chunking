@@ -14,6 +14,10 @@ public class ExtractionRun
     public int    EmptyChunks      => Chunks.Count(c => c.IsEmpty);
     public int    OversizedChunks  => Chunks.Count(c => c.IsOversized);
     public int    UndersizedChunks => Chunks.Count(c => c.IsUndersized);
+    public int    CoherentChunks   => Chunks.Count(c => c.IsCoherent);
     public double AvgTokens        => Chunks.Count > 0 ? Chunks.Average(c => c.TokenEstimate) : 0;
     public int    HeadingsDetected => Chunks.Count(c => c.Heading != null);
+
+    // Set by LLM coherence eval (--eval-coherence flag); null if not run
+    public double? AvgLlmCoherence { get; set; }
 }

@@ -38,4 +38,9 @@ public class ProtocolDocument
     [JsonIgnore] public bool IsEmpty       => string.IsNullOrWhiteSpace(Content);
     [JsonIgnore] public bool IsOversized   => TokenEstimate > 1024;
     [JsonIgnore] public bool IsUndersized  => TokenEstimate < 20;
+
+    // Sentence boundary proxies — a coherent chunk starts and ends at natural boundaries
+    [JsonIgnore] public bool StartsClean => Content.Length > 0 && (char.IsUpper(Content[0]) || char.IsDigit(Content[0]));
+    [JsonIgnore] public bool EndsClean   => Content.Length > 0 && ".!?:)\"'".Contains(Content[^1]);
+    [JsonIgnore] public bool IsCoherent  => StartsClean && EndsClean;
 }
