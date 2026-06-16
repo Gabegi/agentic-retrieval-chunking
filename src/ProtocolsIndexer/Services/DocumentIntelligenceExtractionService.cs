@@ -92,7 +92,7 @@ public class DocumentIntelligenceExtractionService : IExtractionService
             // Tables: append to current chunk (dosage tables, diagnostic criteria, etc.)
             foreach (var table in analysis.Tables ?? [])
             {
-                var pageNum   = table.BoundingRegions?.FirstOrDefault()?.PageNumber ?? 0;
+                var pageNum   = table.BoundingRegions is { Count: > 0 } brT ? brT[0].PageNumber : 0;
                 var tableText = string.Join(" | ", table.Cells
                     .OrderBy(c => c.RowIndex).ThenBy(c => c.ColumnIndex)
                     .Select(c => c.Content.Trim())
