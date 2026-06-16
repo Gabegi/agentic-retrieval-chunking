@@ -256,14 +256,17 @@ public class PipelineOrchestrator : IPipelineOrchestrator
 
     private sealed class Totals
     {
-        public int     Chunks    { get; set; }
-        public int     Empty     { get; set; }
-        public int     Oversized { get; set; }
-        public int     Undersized{ get; set; }
-        public int     Headings  { get; set; }
-        public int     Fallbacks { get; set; }
-        public long    Ms        { get; set; }
-        public decimal Cost      { get; set; }
-        public int     Errors    { get; set; }
+        public int     Chunks            { get; set; }
+        public int     Coherent          { get; set; }
+        public int     Empty             { get; set; }
+        public int     Oversized         { get; set; }
+        public int     Undersized        { get; set; }
+        public int     Headings          { get; set; }
+        public int     Fallbacks         { get; set; }
+        public long    Ms                { get; set; }
+        public decimal Cost              { get; set; }
+        public int     Errors            { get; set; }
+        public double  LlmCoherenceSum   { get; set; }
+        public int     LlmCoherenceCount { get; set; }
     }
 }
