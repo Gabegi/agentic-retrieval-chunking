@@ -34,8 +34,8 @@ public class ProtocolDocument
     [JsonPropertyName("content_vector")]
     public float[]? ContentVector { get; set; }
 
-    public int  TokenEstimate => Content.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-    public bool IsEmpty       => string.IsNullOrWhiteSpace(Content);
-    public bool IsOversized   => TokenEstimate > 1024;
-    public bool IsUndersized  => TokenEstimate < 20;
+    [JsonIgnore] public int  TokenEstimate => Content.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+    [JsonIgnore] public bool IsEmpty       => string.IsNullOrWhiteSpace(Content);
+    [JsonIgnore] public bool IsOversized   => TokenEstimate > 1024;
+    [JsonIgnore] public bool IsUndersized  => TokenEstimate < 20;
 }

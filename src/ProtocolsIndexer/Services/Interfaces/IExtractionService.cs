@@ -5,6 +5,6 @@ namespace ProtocolsIndexer.Services;
 
 public interface IExtractionService
 {
-    Task<IEnumerable<BlobItem>> ReadBlobsAsync(CancellationToken ct = default);
-    Task<IEnumerable<ProtocolDocument>> ExtractDocumentsAsync(IEnumerable<BlobItem> blobs, CancellationToken ct = default);
+    string Name { get; }
+    Task<ExtractionRun> ExtractAsync(BlobItem blob, byte[] pdfBytes, CancellationToken ct = default);
 }
