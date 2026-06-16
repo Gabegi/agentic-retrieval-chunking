@@ -1,7 +1,10 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using Azure.AI.OpenAI;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
+using OpenAI.Chat;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
 
@@ -9,20 +12,25 @@ namespace ProtocolsIndexer.Services;
 
 public class PipelineOrchestrator : IPipelineOrchestrator
 {
-    private readonly BlobContainerClient      _container;
-    private readonly IExtractionService[]     _services;
+    private readonly BlobContainerClient          _container;
+    private readonly IExtractionService[]         _services;
+    private readonly AzureOpenAIClient            _openAi;
+    private readonly IndexerConfig                _config;
     private readonly ILogger<PipelineOrchestrator> _logger;
     private const string OutputDir = "comparison-output";
 
     public PipelineOrchestrator(
-        BlobServiceClient            blobServiceClient,
+        BlobServiceClient               blobServiceClient,
         IEnumerable<IExtractionService> services,
-        IndexerConfig                config,
-        ILogger<PipelineOrchestrator> logger)
+        AzureOpenAIClient               openAi,
+        IndexerConfig                   config,
+        ILogger<PipelineOrchestrator>   logger)
     {
         _container = blobServiceClient.GetBlobContainerClient(
             string.IsNullOrEmpty(config.StorageContainer) ? "protocols" : config.StorageContainer);
         _services  = services.ToArray();
+        _openAi    = openAi;
+        _config    = config;
         _logger    = logger;
     }
 
