@@ -208,17 +208,19 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         void TRow(string label, Func<Totals, string> fn) =>
             Console.WriteLine($"  {label,-28} " + string.Join(" ", vals.Select(t => $"{fn(t),-26}")));
 
-        TRow("Total PDFs",        _ => pdfCount.ToString());
-        TRow("Total chunks",      t => t.Chunks.ToString());
-        TRow("Total headings",    t => t.Headings.ToString());
-        TRow("Total empty",       t => t.Empty.ToString());
-        TRow("Total oversized",   t => t.Oversized.ToString());
-        TRow("Total undersized",  t => t.Undersized.ToString());
-        TRow("Fallback PDFs",     t => t.Fallbacks.ToString());
-        TRow("Total time (ms)",   t => $"{t.Ms}ms");
-        TRow("Avg time/PDF (ms)", t => $"{(pdfCount > 0 ? t.Ms / pdfCount : 0)}ms");
-        TRow("Total cost (USD)",  t => $"${t.Cost:F4}");
-        TRow("Errors",            t => t.Errors.ToString());
+        TRow("Total PDFs",           _ => pdfCount.ToString());
+        TRow("Total chunks",         t => t.Chunks.ToString());
+        TRow("Total headings",       t => t.Headings.ToString());
+        TRow("Coherent chunks",      t => t.Chunks > 0 ? $"{t.Coherent} ({100*t.Coherent/t.Chunks}%)" : "—");
+        TRow("Avg LLM coherence",    t => t.LlmCoherenceCount > 0 ? $"{t.LlmCoherenceSum/t.LlmCoherenceCount:F1}/5" : "—");
+        TRow("Total empty",          t => t.Empty.ToString());
+        TRow("Total oversized",      t => t.Oversized.ToString());
+        TRow("Total undersized",     t => t.Undersized.ToString());
+        TRow("Fallback PDFs",        t => t.Fallbacks.ToString());
+        TRow("Total time (ms)",      t => $"{t.Ms}ms");
+        TRow("Avg time/PDF (ms)",    t => $"{(pdfCount > 0 ? t.Ms / pdfCount : 0)}ms");
+        TRow("Total cost (USD)",     t => $"${t.Cost:F4}");
+        TRow("Errors",               t => t.Errors.ToString());
 
         Console.WriteLine($"\n✅ Done\n📁 Chunks written to ./{OutputDir}/");
     }
