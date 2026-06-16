@@ -43,4 +43,9 @@ public class ProtocolDocument
     [JsonIgnore] public bool StartsClean => Content.Length > 0 && (char.IsUpper(Content[0]) || char.IsDigit(Content[0]));
     [JsonIgnore] public bool EndsClean   => Content.Length > 0 && ".!?:)\"'".Contains(Content[^1]);
     [JsonIgnore] public bool IsCoherent  => StartsClean && EndsClean;
+
+    // What gets embedded and scored — heading gives the model context for retrieval
+    [JsonIgnore] public string EmbeddingText => Heading != null
+        ? $"{Heading}\n\n{Content}"
+        : Content;
 }
