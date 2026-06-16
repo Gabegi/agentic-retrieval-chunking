@@ -111,9 +111,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         if (sample.Count == 0) return;
 
         var chat = _openAi.GetChatClient(_config.OpenAiGptDeployment);
-        var scores = new List<double>();
 
-        foreach (var chunk in sample)
+        var scores = await Task.WhenAll(sample.Select(async chunk =>
         {
             var text   = chunk.EmbeddingText;
             var prompt = $"""
@@ -126,7 +125,6 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 {text[..Math.Min(800, text.Length)]}
                 ---
                 """;
-
             try
             {
                 var response = await chat.CompleteChatAsync(
@@ -135,13 +133,15 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                     ct);
 
                 if (int.TryParse(response.Value.Content[0].Text.Trim(), out var score) && score is >= 1 and <= 5)
-                    scores.Add(score);
+                    return (double?)score;
             }
-            catch { /* non-fatal — skip this chunk */ }
-        }
+            catch { /* non-fatal */ }
+            return null;
+        }));
 
-        if (scores.Count > 0)
-            run.AvgLlmCoherence = scores.Average();
+        var valid = scores.Where(s => s.HasValue).Select(s => s!.Value).ToList();
+        if (valid.Count > 0)
+            run.AvgLlmCoherence = valid.Average();
     }
 
     // ── Run mode ─────────────────────────────────────────────────────────
