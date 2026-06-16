@@ -27,3 +27,8 @@ output "resource_group_name" {
   value       = azurerm_resource_group.main.name
   description = "Name of the main resource group"
 }
+
+output "document_intelligence_endpoint" {
+  value       = azurerm_cognitive_account.document_intelligence.endpoint
+  description = "DOCUMENT_INTELLIGENCE_ENDPOINT for extraction comparison"
+}

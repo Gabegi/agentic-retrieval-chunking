@@ -1,7 +1,10 @@
+using Azure.AI.DocumentIntelligence;
 using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using ProtocolsIndexer.Comparison;
+using ProtocolsIndexer.Comparison.Services;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,8 +27,9 @@ var host = Host.CreateDefaultBuilder(args)
             OpenAiEmbeddingDeployment  = ctx.Configuration["OPENAI_EMBEDDING_DEPLOYMENT"]!,
             OpenAiGptDeployment        = ctx.Configuration["OPENAI_GPT_DEPLOYMENT"]!,
             OpenAiGptModelName         = ctx.Configuration["OPENAI_GPT_MODEL_NAME"]!,
-            OpenAiExtractionDeployment = ctx.Configuration["OPENAI_EXTRACTION_DEPLOYMENT"] ?? "gpt-41-extraction",
-            StorageAccountUrl          = ctx.Configuration["STORAGE_ACCOUNT_URL"]!,
+            OpenAiExtractionDeployment    = ctx.Configuration["OPENAI_EXTRACTION_DEPLOYMENT"] ?? "gpt-41-extraction",
+            DocumentIntelligenceEndpoint  = ctx.Configuration["DOCUMENT_INTELLIGENCE_ENDPOINT"] ?? "",
+            StorageAccountUrl             = ctx.Configuration["STORAGE_ACCOUNT_URL"]!,
             StorageContainer           = ctx.Configuration["STORAGE_CONTAINER"]!,
             SearchIndexName            = ctx.Configuration["SEARCH_INDEX_NAME"]!,
             KnowledgeSourceName        = ctx.Configuration["KNOWLEDGE_SOURCE_NAME"]!,
@@ -48,8 +52,24 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
         services.AddSingleton<IPipelineOrchestrator, PipelineOrchestrator>();
+
+        if (!string.IsNullOrEmpty(config.DocumentIntelligenceEndpoint))
+        {
+            services.AddSingleton(_ =>
+                new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
+            services.AddSingleton<PdfPigExtractionStrategy>();
+            services.AddSingleton<DocumentIntelligenceExtractionStrategy>();
+            services.AddSingleton<ComparisonRunner>();
+        }
     })
     .Build();
+
+if (args.Contains("--compare"))
+{
+    var runner = host.Services.GetRequiredService<ComparisonRunner>();
+    await runner.RunAsync();
+    return;
+}
 
 var orchestrator = host.Services.GetRequiredService<IPipelineOrchestrator>();
 await orchestrator.RunAsync();
