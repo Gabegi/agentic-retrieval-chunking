@@ -62,6 +62,14 @@ async Task ScrapeRichtlijn(IPage page, string path)
                 .forEach(el => el.remove());
         }");
 
+        var wordCount = await page.EvaluateAsync<int>("() => document.body.innerText.trim().split(/\\s+/).filter(w => w).length");
+        if (wordCount < 100)
+        {
+            Console.WriteLine($"⚠️  Blank ({wordCount} words): {blobName}");
+            Interlocked.Increment(ref failed);
+            return;
+        }
+
         var pdfBytes = await page.PdfAsync(new PagePdfOptions
         {
             Format          = "A4",
