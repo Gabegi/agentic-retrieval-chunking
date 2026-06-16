@@ -78,7 +78,7 @@ public class PdfPigExtractionService : IExtractionService
 
             foreach (var page in pdf.GetPages())
             {
-                var pageHeight = page.MediaBox.Height;
+                var pageHeight = page.MediaBox.Bounds.Height;
 
                 var lines = page.GetWords()
                     .GroupBy(w => Math.Round(w.BoundingBox.Bottom, 1))

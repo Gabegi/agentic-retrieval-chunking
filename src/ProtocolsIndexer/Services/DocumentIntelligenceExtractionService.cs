@@ -26,9 +26,8 @@ public class DocumentIntelligenceExtractionService : IExtractionService
 
         try
         {
-            var content   = new AnalyzeDocumentContent { Base64Source = BinaryData.FromBytes(pdfBytes) };
             var operation = await _client.AnalyzeDocumentAsync(
-                WaitUntil.Completed, "prebuilt-layout", content,
+                WaitUntil.Completed, "prebuilt-layout", BinaryData.FromBytes(pdfBytes),
                 cancellationToken: ct);
 
             var analysis  = operation.Value;
@@ -37,7 +36,7 @@ public class DocumentIntelligenceExtractionService : IExtractionService
             // Preserve newlines so multiline regexes in LciMetadataParser anchor correctly
             var firstPagesText = string.Join("\n",
                 analysis.Paragraphs?
-                    .Where(p => (p.BoundingRegions?.FirstOrDefault()?.PageNumber ?? 0) <= 2)
+                    .Where(p => (p.BoundingRegions is { Count: > 0 } br0 ? br0[0].PageNumber : 0) <= 2)
                     .Select(p => p.Content) ?? []);
 
             var meta       = LciMetadataParser.Parse(firstPagesText, blob.Name);
@@ -69,15 +68,15 @@ public class DocumentIntelligenceExtractionService : IExtractionService
 
             foreach (var para in analysis.Paragraphs ?? [])
             {
-                if (para.Role == DocumentParagraphRole.PageHeader
-                    || para.Role == DocumentParagraphRole.PageFooter
-                    || para.Role == DocumentParagraphRole.PageNumber)
+                if (para.Role == ParagraphRole.PageHeader
+                    || para.Role == ParagraphRole.PageFooter
+                    || para.Role == ParagraphRole.PageNumber)
                     continue;
 
-                var pageNum = para.BoundingRegions?.FirstOrDefault()?.PageNumber ?? 0;
+                var pageNum = para.BoundingRegions is { Count: > 0 } brP ? brP[0].PageNumber : 0;
 
-                if (para.Role == DocumentParagraphRole.Title
-                    || para.Role == DocumentParagraphRole.SectionHeading)
+                if (para.Role == ParagraphRole.Title
+                    || para.Role == ParagraphRole.SectionHeading)
                 {
                     FlushChunk();
                     current         = BaseDoc(pageNum);
