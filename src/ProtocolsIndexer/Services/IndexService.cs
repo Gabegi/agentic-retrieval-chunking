@@ -56,11 +56,16 @@ public class IndexService : IIndexService
             SemanticSearch = semanticSearch,
             Fields =
             {
-                new SimpleField("id",              SearchFieldDataType.String) { IsKey = true, IsFilterable = true },
-                new SearchableField("richtlijn_name")                          { IsFilterable = true, IsFacetable = true },
-                new SimpleField("source_file",     SearchFieldDataType.String) { IsFilterable = true },
-                new SearchableField("content")                                 { AnalyzerName = "nl.microsoft" },
-                new VectorSearchField("content_vector", 3072, "vector-profile") { IsHidden = true, IsStored = false }
+                new SimpleField("id",                SearchFieldDataType.String)  { IsKey = true, IsFilterable = true },
+                new SearchableField("richtlijn_name")                            { IsFilterable = true, IsFacetable = true },
+                new SimpleField("source_file",       SearchFieldDataType.String)  { IsFilterable = true },
+                new SearchableField("content")                                   { AnalyzerName = "nl.microsoft" },
+                new SearchableField("heading")                                   { IsFilterable = true, IsFacetable = true },
+                new SimpleField("publication_date",  SearchFieldDataType.String)  { IsFilterable = true },
+                new SimpleField("version",           SearchFieldDataType.String)  { IsFilterable = true },
+                new SimpleField("page_number",       SearchFieldDataType.Int32),
+                new SimpleField("chunk_index",       SearchFieldDataType.Int32),
+                new VectorSearchField("content_vector", 3072, "vector-profile")  { IsHidden = true, IsStored = false }
             }
         };
 
