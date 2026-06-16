@@ -42,40 +42,56 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         Directory.CreateDirectory(OutputDir);
         Console.WriteLine(new string('═', 88));
 
-        var totals = _services.ToDictionary(s => s.Name, _ => new Totals());
-        int count  = 0;
+        var totals  = _services.ToDictionary(s => s.Name, _ => new Totals());
+        int count   = 0;
+        var printLock = new object();
 
-        await foreach (var (item, bytes) in StreamBlobsAsync(ct))
-        {
-            count++;
-            var runs = await Task.WhenAll(_services.Select(s => s.ExtractAsync(item, bytes, ct)));
+        // Collect blob list first (fast — metadata only), then process in parallel
+        var blobItems = new List<BlobItem>();
+        await foreach (var item in _container.GetBlobsAsync(cancellationToken: ct))
+            if (item.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                blobItems.Add(item);
 
-            if (evalCoherence)
-                await Task.WhenAll(runs.Select(r => ScoreLlmCoherenceAsync(r, ct)));
-
-            PrintRow(item.Name, runs);
-            WriteChunks(item.Name, runs);
-
-            foreach (var run in runs)
+        await Parallel.ForEachAsync(blobItems,
+            new ParallelOptions { MaxDegreeOfParallelism = 3, CancellationToken = ct },
+            async (item, token) =>
             {
-                var t = totals[run.ServiceName];
-                t.Chunks     += run.ChunkCount;
-                t.Coherent   += run.CoherentChunks;
-                t.Empty      += run.EmptyChunks;
-                t.Oversized  += run.OversizedChunks;
-                t.Undersized += run.UndersizedChunks;
-                t.Headings   += run.HeadingsDetected;
-                t.Fallbacks  += run.UsedFallback ? 1 : 0;
-                t.Ms         += run.ElapsedMs;
-                t.Cost       += run.EstimatedCostUsd;
-                t.Errors     += run.Error != null ? 1 : 0;
-                if (run.AvgLlmCoherence.HasValue)
+                using var ms = new MemoryStream();
+                await _container.GetBlobClient(item.Name).DownloadToAsync(ms, token);
+                var bytes = ms.ToArray();
+
+                var runs = await Task.WhenAll(_services.Select(s => s.ExtractAsync(item, bytes, token)));
+
+                if (evalCoherence)
+                    await Task.WhenAll(runs.Select(r => ScoreLlmCoherenceAsync(r, token)));
+
+                lock (printLock)
                 {
-                    t.LlmCoherenceSum   += run.AvgLlmCoherence.Value;
-                    t.LlmCoherenceCount++;
+                    count++;
+                    PrintRow(item.Name, runs);
+                    WriteChunks(item.Name, runs);
+
+                    foreach (var run in runs)
+                    {
+                        var t = totals[run.ServiceName];
+                        t.Chunks     += run.ChunkCount;
+                        t.Coherent   += run.CoherentChunks;
+                        t.Empty      += run.EmptyChunks;
+                        t.Oversized  += run.OversizedChunks;
+                        t.Undersized += run.UndersizedChunks;
+                        t.Headings   += run.HeadingsDetected;
+                        t.Fallbacks  += run.UsedFallback ? 1 : 0;
+                        t.Ms         += run.ElapsedMs;
+                        t.Cost       += run.EstimatedCostUsd;
+                        t.Errors     += run.Error != null ? 1 : 0;
+                        if (run.AvgLlmCoherence.HasValue)
+                        {
+                            t.LlmCoherenceSum   += run.AvgLlmCoherence.Value;
+                            t.LlmCoherenceCount++;
+                        }
+                    }
                 }
-            }
-        }
+            });
 
         _logger.LogInformation("Compared {Count} PDFs across {N} services", count, _services.Length);
         PrintTotals(count, totals);
