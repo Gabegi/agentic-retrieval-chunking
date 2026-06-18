@@ -35,6 +35,8 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
 
       - run: terraform init
         working-directory: ./infra
