@@ -64,7 +64,8 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Pipeline failed for {Blob}", blobName);
+            _logger.LogError("Pipeline failed for {Blob} — {Type}: {Message}\n{Stack}",
+                blobName, ex.GetType().Name, ex.Message, ex.StackTrace);
             throw;
         }
     }
