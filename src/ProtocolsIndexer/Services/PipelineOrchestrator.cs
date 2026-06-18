@@ -34,14 +34,7 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
     // ── Run mode ─────────────────────────────────────────────────────────
     public async Task RunAsync(CancellationToken ct = default)
     {
-        if (_services.Length == 0)
-            throw new InvalidOperationException("No extraction service registered.");
-
-        var serviceName = Environment.GetEnvironmentVariable("EXTRACTION_SERVICE") ?? "pdfpig";
-        var service     = _services.FirstOrDefault(s =>
-                              s.Name.Contains(serviceName, StringComparison.OrdinalIgnoreCase))
-                          ?? _services[0];
-
+        var service = _services.Single();
         _logger.LogInformation("Pipeline using {Service}", service.Name);
 
         await foreach (var (item, bytes) in StreamBlobsAsync(ct))
@@ -54,7 +47,7 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
             }
             _logger.LogInformation("{Blob} → {Chunks} chunks", item.Name, run.ChunkCount);
 
-            // TODO: embed and index run.Chunks once winning service is chosen
+            // TODO: embed and index
         }
     }
 
