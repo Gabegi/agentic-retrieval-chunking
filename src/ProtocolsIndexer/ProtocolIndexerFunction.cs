@@ -12,20 +12,23 @@ namespace ProtocolsIndexer;
 public class ProtocolIndexerFunction
 {
     private readonly IPipelineOrchestrator           _orchestrator;
+    private readonly IKnowledgeService               _knowledgeService;
     private readonly BlobContainerClient             _container;
     private readonly QueueClient                     _queue;
     private readonly ILogger<ProtocolIndexerFunction> _logger;
 
     public ProtocolIndexerFunction(
         IPipelineOrchestrator            orchestrator,
+        IKnowledgeService                knowledgeService,
         BlobContainerClient              container,
         QueueClient                      queue,
         ILogger<ProtocolIndexerFunction> logger)
     {
-        _orchestrator = orchestrator;
-        _container    = container;
-        _queue        = queue;
-        _logger       = logger;
+        _orchestrator     = orchestrator;
+        _knowledgeService = knowledgeService;
+        _container        = container;
+        _queue            = queue;
+        _logger           = logger;
     }
 
     // Fires automatically when a PDF lands in the container
@@ -82,6 +85,23 @@ public class ProtocolIndexerFunction
 
         var response = req.CreateResponse(HttpStatusCode.Accepted);
         await response.WriteStringAsync($"Enqueued {enqueued} blobs for reindexing");
+        return response;
+    }
+
+    // Setup knowledge base: POST /api/setup-knowledge-base
+    // Creates or updates the AI Search knowledge source and knowledge base. Run once after index is populated.
+    [Function("SetupKnowledgeBase")]
+    public async Task<HttpResponseData> RunSetupKnowledgeBase(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "setup-knowledge-base")] HttpRequestData req,
+        FunctionContext context)
+    {
+        _logger.LogInformation("SetupKnowledgeBase triggered");
+
+        await _knowledgeService.EnsureKnowledgeSourceAsync(context.CancellationToken);
+        await _knowledgeService.EnsureKnowledgeBaseAsync(context.CancellationToken);
+
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteStringAsync("Knowledge source and knowledge base created or updated");
         return response;
     }
 
