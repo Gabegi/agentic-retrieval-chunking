@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Azure;
 using Azure.AI.DocumentIntelligence;
-using Azure.Storage.Blobs.Models;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Utils;
 
@@ -19,7 +18,7 @@ public class DocumentIntelligenceExtractionService : IExtractionService
         _client = client;
     }
 
-    public async Task<ExtractionRun> ExtractAsync(BlobItem blob, byte[] pdfBytes, CancellationToken ct = default)
+    public async Task<ExtractionRun> ExtractAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default)
     {
         var sw  = Stopwatch.StartNew();
         var run = new ExtractionRun { ServiceName = Name, BlobName = blob.Name };

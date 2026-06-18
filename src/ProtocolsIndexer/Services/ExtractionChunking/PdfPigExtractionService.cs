@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text;
-using Azure.Storage.Blobs.Models;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Utils;
 using UglyToad.PdfPig;
