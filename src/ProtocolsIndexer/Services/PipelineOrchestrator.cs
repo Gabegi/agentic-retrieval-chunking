@@ -65,9 +65,6 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 if (evalCoherence)
                     await Task.WhenAll(runs.Select(r => ScoreLlmCoherenceAsync(r, token)));
 
-                foreach (var run in runs.Where(r => r.Error == null && r.ChunkCount > 0))
-                    RunQualityCheckers(run);
-
                 lock (printLock)
                 {
                     count++;
