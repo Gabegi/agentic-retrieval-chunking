@@ -14,16 +14,19 @@ public class EmbeddingService : IEmbeddingService
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
     private readonly SearchClient _searchClient;
+    private readonly IRequestTelemetry _telemetry;
     private readonly ILogger<EmbeddingService> _logger;
 
     public EmbeddingService(
         IndexerConfig config,
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
         TokenCredential credential,
+        IRequestTelemetry telemetry,
         ILogger<EmbeddingService> logger)
     {
         _embeddingGenerator = embeddingGenerator;
         _searchClient       = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
+        _telemetry          = telemetry;
         _logger             = logger;
     }
 
@@ -69,6 +72,7 @@ public class EmbeddingService : IEmbeddingService
             try
             {
                 var result = await _embeddingGenerator.GenerateAsync([text], cancellationToken: ct);
+                _telemetry.AddTokens(result.Usage?.InputTokenCount ?? 0, result.Usage?.OutputTokenCount ?? 0);
                 return result[0].Vector.ToArray();
             }
             catch (Exception ex) when (!ct.IsCancellationRequested && IsThrottled(ex))

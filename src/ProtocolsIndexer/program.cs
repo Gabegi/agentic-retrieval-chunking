@@ -75,6 +75,8 @@ var host = new HostBuilder()
                     metrics.AddAzureMonitorMetricExporter(o => o.ConnectionString = appInsightsConnectionString);
             });
 
+        services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
+
         services.AddSingleton<IExtractionService, PdfPigExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IIndexService, IndexService>();

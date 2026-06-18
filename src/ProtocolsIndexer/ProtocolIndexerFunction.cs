@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
@@ -11,17 +12,20 @@ public class ProtocolIndexerFunction
 {
     private readonly IPipelineOrchestrator            _orchestrator;
     private readonly IKnowledgeService                _knowledgeService;
+    private readonly IRequestTelemetry               _telemetry;
     private readonly BlobContainerClient              _container;
     private readonly ILogger<ProtocolIndexerFunction> _logger;
 
     public ProtocolIndexerFunction(
         IPipelineOrchestrator            orchestrator,
         IKnowledgeService                knowledgeService,
+        IRequestTelemetry               telemetry,
         BlobContainerClient              container,
         ILogger<ProtocolIndexerFunction> logger)
     {
         _orchestrator     = orchestrator;
         _knowledgeService = knowledgeService;
+        _telemetry        = telemetry;
         _container        = container;
         _logger           = logger;
     }
@@ -46,14 +50,24 @@ public class ProtocolIndexerFunction
         FunctionContext context)
     {
         _logger.LogInformation("Manual trigger: {Name}", blobName);
+        _telemetry.Initialize();
+        var sw = Stopwatch.StartNew();
 
         using var ms = new MemoryStream();
         await _container.GetBlobClient(blobName).DownloadToAsync(ms, context.CancellationToken);
-
         await _orchestrator.ProcessBlobAsync(blobName, ms.ToArray(), context.CancellationToken);
 
+        sw.Stop();
+        var tel = _telemetry.GetSummary(sw.ElapsedMilliseconds);
+        _logger.LogInformation("Telemetry [{Blob}]: {LatencyMs}ms, in={In} tokens, out={Out} tokens",
+            blobName, tel.LatencyMs, tel.InputTokens, tel.OutputTokens);
+
         var response = req.CreateResponse(HttpStatusCode.OK);
-        await response.WriteStringAsync($"Processed {blobName}");
+        await response.WriteAsJsonAsync(new
+        {
+            message = $"Processed {blobName}",
+            telemetry = new { latency_ms = tel.LatencyMs, input_tokens = tel.InputTokens, output_tokens = tel.OutputTokens }
+        });
         return response;
     }
 
@@ -68,6 +82,8 @@ public class ProtocolIndexerFunction
         if (limit == 0) limit = int.MaxValue;
 
         _logger.LogInformation("ReindexAll triggered (limit={Limit})", limit == int.MaxValue ? "all" : limit.ToString());
+        _telemetry.Initialize();
+        var sw = Stopwatch.StartNew();
 
         var processed = 0;
         await foreach (var blob in _container.GetBlobsAsync(cancellationToken: context.CancellationToken))
@@ -81,8 +97,17 @@ public class ProtocolIndexerFunction
             processed++;
         }
 
+        sw.Stop();
+        var tel = _telemetry.GetSummary(sw.ElapsedMilliseconds);
+        _logger.LogInformation("Telemetry [reindex {Count} blobs]: {LatencyMs}ms, in={In} tokens, out={Out} tokens",
+            processed, tel.LatencyMs, tel.InputTokens, tel.OutputTokens);
+
         var response = req.CreateResponse(HttpStatusCode.OK);
-        await response.WriteStringAsync($"Reindexed {processed} blobs");
+        await response.WriteAsJsonAsync(new
+        {
+            message = $"Reindexed {processed} blobs",
+            telemetry = new { latency_ms = tel.LatencyMs, input_tokens = tel.InputTokens, output_tokens = tel.OutputTokens }
+        });
         return response;
     }
 
