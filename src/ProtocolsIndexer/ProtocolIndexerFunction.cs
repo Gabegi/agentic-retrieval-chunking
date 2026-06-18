@@ -72,8 +72,7 @@ public class ProtocolIndexerFunction
         var limitStr = req.Query["limit"];
         var limit    = int.TryParse(limitStr, out var n) ? n : 5;
 
-        _logger.LogInformation("ReindexAll triggered — enqueuing blobs (limit={Limit})",
-            limit == int.MaxValue ? "all" : limit.ToString());
+        _logger.LogInformation("ReindexAll triggered — enqueuing blobs (limit={Limit})", limit);
 
         await _queue.CreateIfNotExistsAsync();
 
