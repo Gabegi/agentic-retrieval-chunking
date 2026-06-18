@@ -81,6 +81,7 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
     "KNOWLEDGE_BASE_NAME"              = var.knowledge_base_name
     "QUEUE_STORAGE_URL"                = azurerm_storage_account.func_indexer.primary_queue_endpoint
     "QUEUE_NAME"                       = "protocol-indexer-queue"
+    "FuncStorage__queueServiceUri"     = azurerm_storage_account.func_indexer.primary_queue_endpoint
   }
 
   tags = {

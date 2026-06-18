@@ -88,7 +88,7 @@ public class ProtocolIndexerFunction
     // Queue trigger: processes one blob per invocation, independently retried by the runtime
     [Function("ProcessBlobFromQueue")]
     public async Task RunFromQueue(
-        [QueueTrigger("%QUEUE_NAME%", Connection = "ProtocolsStorage")] string message,
+        [QueueTrigger("%QUEUE_NAME%", Connection = "FuncStorage")] string message,
         FunctionContext context)
     {
         var blobName = Encoding.UTF8.GetString(Convert.FromBase64String(message));
