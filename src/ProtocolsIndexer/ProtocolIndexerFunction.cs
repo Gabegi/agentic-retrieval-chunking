@@ -10,17 +10,20 @@ namespace ProtocolsIndexer;
 public class ProtocolIndexerFunction
 {
     private readonly IPipelineOrchestrator            _orchestrator;
+    private readonly IKnowledgeService                _knowledgeService;
     private readonly BlobContainerClient              _container;
     private readonly ILogger<ProtocolIndexerFunction> _logger;
 
     public ProtocolIndexerFunction(
         IPipelineOrchestrator            orchestrator,
+        IKnowledgeService                knowledgeService,
         BlobContainerClient              container,
         ILogger<ProtocolIndexerFunction> logger)
     {
-        _orchestrator = orchestrator;
-        _container    = container;
-        _logger       = logger;
+        _orchestrator     = orchestrator;
+        _knowledgeService = knowledgeService;
+        _container        = container;
+        _logger           = logger;
     }
 
     // Fires automatically when a PDF lands in the container
