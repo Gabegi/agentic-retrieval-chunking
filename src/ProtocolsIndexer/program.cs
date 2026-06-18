@@ -22,12 +22,14 @@ var host = new HostBuilder()
             OpenAiGptDeployment          = ctx.Configuration["OPENAI_GPT_DEPLOYMENT"]!,
             OpenAiGptModelName           = ctx.Configuration["OPENAI_GPT_MODEL_NAME"]!,
             OpenAiExtractionDeployment   = ctx.Configuration["OPENAI_EXTRACTION_DEPLOYMENT"] ?? "gpt-41-extraction",
-            DocumentIntelligenceEndpoint = ctx.Configuration["DOCUMENT_INTELLIGENCE_ENDPOINT"]!,
+            DocumentIntelligenceEndpoint = ctx.Configuration["DOCUMENT_INTELLIGENCE_ENDPOINT"] ?? "",
             StorageAccountUrl            = ctx.Configuration["STORAGE_ACCOUNT_URL"]!,
             StorageContainer             = ctx.Configuration["STORAGE_CONTAINER"] ?? "protocols",
             SearchIndexName              = ctx.Configuration["SEARCH_INDEX_NAME"]!,
             KnowledgeSourceName          = ctx.Configuration["KNOWLEDGE_SOURCE_NAME"]!,
             KnowledgeBaseName            = ctx.Configuration["KNOWLEDGE_BASE_NAME"]!,
+            QueueStorageUrl              = ctx.Configuration["QUEUE_STORAGE_URL"]!,
+            QueueName                    = ctx.Configuration["QUEUE_NAME"] ?? "protocol-indexer-queue",
         };
 
         TokenCredential credential = new DefaultAzureCredential();
@@ -48,7 +50,10 @@ var host = new HostBuilder()
         services.AddSingleton(_ =>
             new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
 
-        services.AddSingleton<IExtractionService, DocumentIntelligenceExtractionService>();
+        services.AddSingleton(_ =>
+            new QueueClient(new Uri($"{config.QueueStorageUrl.TrimEnd('/')}/{config.QueueName}"), credential));
+
+        services.AddSingleton<IExtractionService, PdfPigExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IIndexService, IndexService>();
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
