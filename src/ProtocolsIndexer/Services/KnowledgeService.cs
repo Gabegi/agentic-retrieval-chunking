@@ -35,7 +35,8 @@ public class KnowledgeService : IKnowledgeService
                 SearchFields =
                 {
                     new SearchIndexFieldReference("content"),
-                    new SearchIndexFieldReference("richtlijn_name")
+                    new SearchIndexFieldReference("richtlijn_name"),
+                    new SearchIndexFieldReference("content_vector")
                 },
                 SourceDataFields =
                 {
@@ -62,7 +63,7 @@ public class KnowledgeService : IKnowledgeService
         {
             ResourceUri    = new Uri(_config.OpenAiEndpoint),
             DeploymentName = _config.OpenAiGptDeployment,
-            ModelName      = "gpt-4.1"
+            ModelName      = _config.OpenAiGptModelName
         };
 
         var knowledgeBase = new KnowledgeBase(
