@@ -52,9 +52,6 @@ var host = new HostBuilder()
         services.AddSingleton(_ =>
             new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
 
-        services.AddSingleton(_ =>
-            new QueueClient(new Uri($"{config.QueueStorageUrl.TrimEnd('/')}/{config.QueueName}"), credential));
-
         services.AddEmbeddingGenerator(sp =>
             sp.GetRequiredService<AzureOpenAIClient>()
               .GetEmbeddingClient(config.OpenAiEmbeddingDeployment)
