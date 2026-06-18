@@ -86,4 +86,17 @@ public class ProtocolIndexerFunction
         return response;
     }
 
+    // POST /api/setup-knowledge-base — run once after the index is populated
+    [Function("SetupKnowledgeBase")]
+    public async Task<HttpResponseData> RunSetupKnowledgeBase(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "setup-knowledge-base")] HttpRequestData req,
+        FunctionContext context)
+    {
+        _logger.LogInformation("SetupKnowledgeBase triggered");
+        await _knowledgeService.EnsureKnowledgeSourceAsync(context.CancellationToken);
+        await _knowledgeService.EnsureKnowledgeBaseAsync(context.CancellationToken);
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteStringAsync("Knowledge source and knowledge base created or updated");
+        return response;
+    }
 }
