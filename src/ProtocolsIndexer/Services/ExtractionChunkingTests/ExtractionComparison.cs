@@ -1,5 +1,6 @@
 using Azure.AI.OpenAI;
 using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.Logging;
 using OpenAI.Chat;
 using ProtocolsIndexer.Models;
 
