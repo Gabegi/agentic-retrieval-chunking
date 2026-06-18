@@ -97,19 +97,6 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         PrintTotals(count, totals);
     }
 
-    // ── Quality checkers ─────────────────────────────────────────────────
-    private static void RunQualityCheckers(ExtractionRun run)
-    {
-        var allText = string.Join(" ", run.Chunks.Select(c => c.Content));
-        var chunks  = run.Chunks
-            .Select(c => new Chunk(run.BlobName, c.Heading ?? "", c.Content))
-            .ToList();
-
-        run.TextFidelity    = TextFidelityChecker.Check(allText);
-        run.HeadingRecall   = HeadingRecallChecker.CheckRecall(chunks);
-        run.FlattenedTables = TableFlatteningChecker.Check(chunks);
-    }
-
     // ── LLM coherence scorer — samples up to 5 non-trivial chunks per run ─
     private async Task ScoreLlmCoherenceAsync(ExtractionRun run, CancellationToken ct)
     {
