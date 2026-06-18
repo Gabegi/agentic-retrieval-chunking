@@ -1,5 +1,7 @@
 using System.Net;
+using System.Text;
 using Azure.Storage.Blobs;
+using Azure.Storage.Queues;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
@@ -11,15 +13,18 @@ public class ProtocolIndexerFunction
 {
     private readonly IPipelineOrchestrator           _orchestrator;
     private readonly BlobContainerClient             _container;
+    private readonly QueueClient                     _queue;
     private readonly ILogger<ProtocolIndexerFunction> _logger;
 
     public ProtocolIndexerFunction(
         IPipelineOrchestrator            orchestrator,
         BlobContainerClient              container,
+        QueueClient                      queue,
         ILogger<ProtocolIndexerFunction> logger)
     {
         _orchestrator = orchestrator;
         _container    = container;
+        _queue        = queue;
         _logger       = logger;
     }
 
@@ -36,7 +41,6 @@ public class ProtocolIndexerFunction
     }
 
     // Manual trigger: POST /api/process/{blobName}
-    // Use for backfill or re-indexing a specific PDF.
     [Function("ProcessBlobManual")]
     public async Task<HttpResponseData> RunManual(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "process/{*blobName}")] HttpRequestData req,
@@ -56,16 +60,43 @@ public class ProtocolIndexerFunction
     }
 
     // Reindex all: POST /api/reindex
-    // Re-processes every PDF in the container.
+    // Enqueues every PDF blob name; each is processed independently via queue trigger.
     [Function("ReindexAll")]
     public async Task<HttpResponseData> RunReindexAll(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "reindex")] HttpRequestData req,
         FunctionContext context)
     {
-        _logger.LogInformation("Reindex all triggered");
-        await _orchestrator.RunAsync(context.CancellationToken);
-        var response = req.CreateResponse(HttpStatusCode.OK);
-        await response.WriteStringAsync("Reindex complete");
+        _logger.LogInformation("ReindexAll triggered — enqueuing blobs");
+
+        await _queue.CreateIfNotExistsAsync();
+
+        var enqueued = 0;
+        await foreach (var blob in _container.GetBlobsAsync(cancellationToken: context.CancellationToken))
+        {
+            if (!blob.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+            var message = Convert.ToBase64String(Encoding.UTF8.GetBytes(blob.Name));
+            await _queue.SendMessageAsync(message, cancellationToken: context.CancellationToken);
+            enqueued++;
+            _logger.LogInformation("Enqueued {Name}", blob.Name);
+        }
+
+        var response = req.CreateResponse(HttpStatusCode.Accepted);
+        await response.WriteStringAsync($"Enqueued {enqueued} blobs for reindexing");
         return response;
+    }
+
+    // Queue trigger: processes one blob per invocation, independently retried by the runtime
+    [Function("ProcessBlobFromQueue")]
+    public async Task RunFromQueue(
+        [QueueTrigger("%QUEUE_NAME%", Connection = "ProtocolsStorage")] string message,
+        FunctionContext context)
+    {
+        var blobName = Encoding.UTF8.GetString(Convert.FromBase64String(message));
+        _logger.LogInformation("Queue trigger: {Name}", blobName);
+
+        using var ms = new MemoryStream();
+        await _container.GetBlobClient(blobName).DownloadToAsync(ms, context.CancellationToken);
+
+        await _orchestrator.ProcessBlobAsync(blobName, ms.ToArray(), context.CancellationToken);
     }
 }
