@@ -47,9 +47,7 @@ public class EmbeddingService : IEmbeddingService
                     text = text[..24_000];
                 }
 
-                var result = await EmbedWithRetryAsync(text, token);
-
-                document.ContentVector = result.Value.ToFloats().ToArray();
+                document.ContentVector = await EmbedWithRetryAsync(text, token);
 
                 if (document.ContentVector?.Length != 3072)
                     _logger.LogError("Wrong vector dimensions {Dims} for {Id}",
