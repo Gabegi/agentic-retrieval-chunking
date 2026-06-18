@@ -54,4 +54,18 @@ public class ProtocolIndexerFunction
         await response.WriteStringAsync($"Processed {blobName}");
         return response;
     }
+
+    // Reindex all: POST /api/reindex
+    // Re-processes every PDF in the container.
+    [Function("ReindexAll")]
+    public async Task<HttpResponseData> RunReindexAll(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "reindex")] HttpRequestData req,
+        FunctionContext context)
+    {
+        _logger.LogInformation("Reindex all triggered");
+        await _orchestrator.RunAsync(context.CancellationToken);
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        await response.WriteStringAsync("Reindex complete");
+        return response;
+    }
 }
