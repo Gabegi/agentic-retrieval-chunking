@@ -8,6 +8,8 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Microsoft.Extensions.Hosting;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Services;
