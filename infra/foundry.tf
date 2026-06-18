@@ -50,9 +50,9 @@ resource "azurerm_role_assignment" "sp_foundry_contributor" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
-# Allow the ACI indexer to call models deployed in the Foundry project
-resource "azurerm_role_assignment" "aci_foundry_inference" {
+# Allow the function app indexer to call models deployed in the Foundry project
+resource "azurerm_role_assignment" "func_indexer_foundry_inference" {
   scope                = azurerm_ai_foundry_project.main.id
   role_definition_name = "Azure AI Developer"
-  principal_id         = azurerm_user_assigned_identity.aci_indexer.principal_id
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
 }
