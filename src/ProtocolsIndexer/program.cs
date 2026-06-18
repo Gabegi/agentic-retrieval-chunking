@@ -64,13 +64,22 @@ var host = new HostBuilder()
               .AsIEmbeddingGenerator())
             .UseOpenTelemetry();
 
+        var appInsightsConnectionString = ctx.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
         services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource("Microsoft.Extensions.AI")
-                .AddConsoleExporter())
-            .WithMetrics(metrics => metrics
-                .AddMeter("Microsoft.Extensions.AI")
-                .AddConsoleExporter());
+            .WithTracing(tracing =>
+            {
+                tracing.AddSource("Microsoft.Extensions.AI")
+                       .AddConsoleExporter();
+                if (!string.IsNullOrEmpty(appInsightsConnectionString))
+                    tracing.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsightsConnectionString);
+            })
+            .WithMetrics(metrics =>
+            {
+                metrics.AddMeter("Microsoft.Extensions.AI")
+                       .AddConsoleExporter();
+                if (!string.IsNullOrEmpty(appInsightsConnectionString))
+                    metrics.AddAzureMonitorMetricExporter(o => o.ConnectionString = appInsightsConnectionString);
+            });
 
         services.AddSingleton<IExtractionService, PdfPigExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
