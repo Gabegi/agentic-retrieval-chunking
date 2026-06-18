@@ -21,7 +21,7 @@ public class DocumentIntelligenceExtractionService : IExtractionService
     public async Task<ExtractionRun> ExtractAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default)
     {
         var sw  = Stopwatch.StartNew();
-        var run = new ExtractionRun { ServiceName = Name, BlobName = blob.Name };
+        var run = new ExtractionRun { ServiceName = Name, BlobName = blobName };
 
         try
         {
@@ -38,7 +38,7 @@ public class DocumentIntelligenceExtractionService : IExtractionService
                     .Where(p => (p.BoundingRegions is { Count: > 0 } br0 ? br0[0].PageNumber : 0) <= 2)
                     .Select(p => p.Content) ?? []);
 
-            var meta       = LciMetadataParser.Parse(firstPagesText, blob.Name);
+            var meta       = LciMetadataParser.Parse(firstPagesText, blobName);
             int chunkIndex = 0;
             ProtocolDocument? current = null;
 
@@ -56,8 +56,8 @@ public class DocumentIntelligenceExtractionService : IExtractionService
 
             ProtocolDocument BaseDoc(int pageNum) => new()
             {
-                Id              = $"{blob.Name}::pending",
-                SourceFile      = blob.Name,
+                Id              = $"{blobName}::pending",
+                SourceFile      = blobName,
                 RichtlijnName   = meta.RichtlijnName,
                 PublicationDate = meta.PublicationDate,
                 Version         = meta.Version,

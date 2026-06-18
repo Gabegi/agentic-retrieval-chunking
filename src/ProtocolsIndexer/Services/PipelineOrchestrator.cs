@@ -12,6 +12,7 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
 {
     private readonly BlobContainerClient           _container;
     private readonly IExtractionService[]          _services;
+    private readonly IEmbeddingService             _embeddingService;
     private readonly AzureOpenAIClient             _openAi;
     private readonly IndexerConfig                 _config;
     private readonly ILogger<PipelineOrchestrator> _logger;
@@ -19,39 +20,45 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
     public PipelineOrchestrator(
         BlobServiceClient               blobServiceClient,
         IEnumerable<IExtractionService> services,
+        IEmbeddingService               embeddingService,
         AzureOpenAIClient               openAi,
         IndexerConfig                   config,
         ILogger<PipelineOrchestrator>   logger)
     {
-        _container = blobServiceClient.GetBlobContainerClient(
+        _container        = blobServiceClient.GetBlobContainerClient(
             string.IsNullOrEmpty(config.StorageContainer) ? "protocols" : config.StorageContainer);
-        _services  = services.ToArray();
-        _openAi    = openAi;
-        _config    = config;
-        _logger    = logger;
+        _services         = services.ToArray();
+        _embeddingService = embeddingService;
+        _openAi           = openAi;
+        _config           = config;
+        _logger           = logger;
     }
 
-    // ── Run mode ─────────────────────────────────────────────────────────
+    // ── Per-blob pipeline: extract → embed → index ────────────────────────
+    public async Task ProcessBlobAsync(string blobName, byte[] bytes, CancellationToken ct = default)
+    {
+        var run = await _services[0].ExtractAsync(blobName, bytes, ct);
+        if (run.Error != null)
+        {
+            _logger.LogError("Extraction failed for {Blob}: {Error}", blobName, run.Error);
+            return;
+        }
+        _logger.LogInformation("{Blob} → {Chunks} chunks extracted", blobName, run.ChunkCount);
+
+        var embedded = await _embeddingService.EmbedDocumentsAsync(run.Chunks, ct);
+        await _embeddingService.UploadDocumentsAsync(embedded, ct);
+        _logger.LogInformation("{Blob} indexed", blobName);
+    }
+
+    // ── Bulk run (backfill / local use) ───────────────────────────────────
     public async Task RunAsync(CancellationToken ct = default)
     {
-        var service = _services.Single();
-        _logger.LogInformation("Pipeline using {Service}", service.Name);
-
+        _logger.LogInformation("Bulk run using {Service}", _services[0].Name);
         await foreach (var (item, bytes) in StreamBlobsAsync(ct))
-        {
-            var run = await service.ExtractAsync(item, bytes, ct);
-            if (run.Error != null)
-            {
-                _logger.LogError("Extraction failed for {Blob}: {Error}", item.Name, run.Error);
-                continue;
-            }
-            _logger.LogInformation("{Blob} → {Chunks} chunks", item.Name, run.ChunkCount);
-
-            // TODO: embed and index
-        }
+            await ProcessBlobAsync(item.Name, bytes, ct);
     }
 
-    // ── Streaming blob download (one PDF at a time, not all in RAM) ───────
+    // ── Streaming blob download ───────────────────────────────────────────
     private async IAsyncEnumerable<(BlobItem Item, byte[] Bytes)> StreamBlobsAsync(
         [EnumeratorCancellation] CancellationToken ct)
     {

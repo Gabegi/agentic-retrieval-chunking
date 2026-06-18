@@ -35,7 +35,7 @@ public partial class PipelineOrchestrator
                 await _container.GetBlobClient(item.Name).DownloadToAsync(ms, token);
                 var bytes = ms.ToArray();
 
-                var runs = await Task.WhenAll(_services.Select(s => s.ExtractAsync(item, bytes, token)));
+                var runs = await Task.WhenAll(_services.Select(s => s.ExtractAsync(item.Name, bytes, token)));
 
                 if (evalCoherence)
                     await Task.WhenAll(runs.Select(r => ScoreLlmCoherenceAsync(r, token)));

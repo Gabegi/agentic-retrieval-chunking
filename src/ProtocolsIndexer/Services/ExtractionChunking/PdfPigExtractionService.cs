@@ -20,10 +20,10 @@ public class PdfPigExtractionService : IExtractionService
         "Literatuur"
     };
 
-    public Task<ExtractionRun> ExtractAsync(BlobItem blob, byte[] pdfBytes, CancellationToken ct = default)
+    public Task<ExtractionRun> ExtractAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default)
     {
         var sw  = Stopwatch.StartNew();
-        var run = new ExtractionRun { ServiceName = Name, BlobName = blob.Name };
+        var run = new ExtractionRun { ServiceName = Name, BlobName = blobName };
 
         try
         {
@@ -46,7 +46,7 @@ public class PdfPigExtractionService : IExtractionService
                         .OrderBy(w => w.BoundingBox.Left)
                         .Select(w => w.Text))))));
 
-            var meta = LciMetadataParser.Parse(firstPageText, blob.Name);
+            var meta = LciMetadataParser.Parse(firstPageText, blobName);
 
             string?      currentHeading = null;
             int          currentPage    = 1;
@@ -62,8 +62,8 @@ public class PdfPigExtractionService : IExtractionService
 
                 run.Chunks.Add(new ProtocolDocument
                 {
-                    Id              = $"{blob.Name}::{chunkIndex}",
-                    SourceFile      = blob.Name,
+                    Id              = $"{blobName}::{chunkIndex}",
+                    SourceFile      = blobName,
                     RichtlijnName   = meta.RichtlijnName,
                     PublicationDate = meta.PublicationDate,
                     Version         = meta.Version,
@@ -145,8 +145,8 @@ public class PdfPigExtractionService : IExtractionService
 
                     run.Chunks.Add(new ProtocolDocument
                     {
-                        Id              = $"{blob.Name}::{chunkIndex}",
-                        SourceFile      = blob.Name,
+                        Id              = $"{blobName}::{chunkIndex}",
+                        SourceFile      = blobName,
                         RichtlijnName   = meta.RichtlijnName,
                         PublicationDate = meta.PublicationDate,
                         Version         = meta.Version,
