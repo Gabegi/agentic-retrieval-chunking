@@ -3,7 +3,6 @@ using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
-using Azure.Storage.Queues;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
