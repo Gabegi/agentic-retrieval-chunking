@@ -106,7 +106,10 @@ public class PdfPigExtractionService : IExtractionService
 
                     var isKnown     = KnownSections.Contains(text);
                     var isFont      = line.FontSize > dominantFontSize * 1.15 && text.Length < 80;
-                    var isBoldShort = line.IsBold && text.Split(' ').Length <= 6;
+                    // Require bold lines to also be visually larger — filters out bold emphasis,
+                    // table headers, and TOC entries that share the body font size.
+                    var isBoldShort = line.IsBold && line.FontSize > dominantFontSize * 1.05
+                                      && text.Split(' ').Length <= 6;
 
                     if (isKnown || isFont || isBoldShort)
                     {
