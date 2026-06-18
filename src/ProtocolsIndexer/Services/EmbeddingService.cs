@@ -61,14 +61,15 @@ public class EmbeddingService : IEmbeddingService
         return embedded;
     }
 
-    private async Task<ClientResult<Embedding>> EmbedWithRetryAsync(string text, CancellationToken ct)
+    private async Task<float[]> EmbedWithRetryAsync(string text, CancellationToken ct)
     {
         const int maxRetries = 5;
         for (int attempt = 0; attempt < maxRetries; attempt++)
         {
             try
             {
-                return await _embeddingClient.GenerateEmbeddingAsync(text, cancellationToken: ct);
+                var result = await _embeddingClient.GenerateEmbeddingAsync(text, cancellationToken: ct);
+                return result.Value.ToFloats().ToArray();
             }
             catch (ClientResultException ex) when (ex.Status == 429)
             {
