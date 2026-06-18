@@ -1,0 +1,117 @@
+# function_app.tf
+# Windows Function App (zip deploy, Consumption plan) for the protocols indexer
+
+resource "azurerm_storage_account" "func_indexer" {
+  name                     = "stprotocolindexerfn"
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+
+  tags = {
+    project     = "agentic-rag-chunking"
+    environment = "dev"
+  }
+}
+
+resource "azurerm_service_plan" "func_indexer" {
+  name                = "asp-protocols-indexer"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  os_type             = "Windows"
+  sku_name            = "Y1"
+
+  tags = {
+    project     = "agentic-rag-chunking"
+    environment = "dev"
+  }
+}
+
+resource "azurerm_windows_function_app" "protocols_indexer" {
+  name                          = "func-protocols-indexer"
+  resource_group_name           = azurerm_resource_group.main.name
+  location                      = azurerm_resource_group.main.location
+  service_plan_id               = azurerm_service_plan.func_indexer.id
+  storage_account_name          = azurerm_storage_account.func_indexer.name
+  storage_uses_managed_identity = true
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  site_config {
+    application_stack {
+      dotnet_version              = "v8.0"
+      use_dotnet_isolated_runtime = true
+    }
+  }
+
+  app_settings = {
+    "FUNCTIONS_WORKER_RUNTIME"         = "dotnet-isolated"
+    "ProtocolsStorage__blobServiceUri" = azurerm_storage_account.documents.primary_blob_endpoint
+    "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.documents.primary_blob_endpoint
+    "STORAGE_CONTAINER"                = azurerm_storage_container.protocols.name
+    "SEARCH_ENDPOINT"                  = "https://${azurerm_search_service.main.name}.search.windows.net"
+    "OPENAI_ENDPOINT"                  = "https://${azurerm_cognitive_account.openai.custom_subdomain_name}.openai.azure.com/"
+    "OPENAI_EMBEDDING_DEPLOYMENT"      = var.openai_embedding_deployment
+    "OPENAI_GPT_DEPLOYMENT"            = var.openai_gpt_deployment
+    "OPENAI_GPT_MODEL_NAME"            = var.openai_gpt_model_name
+    "OPENAI_EXTRACTION_DEPLOYMENT"     = var.openai_extraction_deployment
+    "DOCUMENT_INTELLIGENCE_ENDPOINT"   = azurerm_cognitive_account.document_intelligence.endpoint
+    "SEARCH_INDEX_NAME"                = var.search_index_name
+    "KNOWLEDGE_SOURCE_NAME"            = var.knowledge_source_name
+    "KNOWLEDGE_BASE_NAME"              = var.knowledge_base_name
+  }
+
+  tags = {
+    project     = "agentic-rag-chunking"
+    environment = "dev"
+  }
+
+  depends_on = [
+    azurerm_role_assignment.func_indexer_storage_owner,
+    azurerm_role_assignment.func_indexer_blob_reader,
+    azurerm_role_assignment.func_indexer_search_index_contributor,
+    azurerm_role_assignment.func_indexer_search_service_contributor,
+    azurerm_role_assignment.func_indexer_openai_user,
+    azurerm_role_assignment.func_indexer_document_intelligence,
+  ]
+}
+
+# ── Role assignments ──────────────────────────────────────────────────────────
+
+resource "azurerm_role_assignment" "func_indexer_storage_owner" {
+  scope                = azurerm_storage_account.func_indexer.id
+  role_definition_name = "Storage Blob Data Owner"
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_indexer_blob_reader" {
+  scope                = azurerm_storage_account.documents.id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_indexer_search_index_contributor" {
+  scope                = azurerm_search_service.main.id
+  role_definition_name = "Search Index Data Contributor"
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_indexer_search_service_contributor" {
+  scope                = azurerm_search_service.main.id
+  role_definition_name = "Search Service Contributor"
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_indexer_openai_user" {
+  scope                = azurerm_cognitive_account.openai.id
+  role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_indexer_document_intelligence" {
+  scope                = azurerm_cognitive_account.document_intelligence.id
+  role_definition_name = "Cognitive Services User"
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+}
