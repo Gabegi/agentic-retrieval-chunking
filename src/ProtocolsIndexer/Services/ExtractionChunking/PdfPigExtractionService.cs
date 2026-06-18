@@ -148,7 +148,7 @@ public class PdfPigExtractionService : IExtractionService
 
                     run.Chunks.Add(new ProtocolDocument
                     {
-                        Id              = $"{blobName}::{chunkIndex}",
+                        Id              = SafeKey(blobName, chunkIndex),
                         SourceFile      = blobName,
                         RichtlijnName   = meta.RichtlijnName,
                         PublicationDate = meta.PublicationDate,
