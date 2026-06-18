@@ -51,7 +51,7 @@ public class KnowledgeService : IKnowledgeService
             Description = "Knowledge source for Dutch medical protocols index"
         };
 
-        await _indexClient.CreateOrUpdateKnowledgeSourceAsync(knowledgeSource, ct);
+        await _indexClient.CreateOrUpdateKnowledgeSourceAsync(knowledgeSource, onlyIfUnchanged: false, ct);
         _logger.LogInformation("Knowledge source '{Name}' created or updated", _config.KnowledgeSourceName);
     }
 
@@ -87,7 +87,7 @@ public class KnowledgeService : IKnowledgeService
             Models                   = { new KnowledgeBaseAzureOpenAIModel(aoaiParams) }
         };
 
-        await _indexClient.CreateOrUpdateKnowledgeBaseAsync(knowledgeBase, ct);
+        await _indexClient.CreateOrUpdateKnowledgeBaseAsync(knowledgeBase, onlyIfUnchanged: false, ct);
         _logger.LogInformation("Knowledge base '{Name}' created or updated", _config.KnowledgeBaseName);
     }
 }
