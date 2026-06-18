@@ -13,14 +13,18 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
     private readonly BlobContainerClient           _container;
     private readonly IExtractionService[]          _services;
     private readonly IEmbeddingService             _embeddingService;
+    private readonly IIndexService                 _indexService;
     private readonly AzureOpenAIClient             _openAi;
     private readonly IndexerConfig                 _config;
     private readonly ILogger<PipelineOrchestrator> _logger;
+
+    private bool _indexEnsured;
 
     public PipelineOrchestrator(
         BlobServiceClient               blobServiceClient,
         IEnumerable<IExtractionService> services,
         IEmbeddingService               embeddingService,
+        IIndexService                   indexService,
         AzureOpenAIClient               openAi,
         IndexerConfig                   config,
         ILogger<PipelineOrchestrator>   logger)
@@ -29,6 +33,7 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
             string.IsNullOrEmpty(config.StorageContainer) ? "protocols" : config.StorageContainer);
         _services         = services.ToArray();
         _embeddingService = embeddingService;
+        _indexService     = indexService;
         _openAi           = openAi;
         _config           = config;
         _logger           = logger;
@@ -37,6 +42,12 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
     // ── Per-blob pipeline: extract → embed → index ────────────────────────
     public async Task ProcessBlobAsync(string blobName, byte[] bytes, CancellationToken ct = default)
     {
+        if (!_indexEnsured)
+        {
+            await _indexService.EnsureIndexAsync();
+            _indexEnsured = true;
+        }
+
         var run = await _services[0].ExtractAsync(blobName, bytes, ct);
         if (run.Error != null)
         {
