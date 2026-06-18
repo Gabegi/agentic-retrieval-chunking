@@ -42,23 +42,31 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
     // ── Per-blob pipeline: extract → embed → index ────────────────────────
     public async Task ProcessBlobAsync(string blobName, byte[] bytes, CancellationToken ct = default)
     {
-        if (!_indexEnsured)
+        try
         {
-            await _indexService.EnsureIndexAsync();
-            _indexEnsured = true;
-        }
+            if (!_indexEnsured)
+            {
+                await _indexService.EnsureIndexAsync();
+                _indexEnsured = true;
+            }
 
-        var run = await _services[0].ExtractAsync(blobName, bytes, ct);
-        if (run.Error != null)
+            var run = await _services[0].ExtractAsync(blobName, bytes, ct);
+            if (run.Error != null)
+            {
+                _logger.LogError("Extraction failed for {Blob}: {Error}", blobName, run.Error);
+                return;
+            }
+            _logger.LogInformation("{Blob} → {Chunks} chunks extracted", blobName, run.ChunkCount);
+
+            var embedded = await _embeddingService.EmbedDocumentsAsync(run.Chunks, ct);
+            await _embeddingService.UploadDocumentsAsync(embedded, ct);
+            _logger.LogInformation("{Blob} indexed", blobName);
+        }
+        catch (Exception ex)
         {
-            _logger.LogError("Extraction failed for {Blob}: {Error}", blobName, run.Error);
-            return;
+            _logger.LogError(ex, "Pipeline failed for {Blob}", blobName);
+            throw;
         }
-        _logger.LogInformation("{Blob} → {Chunks} chunks extracted", blobName, run.ChunkCount);
-
-        var embedded = await _embeddingService.EmbedDocumentsAsync(run.Chunks, ct);
-        await _embeddingService.UploadDocumentsAsync(embedded, ct);
-        _logger.LogInformation("{Blob} indexed", blobName);
     }
 
     // ── Bulk run (backfill / local use) ───────────────────────────────────
