@@ -262,6 +262,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         TRow("Avg time/PDF (ms)",    t => $"{(pdfCount > 0 ? t.Ms / pdfCount : 0)}ms");
         TRow("Total cost (USD)",     t => $"${t.Cost:F4}");
         TRow("Errors",               t => t.Errors.ToString());
+        TRow("Total fidelity issues",t => t.FidelityIssues.ToString());
+        TRow("Avg heading recall",   t => t.HeadingRecallDocs > 0
+            ? $"{t.HeadingRecallSum / t.HeadingRecallDocs:P0}" : "—");
+        TRow("Flattened tables",     t => t.FlatTables.ToString());
 
         Console.WriteLine($"\n✅ Done\n📁 Chunks written to ./{OutputDir}/");
     }
