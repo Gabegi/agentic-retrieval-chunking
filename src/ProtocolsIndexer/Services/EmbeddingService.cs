@@ -1,5 +1,6 @@
 using System.ClientModel;
 using System.Collections.Concurrent;
+using Azure;
 using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Search.Documents;
@@ -37,7 +38,7 @@ public class EmbeddingService : IEmbeddingService
         var embedded = new ConcurrentBag<ProtocolDocument>();
 
         await Parallel.ForEachAsync(docList,
-            new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
+            new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = ct },
             async (document, token) =>
             {
                 var text = document.EmbeddingText;
@@ -47,7 +48,7 @@ public class EmbeddingService : IEmbeddingService
                     text = text[..24_000];
                 }
 
-                document.ContentVector = await EmbedWithRetryAsync(text, token);
+                document.ContentVector = await EmbedWithRetryAsync(text, ct);
 
                 if (document.ContentVector?.Length != 3072)
                     _logger.LogError("Wrong vector dimensions {Dims} for {Id}",
@@ -71,7 +72,7 @@ public class EmbeddingService : IEmbeddingService
                 var result = await _embeddingClient.GenerateEmbeddingAsync(text, cancellationToken: ct);
                 return result.Value.ToFloats().ToArray();
             }
-            catch (ClientResultException ex) when (ex.Status == 429)
+            catch (Exception ex) when (!ct.IsCancellationRequested && IsThrottled(ex))
             {
                 if (attempt == maxRetries - 1) throw;
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt + 1)); // 2s, 4s, 8s, 16s
@@ -82,6 +83,13 @@ public class EmbeddingService : IEmbeddingService
         }
         throw new InvalidOperationException("Unreachable");
     }
+
+    private static bool IsThrottled(Exception ex) => ex switch
+    {
+        ClientResultException      cre => cre.Status == 429,
+        Azure.RequestFailedException rfe => rfe.Status == 429,
+        _ => false
+    };
 
     public async Task UploadDocumentsAsync(
         IEnumerable<ProtocolDocument> documents,
