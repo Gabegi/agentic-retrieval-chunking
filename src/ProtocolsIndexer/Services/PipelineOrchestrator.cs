@@ -206,10 +206,6 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         Row("Fallback used",      r => r.UsedFallback ? "YES ⚠️" : "No");
         Row("Time (ms)",          r => $"{r.ElapsedMs}ms");
         Row("Est. cost (USD)",    r => $"${r.EstimatedCostUsd:F4}");
-        Row("Fidelity issues",    r => r.FidelityIssues.ToString());
-        Row("Heading recall",     r => r.AvgHeadingRecall >= 0 ? $"{r.AvgHeadingRecall:P0}" : "—");
-        Row("Flattened tables",   r => r.FlatTableCount.ToString());
-
         foreach (var run in runs.Where(r => r.Error != null))
             Console.WriteLine($"  ❌ {run.ServiceName}: {run.Error}");
     }
