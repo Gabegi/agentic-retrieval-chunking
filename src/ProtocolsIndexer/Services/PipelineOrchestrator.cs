@@ -66,6 +66,9 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 if (evalCoherence)
                     await Task.WhenAll(runs.Select(r => ScoreLlmCoherenceAsync(r, token)));
 
+                foreach (var run in runs.Where(r => r.Error == null && r.ChunkCount > 0))
+                    RunQualityCheckers(run);
+
                 lock (printLock)
                 {
                     count++;
@@ -90,6 +93,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                             t.LlmCoherenceSum   += run.AvgLlmCoherence.Value;
                             t.LlmCoherenceCount++;
                         }
+                        t.FidelityIssues    += run.FidelityIssues;
+                        t.HeadingRecallSum  += run.HeadingRecall.Sum(r => r.Recall);
+                        t.HeadingRecallDocs += run.HeadingRecall.Count;
+                        t.FlatTables        += run.FlatTableCount;
                     }
                 }
             });
