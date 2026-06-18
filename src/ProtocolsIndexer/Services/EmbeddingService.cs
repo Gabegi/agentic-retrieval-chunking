@@ -40,10 +40,10 @@ public class EmbeddingService : IEmbeddingService
             async (document, token) =>
             {
                 var text = document.EmbeddingText;
-                if (text.Length > 30_000)
+                if (text.Length > 24_000)
                 {
                     _logger.LogWarning("Truncating oversized chunk {Id} ({Length} chars)", document.Id, text.Length);
-                    text = text[..30_000];
+                    text = text[..24_000];
                 }
 
                 var result = await _embeddingClient.GenerateEmbeddingAsync(text, cancellationToken: token);

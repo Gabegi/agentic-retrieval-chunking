@@ -50,11 +50,21 @@ public class DocumentIntelligenceExtractionService : IExtractionService
                     || string.IsNullOrWhiteSpace(current.Content)
                     || current.Content.Split(' ').Length < 5) return;
 
-                current.ChunkIndex = chunkIndex++;
-                current.Id = Convert.ToBase64String(
-                    Encoding.UTF8.GetBytes($"{blobName}::{current.ChunkIndex}"))
-                    .Replace('+', '-').Replace('/', '_');
-                run.Chunks.Add(current);
+                foreach (var part in SplitContent(current.Content))
+                {
+                    run.Chunks.Add(new ProtocolDocument
+                    {
+                        Id              = SafeKey(blobName, chunkIndex),
+                        SourceFile      = current.SourceFile,
+                        RichtlijnName   = current.RichtlijnName,
+                        PublicationDate = current.PublicationDate,
+                        Version         = current.Version,
+                        PageNumber      = current.PageNumber,
+                        Heading         = current.Heading,
+                        Content         = part,
+                        ChunkIndex      = chunkIndex++
+                    });
+                }
                 current = null;
             }
 
