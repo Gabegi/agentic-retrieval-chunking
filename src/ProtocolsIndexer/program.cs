@@ -32,8 +32,6 @@ var host = new HostBuilder()
             SearchIndexName              = ctx.Configuration["SEARCH_INDEX_NAME"]!,
             KnowledgeSourceName          = ctx.Configuration["KNOWLEDGE_SOURCE_NAME"]!,
             KnowledgeBaseName            = ctx.Configuration["KNOWLEDGE_BASE_NAME"]!,
-            QueueStorageUrl              = ctx.Configuration["QUEUE_STORAGE_URL"]!,
-            QueueName                    = ctx.Configuration["QUEUE_NAME"] ?? "protocol-indexer-queue",
         };
 
         TokenCredential credential = new DefaultAzureCredential();
