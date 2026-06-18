@@ -85,6 +85,10 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
     project     = "agentic-rag-chunking"
     environment = "dev"
   }
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 # ── Role assignments ──────────────────────────────────────────────────────────
