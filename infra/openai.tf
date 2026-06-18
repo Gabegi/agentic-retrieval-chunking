@@ -24,7 +24,7 @@ resource "azurerm_cognitive_deployment" "embedding" {
 
   sku {
     name     = "Standard"
-    capacity = 50
+    capacity = 350
   }
 }
 
