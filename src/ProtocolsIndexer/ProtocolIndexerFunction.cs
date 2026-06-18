@@ -69,7 +69,11 @@ public class ProtocolIndexerFunction
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "reindex")] HttpRequestData req,
         FunctionContext context)
     {
-        _logger.LogInformation("ReindexAll triggered — enqueuing blobs");
+        var limitStr = req.Query["limit"];
+        var limit    = int.TryParse(limitStr, out var n) ? n : int.MaxValue;
+
+        _logger.LogInformation("ReindexAll triggered — enqueuing blobs (limit={Limit})",
+            limit == int.MaxValue ? "all" : limit.ToString());
 
         await _queue.CreateIfNotExistsAsync();
 
@@ -77,6 +81,7 @@ public class ProtocolIndexerFunction
         await foreach (var blob in _container.GetBlobsAsync(cancellationToken: context.CancellationToken))
         {
             if (!blob.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+            if (enqueued >= limit) break;
             var message = Convert.ToBase64String(Encoding.UTF8.GetBytes(blob.Name));
             await _queue.SendMessageAsync(message, cancellationToken: context.CancellationToken);
             enqueued++;
