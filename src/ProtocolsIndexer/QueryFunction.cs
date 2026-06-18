@@ -42,6 +42,7 @@ public class QueryFunction
 
         var chatClient = _openAiClient.GetChatClient(_config.OpenAiGptDeployment);
 
+#pragma warning disable AOAI001
         var options = new ChatCompletionOptions();
         options.AddDataSource(new AzureSearchChatDataSource
         {
@@ -49,6 +50,7 @@ public class QueryFunction
             IndexName      = _config.SearchIndexName,
             Authentication = DataSourceAuthentication.FromSystemManagedIdentity(),
         });
+#pragma warning restore AOAI001
 
         var sw = Stopwatch.StartNew();
         var completion = await chatClient.CompleteChatAsync(
