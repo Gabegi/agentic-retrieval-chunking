@@ -1,11 +1,10 @@
 using System.ClientModel;
 using System.Collections.Concurrent;
 using Azure;
-using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Search.Documents;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using OpenAI.Embeddings;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
 
@@ -13,19 +12,19 @@ namespace ProtocolsIndexer.Services;
 
 public class EmbeddingService : IEmbeddingService
 {
-    private readonly EmbeddingClient _embeddingClient;
+    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
     private readonly SearchClient _searchClient;
     private readonly ILogger<EmbeddingService> _logger;
 
     public EmbeddingService(
         IndexerConfig config,
-        AzureOpenAIClient openAiClient,
+        IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
         TokenCredential credential,
         ILogger<EmbeddingService> logger)
     {
-        _embeddingClient = openAiClient.GetEmbeddingClient(config.OpenAiEmbeddingDeployment);
-        _searchClient    = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
-        _logger          = logger;
+        _embeddingGenerator = embeddingGenerator;
+        _searchClient       = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
+        _logger             = logger;
     }
 
     public async Task<IEnumerable<ProtocolDocument>> EmbedDocumentsAsync(
@@ -69,8 +68,8 @@ public class EmbeddingService : IEmbeddingService
         {
             try
             {
-                var result = await _embeddingClient.GenerateEmbeddingAsync(text, cancellationToken: ct);
-                return result.Value.ToFloats().ToArray();
+                var result = await _embeddingGenerator.GenerateAsync([text], cancellationToken: ct);
+                return result[0].Vector.ToArray();
             }
             catch (Exception ex) when (!ct.IsCancellationRequested && IsThrottled(ex))
             {

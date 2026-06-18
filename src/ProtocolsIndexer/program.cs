@@ -5,6 +5,7 @@ using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ProtocolsIndexer.Configuration;
@@ -52,6 +53,20 @@ var host = new HostBuilder()
 
         services.AddSingleton(_ =>
             new QueueClient(new Uri($"{config.QueueStorageUrl.TrimEnd('/')}/{config.QueueName}"), credential));
+
+        services.AddEmbeddingGenerator(sp =>
+            sp.GetRequiredService<AzureOpenAIClient>()
+              .GetEmbeddingClient(config.OpenAiEmbeddingDeployment)
+              .AsIEmbeddingGenerator())
+            .UseOpenTelemetry();
+
+        services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Microsoft.Extensions.AI")
+                .AddConsoleExporter())
+            .WithMetrics(metrics => metrics
+                .AddMeter("Microsoft.Extensions.AI")
+                .AddConsoleExporter());
 
         services.AddSingleton<IExtractionService, PdfPigExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
