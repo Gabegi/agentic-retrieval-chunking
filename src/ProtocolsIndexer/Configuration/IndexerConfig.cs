@@ -12,8 +12,6 @@ public class IndexerConfig
     public string KnowledgeBaseName { get; init; } = default!;
     public string OpenAiGptDeployment { get; init; } = default!;
     public string OpenAiGptModelName { get; init; } = default!;
-    public string OpenAiExtractionDeployment      { get; init; } = "gpt-41-extraction";
-    public string DocumentIntelligenceEndpoint    { get; init; } = "";
-    public string QueueStorageUrl                 { get; init; } = default!;
-    public string QueueName                       { get; init; } = "protocol-indexer-queue";
+    public string OpenAiExtractionDeployment   { get; init; } = "gpt-41-extraction";
+    public string DocumentIntelligenceEndpoint { get; init; } = "";
 }

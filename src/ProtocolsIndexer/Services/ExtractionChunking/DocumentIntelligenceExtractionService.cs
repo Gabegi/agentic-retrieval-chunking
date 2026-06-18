@@ -43,7 +43,6 @@ public class DocumentIntelligenceExtractionService : IExtractionService
             int chunkIndex = 0;
             ProtocolDocument? current = null;
 
-            // ChunkIndex assigned on flush — not on body-accumulator creation
             void FlushChunk()
             {
                 if (current == null
@@ -79,42 +78,61 @@ public class DocumentIntelligenceExtractionService : IExtractionService
                 Content         = ""
             };
 
-            foreach (var para in analysis.Paragraphs ?? [])
+            static float TopY(IReadOnlyList<BoundingRegion>? regions) =>
+                regions is { Count: > 0 } r && r[0].Polygon is { Count: >= 2 } p ? p[1] : 0f;
+
+            // Merge paragraphs and tables into one stream ordered by page then Y position
+            // so tables are inserted at their actual document position, not appended after all paragraphs.
+            var paragraphItems = (analysis.Paragraphs ?? [])
+                .Select(p => (
+                    Page:  p.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
+                    Y:     TopY(p.BoundingRegions),
+                    Para:  (DocumentParagraph?)p,
+                    Table: (DocumentTable?)null));
+
+            var tableItems = (analysis.Tables ?? [])
+                .Select(t => (
+                    Page:  t.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
+                    Y:     TopY(t.BoundingRegions),
+                    Para:  (DocumentParagraph?)null,
+                    Table: (DocumentTable?)t));
+
+            foreach (var item in paragraphItems.Concat(tableItems).OrderBy(i => i.Page).ThenBy(i => i.Y))
             {
-                if (para.Role == ParagraphRole.PageHeader
-                    || para.Role == ParagraphRole.PageFooter
-                    || para.Role == ParagraphRole.PageNumber)
-                    continue;
-
-                var pageNum = para.BoundingRegions is { Count: > 0 } brP ? brP[0].PageNumber : 0;
-
-                if (para.Role == ParagraphRole.Title
-                    || para.Role == ParagraphRole.SectionHeading)
+                if (item.Para is { } para)
                 {
-                    FlushChunk();
-                    current         = BaseDoc(pageNum);
-                    current.Heading = para.Content;
+                    if (para.Role == ParagraphRole.PageHeader
+                        || para.Role == ParagraphRole.PageFooter
+                        || para.Role == ParagraphRole.PageNumber)
+                        continue;
+
+                    var pageNum = para.BoundingRegions is { Count: > 0 } brP ? brP[0].PageNumber : 0;
+
+                    if (para.Role == ParagraphRole.Title || para.Role == ParagraphRole.SectionHeading)
+                    {
+                        FlushChunk();
+                        current         = BaseDoc(pageNum);
+                        current.Heading = para.Content;
+                    }
+                    else
+                    {
+                        current ??= BaseDoc(pageNum);
+                        current.Content += (current.Content.Length > 0 ? " " : "") + para.Content;
+                    }
                 }
-                else
+                else if (item.Table is { } table)
                 {
+                    var pageNum   = table.BoundingRegions is { Count: > 0 } brT ? brT[0].PageNumber : 0;
+                    var tableText = string.Join(" | ", table.Cells
+                        .OrderBy(c => c.RowIndex).ThenBy(c => c.ColumnIndex)
+                        .Select(c => c.Content.Trim())
+                        .Where(c => !string.IsNullOrWhiteSpace(c)));
+
+                    if (string.IsNullOrWhiteSpace(tableText)) continue;
+
                     current ??= BaseDoc(pageNum);
-                    current.Content += (current.Content.Length > 0 ? " " : "") + para.Content;
+                    current.Content += (current.Content.Length > 0 ? " " : "") + tableText;
                 }
-            }
-
-            // Tables: append to current chunk (dosage tables, diagnostic criteria, etc.)
-            foreach (var table in analysis.Tables ?? [])
-            {
-                var pageNum   = table.BoundingRegions is { Count: > 0 } brT ? brT[0].PageNumber : 0;
-                var tableText = string.Join(" | ", table.Cells
-                    .OrderBy(c => c.RowIndex).ThenBy(c => c.ColumnIndex)
-                    .Select(c => c.Content.Trim())
-                    .Where(c => !string.IsNullOrWhiteSpace(c)));
-
-                if (string.IsNullOrWhiteSpace(tableText)) continue;
-
-                current ??= BaseDoc(pageNum);
-                current.Content += (current.Content.Length > 0 ? " " : "") + tableText;
             }
 
             FlushChunk();
