@@ -313,5 +313,9 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         public int     Errors            { get; set; }
         public double  LlmCoherenceSum   { get; set; }
         public int     LlmCoherenceCount { get; set; }
+        public int     FidelityIssues    { get; set; }
+        public double  HeadingRecallSum  { get; set; }
+        public int     HeadingRecallDocs { get; set; }
+        public int     FlatTables        { get; set; }
     }
 }
