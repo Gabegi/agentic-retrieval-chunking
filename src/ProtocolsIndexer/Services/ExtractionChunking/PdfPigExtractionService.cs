@@ -60,18 +60,21 @@ public class PdfPigExtractionService : IExtractionService
                 var text = buffer.ToString().Trim();
                 if (string.IsNullOrWhiteSpace(text) || text.Split(' ').Length < 5) return;
 
-                run.Chunks.Add(new ProtocolDocument
+                foreach (var part in SplitContent(text))
                 {
-                    Id              = $"{blobName}::{chunkIndex}",
-                    SourceFile      = blobName,
-                    RichtlijnName   = meta.RichtlijnName,
-                    PublicationDate = meta.PublicationDate,
-                    Version         = meta.Version,
-                    Content         = text,
-                    Heading         = currentHeading,
-                    PageNumber      = currentPage,
-                    ChunkIndex      = chunkIndex++
-                });
+                    run.Chunks.Add(new ProtocolDocument
+                    {
+                        Id              = SafeKey(blobName, chunkIndex),
+                        SourceFile      = blobName,
+                        RichtlijnName   = meta.RichtlijnName,
+                        PublicationDate = meta.PublicationDate,
+                        Version         = meta.Version,
+                        Content         = part,
+                        Heading         = currentHeading,
+                        PageNumber      = currentPage,
+                        ChunkIndex      = chunkIndex++
+                    });
+                }
                 buffer.Clear();
             }
 
