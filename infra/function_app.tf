@@ -32,7 +32,7 @@ resource "azurerm_service_plan" "func_indexer" {
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   os_type             = "Windows"
-  sku_name            = "Y1"
+  sku_name            = "B1"
 
   tags = {
     project     = "agentic-rag-chunking"
