@@ -37,7 +37,7 @@ var host = new HostBuilder()
             QueueName                    = ctx.Configuration["QUEUE_NAME"] ?? "protocol-indexer-queue",
         };
 
-        TokenCredential credential = new Azure.Identity.DefaultAzureCredential();
+        TokenCredential credential = new DefaultAzureCredential();
 
         services.AddSingleton(config);
         services.AddSingleton(credential);
