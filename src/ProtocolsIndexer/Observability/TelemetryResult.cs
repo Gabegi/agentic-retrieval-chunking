@@ -1,3 +1,3 @@
-namespace ProtocolsIndexer.Models;
+namespace ProtocolsIndexer.Observability;
 
 public record TelemetryResult(long LatencyMs, long InputTokens, long OutputTokens);

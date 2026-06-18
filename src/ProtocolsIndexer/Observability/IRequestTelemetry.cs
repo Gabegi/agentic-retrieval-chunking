@@ -1,6 +1,4 @@
-using ProtocolsIndexer.Models;
-
-namespace ProtocolsIndexer.Services;
+namespace ProtocolsIndexer.Observability;
 
 public interface IRequestTelemetry
 {

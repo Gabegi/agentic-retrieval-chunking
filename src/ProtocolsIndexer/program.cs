@@ -12,6 +12,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Microsoft.Extensions.Hosting;
 using ProtocolsIndexer.Configuration;
+using ProtocolsIndexer.Observability;
 using ProtocolsIndexer.Services;
 
 var host = new HostBuilder()

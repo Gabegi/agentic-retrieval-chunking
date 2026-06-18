@@ -1,6 +1,4 @@
-using ProtocolsIndexer.Models;
-
-namespace ProtocolsIndexer.Services;
+namespace ProtocolsIndexer.Observability;
 
 // Singleton — uses AsyncLocal so state is scoped to each async invocation chain
 public class RequestTelemetry : IRequestTelemetry
