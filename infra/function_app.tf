@@ -14,6 +14,19 @@ resource "azurerm_storage_account" "func_indexer" {
   }
 }
 
+resource "azurerm_application_insights" "func_indexer" {
+  name                = "appi-protocols-indexer"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  workspace_id        = azurerm_log_analytics_workspace.main.id
+  application_type    = "web"
+
+  tags = {
+    project     = "agentic-rag-chunking"
+    environment = "dev"
+  }
+}
+
 resource "azurerm_service_plan" "func_indexer" {
   name                = "asp-protocols-indexer"
   resource_group_name = azurerm_resource_group.main.name
@@ -44,6 +57,7 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
       dotnet_version              = "v8.0"
       use_dotnet_isolated_runtime = true
     }
+    application_insights_connection_string = azurerm_application_insights.func_indexer.connection_string
   }
 
   app_settings = {
