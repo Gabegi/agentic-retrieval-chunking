@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using OpenAI.Chat;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Utils;
 
 namespace ProtocolsIndexer.Services;
 

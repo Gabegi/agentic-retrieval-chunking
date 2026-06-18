@@ -1,5 +1,3 @@
-using ProtocolsIndexer.Utils;
-
 namespace ProtocolsIndexer.Models;
 
 public class ExtractionRun
@@ -22,13 +20,4 @@ public class ExtractionRun
 
     // Set by LLM coherence eval (--eval-coherence flag); null if not run
     public double? AvgLlmCoherence { get; set; }
-
-    // Quality checker results — populated in compare mode
-    public TextFidelityResult?          TextFidelity    { get; set; }
-    public List<RecallResult>           HeadingRecall   { get; set; } = [];
-    public List<TableFlatteningResult>  FlattenedTables { get; set; } = [];
-
-    public int    FidelityIssues   => TextFidelity?.TotalIssues ?? 0;
-    public double AvgHeadingRecall => HeadingRecall.Count > 0 ? HeadingRecall.Average(r => r.Recall) : -1;
-    public int    FlatTableCount   => FlattenedTables.Count;
 }
