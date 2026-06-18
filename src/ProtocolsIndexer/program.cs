@@ -45,15 +45,9 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton(_ =>
             new AzureOpenAIClient(new Uri(config.OpenAiEndpoint), credential));
 
-        // Extraction services — always register PdfPig; DI only if endpoint is set
-        services.AddSingleton<IExtractionService, PdfPigExtractionService>();
-
-        if (!string.IsNullOrEmpty(config.DocumentIntelligenceEndpoint))
-        {
-            services.AddSingleton(_ =>
-                new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
-            services.AddSingleton<IExtractionService, DocumentIntelligenceExtractionService>();
-        }
+        services.AddSingleton(_ =>
+            new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
+        services.AddSingleton<IExtractionService, DocumentIntelligenceExtractionService>();
 
         services.AddSingleton<IIndexService, IndexService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
