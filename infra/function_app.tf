@@ -58,6 +58,9 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
       use_dotnet_isolated_runtime = true
     }
     application_insights_connection_string = azurerm_application_insights.func_indexer.connection_string
+    cors {
+      allowed_origins = ["https://portal.azure.com"]
+    }
   }
 
   app_settings = {
