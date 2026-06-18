@@ -33,7 +33,7 @@ public class IndexService : IIndexService
             {
                 ResourceUri    = new Uri(_config.OpenAiEndpoint.TrimEnd('/')),
                 DeploymentName = _config.OpenAiEmbeddingDeployment,
-                ModelName      = _config.OpenAiEmbeddingDeployment
+                ModelName      = "text-embedding-3-large"
             }
         });
 
