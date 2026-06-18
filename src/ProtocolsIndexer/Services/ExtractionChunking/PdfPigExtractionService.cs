@@ -167,4 +167,38 @@ public class PdfPigExtractionService : IExtractionService
         run.ElapsedMs = sw.ElapsedMilliseconds;
         return Task.FromResult(run);
     }
+
+    private static string SafeKey(string blobName, int index) =>
+        Convert.ToBase64String(Encoding.UTF8.GetBytes($"{blobName}::{index}"))
+            .Replace('+', '-').Replace('/', '_');
+
+    private static IEnumerable<string> SplitContent(string text, int maxChars = 6_000)
+    {
+        if (text.Length <= maxChars) { yield return text; yield break; }
+
+        int start = 0;
+        while (start < text.Length)
+        {
+            if (start + maxChars >= text.Length) { yield return text[start..].Trim(); yield break; }
+
+            int end   = start + maxChars;
+            int split = -1;
+
+            for (int i = end; i > start + maxChars / 2; i--)
+            {
+                if (text[i] is '.' or '!' or '?' && i + 1 < text.Length && text[i + 1] == ' ')
+                { split = i + 1; break; }
+            }
+
+            if (split == -1)
+                for (int i = end; i > start + maxChars / 2; i--)
+                    if (text[i] == ' ') { split = i + 1; break; }
+
+            if (split == -1) split = end;
+
+            var part = text[start..split].Trim();
+            if (!string.IsNullOrWhiteSpace(part)) yield return part;
+            start = split;
+        }
+    }
 }
