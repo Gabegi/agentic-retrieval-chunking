@@ -3,19 +3,14 @@ using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Services;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using ProtocolsIndexer.Configuration;
+using ProtocolsIndexer.Services;
 
-var host = Host.CreateDefaultBuilder(args)
-    .ConfigureLogging(log =>
-    {
-        log.ClearProviders();
-        log.AddConsole();
-        log.SetMinimumLevel(LogLevel.Information);
-    })
+var host = new HostBuilder()
+    .ConfigureFunctionsWorkerDefaults()
     .ConfigureServices((ctx, services) =>
     {
         var config = new IndexerConfig
@@ -26,7 +21,7 @@ var host = Host.CreateDefaultBuilder(args)
             OpenAiGptDeployment          = ctx.Configuration["OPENAI_GPT_DEPLOYMENT"]!,
             OpenAiGptModelName           = ctx.Configuration["OPENAI_GPT_MODEL_NAME"]!,
             OpenAiExtractionDeployment   = ctx.Configuration["OPENAI_EXTRACTION_DEPLOYMENT"] ?? "gpt-41-extraction",
-            DocumentIntelligenceEndpoint = ctx.Configuration["DOCUMENT_INTELLIGENCE_ENDPOINT"] ?? "",
+            DocumentIntelligenceEndpoint = ctx.Configuration["DOCUMENT_INTELLIGENCE_ENDPOINT"]!,
             StorageAccountUrl            = ctx.Configuration["STORAGE_ACCOUNT_URL"]!,
             StorageContainer             = ctx.Configuration["STORAGE_CONTAINER"] ?? "protocols",
             SearchIndexName              = ctx.Configuration["SEARCH_INDEX_NAME"]!,
@@ -42,23 +37,22 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton(_ =>
             new BlobServiceClient(new Uri(config.StorageAccountUrl), credential));
 
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<BlobServiceClient>()
+              .GetBlobContainerClient(config.StorageContainer));
+
         services.AddSingleton(_ =>
             new AzureOpenAIClient(new Uri(config.OpenAiEndpoint), credential));
 
         services.AddSingleton(_ =>
             new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
-        services.AddSingleton<IExtractionService, DocumentIntelligenceExtractionService>();
 
-        services.AddSingleton<IIndexService, IndexService>();
+        services.AddSingleton<IExtractionService, DocumentIntelligenceExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
+        services.AddSingleton<IIndexService, IndexService>();
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
         services.AddSingleton<IPipelineOrchestrator, PipelineOrchestrator>();
     })
     .Build();
 
-var orchestrator = host.Services.GetRequiredService<IPipelineOrchestrator>();
-
-if (args.Contains("--compare"))
-    await orchestrator.CompareAsync();
-else
-    await orchestrator.RunAsync();
+await host.RunAsync();
