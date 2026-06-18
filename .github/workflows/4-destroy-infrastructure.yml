@@ -15,7 +15,7 @@ jobs:
     environment: prod
     steps:
       - name: Confirm destruction intent
-        if: ${{ github.event.inputs.confirmation != 'DESTROY' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.confirmation != 'DESTROY' }}
         run: |
           echo "❌ Confirmation failed. You must type DESTROY exactly to proceed."
           exit 1
