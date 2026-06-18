@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using ProtocolsIndexer.Models;
@@ -50,13 +51,16 @@ public class DocumentIntelligenceExtractionService : IExtractionService
                     || current.Content.Split(' ').Length < 5) return;
 
                 current.ChunkIndex = chunkIndex++;
+                current.Id = Convert.ToBase64String(
+                    Encoding.UTF8.GetBytes($"{blobName}::{current.ChunkIndex}"))
+                    .Replace('+', '-').Replace('/', '_');
                 run.Chunks.Add(current);
                 current = null;
             }
 
             ProtocolDocument BaseDoc(int pageNum) => new()
             {
-                Id              = $"{blobName}::pending",
+                Id              = "",
                 SourceFile      = blobName,
                 RichtlijnName   = meta.RichtlijnName,
                 PublicationDate = meta.PublicationDate,
