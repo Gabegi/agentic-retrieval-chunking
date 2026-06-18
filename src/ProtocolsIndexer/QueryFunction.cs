@@ -56,7 +56,7 @@ public class QueryFunction
             {
                 ContentFieldNames = { "content" },
                 TitleFieldName    = "richtlijn_name",
-                FilepathFieldName = "source_file",
+                FilePathFieldName = "source_file",
                 VectorFieldNames  = { "content_vector" },
             },
         });

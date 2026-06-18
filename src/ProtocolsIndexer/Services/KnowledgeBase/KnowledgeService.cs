@@ -87,7 +87,7 @@ public class KnowledgeService : IKnowledgeService
                                  "If multiple protocols are relevant, discuss each separately.",
 
             OutputMode               = KnowledgeRetrievalOutputMode.AnswerSynthesis,
-            RetrievalReasoningEffort = new KnowledgeRetrievalHighReasoningEffort(),
+            RetrievalReasoningEffort = new KnowledgeRetrievalMediumReasoningEffort(),
             Models                   = { new KnowledgeBaseAzureOpenAIModel(aoaiParams) }
         };
 
