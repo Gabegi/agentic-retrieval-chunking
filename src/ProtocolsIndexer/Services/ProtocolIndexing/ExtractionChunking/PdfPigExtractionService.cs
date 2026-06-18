@@ -60,16 +60,18 @@ public class PdfPigExtractionService : IExtractionService
                 var text = buffer.ToString().Trim();
                 if (string.IsNullOrWhiteSpace(text) || text.Split(' ').Length < 5) return;
 
-                foreach (var part in SplitContent(text))
+                foreach (var part in ChunkingUtils.SplitContent(text))
                 {
+                    // Prepend heading into content so keyword and vector signals align
+                    var fullContent = currentHeading != null ? $"{currentHeading}\n\n{part}" : part;
                     run.Chunks.Add(new ProtocolDocument
                     {
-                        Id              = SafeKey(blobName, chunkIndex),
+                        Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
                         SourceFile      = blobName,
                         RichtlijnName   = meta.RichtlijnName,
                         PublicationDate = meta.PublicationDate,
                         Version         = meta.Version,
-                        Content         = part,
+                        Content         = fullContent,
                         Heading         = currentHeading,
                         PageNumber      = currentPage,
                         ChunkIndex      = chunkIndex++
@@ -148,7 +150,7 @@ public class PdfPigExtractionService : IExtractionService
 
                     run.Chunks.Add(new ProtocolDocument
                     {
-                        Id              = SafeKey(blobName, chunkIndex),
+                        Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
                         SourceFile      = blobName,
                         RichtlijnName   = meta.RichtlijnName,
                         PublicationDate = meta.PublicationDate,
@@ -168,37 +170,4 @@ public class PdfPigExtractionService : IExtractionService
         return Task.FromResult(run);
     }
 
-    private static string SafeKey(string blobName, int index) =>
-        Convert.ToBase64String(Encoding.UTF8.GetBytes($"{blobName}::{index}"))
-            .Replace('+', '-').Replace('/', '_');
-
-    private static IEnumerable<string> SplitContent(string text, int maxChars = 6_000)
-    {
-        if (text.Length <= maxChars) { yield return text; yield break; }
-
-        int start = 0;
-        while (start < text.Length)
-        {
-            if (start + maxChars >= text.Length) { yield return text[start..].Trim(); yield break; }
-
-            int end   = start + maxChars;
-            int split = -1;
-
-            for (int i = end; i > start + maxChars / 2; i--)
-            {
-                if (text[i] is '.' or '!' or '?' && i + 1 < text.Length && text[i + 1] == ' ')
-                { split = i + 1; break; }
-            }
-
-            if (split == -1)
-                for (int i = end; i > start + maxChars / 2; i--)
-                    if (text[i] == ' ') { split = i + 1; break; }
-
-            if (split == -1) split = end;
-
-            var part = text[start..split].Trim();
-            if (!string.IsNullOrWhiteSpace(part)) yield return part;
-            start = split;
-        }
-    }
 }

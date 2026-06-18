@@ -46,15 +46,37 @@ public class QueryFunction
         var options = new ChatCompletionOptions();
         options.AddDataSource(new AzureSearchChatDataSource
         {
-            Endpoint       = new Uri(_config.SearchEndpoint),
-            IndexName      = _config.SearchIndexName,
-            Authentication = DataSourceAuthentication.FromSystemManagedIdentity(),
+            Endpoint              = new Uri(_config.SearchEndpoint),
+            IndexName             = _config.SearchIndexName,
+            Authentication        = DataSourceAuthentication.FromSystemManagedIdentity(),
+            QueryType             = DataSourceQueryType.VectorSemanticHybrid,
+            SemanticConfiguration = "semantic-config",
+            VectorizationSource   = DataSourceVectorizer.FromDeploymentName(_config.OpenAiEmbeddingDeployment),
+            FieldMappings = new DataSourceFieldMappings
+            {
+                ContentFieldNames = { "content" },
+                TitleFieldName    = "richtlijn_name",
+                FilepathFieldName = "source_file",
+                VectorFieldNames  = { "content_vector" },
+            },
         });
 #pragma warning restore AOAI001
 
+        ChatMessage[] messages =
+        [
+            new SystemChatMessage(
+                "Je bent een medische informatieassistent voor LCI-richtlijnen (Landelijke Coördinatie Infectieziektebestrijding). " +
+                "Beantwoord vragen uitsluitend op basis van de aangeleverde richtlijnen. " +
+                "Noem altijd de naam van de richtlijn en de sectie waaruit de informatie afkomstig is. " +
+                "Geef volledige en nauwkeurige antwoorden — vat geen doseringen, termijnen of diagnostische criteria samen. " +
+                "Als meerdere richtlijnen relevant zijn, bespreek elke richtlijn afzonderlijk. " +
+                "Antwoord in het Nederlands."),
+            new UserChatMessage(body.Question),
+        ];
+
         var sw = Stopwatch.StartNew();
         var completion = await chatClient.CompleteChatAsync(
-            [new UserChatMessage(body.Question)],
+            messages,
             options,
             context.CancellationToken);
         sw.Stop();

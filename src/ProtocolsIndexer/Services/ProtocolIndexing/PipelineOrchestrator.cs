@@ -18,7 +18,7 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
     private readonly IndexerConfig                 _config;
     private readonly ILogger<PipelineOrchestrator> _logger;
 
-    private bool _indexEnsured;
+    private volatile bool _indexEnsured;
 
     public PipelineOrchestrator(
         BlobServiceClient               blobServiceClient,

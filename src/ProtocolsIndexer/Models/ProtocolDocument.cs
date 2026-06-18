@@ -44,8 +44,7 @@ public class ProtocolDocument
     [JsonIgnore] public bool EndsClean   => Content.Length > 0 && ".!?:)\"'".Contains(Content[^1]);
     [JsonIgnore] public bool IsCoherent  => StartsClean && EndsClean;
 
-    // What gets embedded and scored — heading gives the model context for retrieval
-    [JsonIgnore] public string EmbeddingText => Heading != null
-        ? $"{Heading}\n\n{Content}"
-        : Content;
+    // Content already includes the section heading (prepended by extraction services),
+    // so keyword and vector signals are aligned.
+    [JsonIgnore] public string EmbeddingText => Content;
 }

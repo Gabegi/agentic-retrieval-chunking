@@ -79,9 +79,6 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
     "SEARCH_INDEX_NAME"                = var.search_index_name
     "KNOWLEDGE_SOURCE_NAME"            = var.knowledge_source_name
     "KNOWLEDGE_BASE_NAME"              = var.knowledge_base_name
-    "QUEUE_STORAGE_URL"                = azurerm_storage_account.func_indexer.primary_queue_endpoint
-    "QUEUE_NAME"                       = "protocol-indexer-queue"
-    "FuncStorage__queueServiceUri"     = azurerm_storage_account.func_indexer.primary_queue_endpoint
   }
 
   tags = {
@@ -99,18 +96,6 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
 resource "azurerm_role_assignment" "func_indexer_storage_owner" {
   scope                = azurerm_storage_account.func_indexer.id
   role_definition_name = "Storage Blob Data Owner"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexer_queue_contributor" {
-  scope                = azurerm_storage_account.func_indexer.id
-  role_definition_name = "Storage Queue Data Contributor"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexer_table_contributor" {
-  scope                = azurerm_storage_account.func_indexer.id
-  role_definition_name = "Storage Table Data Contributor"
   principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
 }
 

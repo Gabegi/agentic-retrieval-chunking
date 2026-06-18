@@ -35,6 +35,7 @@ public class KnowledgeService : IKnowledgeService
                 SearchFields =
                 {
                     new SearchIndexFieldReference("content"),
+                    new SearchIndexFieldReference("heading"),
                     new SearchIndexFieldReference("richtlijn_name"),
                     new SearchIndexFieldReference("content_vector")
                 },
@@ -43,6 +44,8 @@ public class KnowledgeService : IKnowledgeService
                     new SearchIndexFieldReference("id"),
                     new SearchIndexFieldReference("source_file"),
                     new SearchIndexFieldReference("richtlijn_name"),
+                    new SearchIndexFieldReference("heading"),
+                    new SearchIndexFieldReference("page_number"),
                     new SearchIndexFieldReference("content")
                 }
             }
@@ -78,12 +81,13 @@ public class KnowledgeService : IKnowledgeService
                                     "The content is in Dutch — use Dutch medical terminology when searching. " +
                                     "Always cite the richtlijn_name and source_file in your answer.",
 
-            AnswerInstructions = "Provide a concise answer based on the protocol content. " +
-                                 "Always mention which richtlijn (guideline) the information comes from. " +
-                                 "If multiple protocols are relevant, summarise each separately.",
+            AnswerInstructions = "Provide a comprehensive and complete answer based on the protocol content. " +
+                                 "Do not summarize or shorten clinical steps, dosing regimens, incubation periods, or diagnostic criteria. " +
+                                 "Always mention which richtlijn (guideline) and section the information comes from. " +
+                                 "If multiple protocols are relevant, discuss each separately.",
 
             OutputMode               = KnowledgeRetrievalOutputMode.AnswerSynthesis,
-            RetrievalReasoningEffort = new KnowledgeRetrievalMediumReasoningEffort(),
+            RetrievalReasoningEffort = new KnowledgeRetrievalHighReasoningEffort(),
             Models                   = { new KnowledgeBaseAzureOpenAIModel(aoaiParams) }
         };
 

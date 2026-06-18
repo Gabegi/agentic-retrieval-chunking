@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using ProtocolsIndexer.Models;
@@ -49,18 +48,20 @@ public class DocumentIntelligenceExtractionService : IExtractionService
                     || string.IsNullOrWhiteSpace(current.Content)
                     || current.Content.Split(' ').Length < 5) return;
 
-                foreach (var part in SplitContent(current.Content))
+                foreach (var part in ChunkingUtils.SplitContent(current.Content))
                 {
+                    // Prepend heading into content so keyword and vector signals align
+                    var fullContent = current.Heading != null ? $"{current.Heading}\n\n{part}" : part;
                     run.Chunks.Add(new ProtocolDocument
                     {
-                        Id              = SafeKey(blobName, chunkIndex),
+                        Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
                         SourceFile      = current.SourceFile,
                         RichtlijnName   = current.RichtlijnName,
                         PublicationDate = current.PublicationDate,
                         Version         = current.Version,
                         PageNumber      = current.PageNumber,
                         Heading         = current.Heading,
-                        Content         = part,
+                        Content         = fullContent,
                         ChunkIndex      = chunkIndex++
                     });
                 }
@@ -148,37 +149,4 @@ public class DocumentIntelligenceExtractionService : IExtractionService
         return run;
     }
 
-    private static string SafeKey(string blobName, int index) =>
-        Convert.ToBase64String(Encoding.UTF8.GetBytes($"{blobName}::{index}"))
-            .Replace('+', '-').Replace('/', '_');
-
-    private static IEnumerable<string> SplitContent(string text, int maxChars = 6_000)
-    {
-        if (text.Length <= maxChars) { yield return text; yield break; }
-
-        int start = 0;
-        while (start < text.Length)
-        {
-            if (start + maxChars >= text.Length) { yield return text[start..].Trim(); yield break; }
-
-            int end   = start + maxChars;
-            int split = -1;
-
-            for (int i = end; i > start + maxChars / 2; i--)
-            {
-                if (text[i] is '.' or '!' or '?' && i + 1 < text.Length && text[i + 1] == ' ')
-                { split = i + 1; break; }
-            }
-
-            if (split == -1)
-                for (int i = end; i > start + maxChars / 2; i--)
-                    if (text[i] == ' ') { split = i + 1; break; }
-
-            if (split == -1) split = end;
-
-            var part = text[start..split].Trim();
-            if (!string.IsNullOrWhiteSpace(part)) yield return part;
-            start = split;
-        }
-    }
 }
