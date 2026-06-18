@@ -78,7 +78,6 @@ var host = new HostBuilder()
         services.AddSingleton<IExtractionService, PdfPigExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IIndexService, IndexService>();
-        services.AddSingleton<IKnowledgeService, KnowledgeService>();
         services.AddSingleton<IPipelineOrchestrator, PipelineOrchestrator>();
     })
     .Build();
