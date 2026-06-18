@@ -67,15 +67,6 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
     project     = "agentic-rag-chunking"
     environment = "dev"
   }
-
-  depends_on = [
-    azurerm_role_assignment.func_indexer_storage_owner,
-    azurerm_role_assignment.func_indexer_blob_reader,
-    azurerm_role_assignment.func_indexer_search_index_contributor,
-    azurerm_role_assignment.func_indexer_search_service_contributor,
-    azurerm_role_assignment.func_indexer_openai_user,
-    azurerm_role_assignment.func_indexer_document_intelligence,
-  ]
 }
 
 # ── Role assignments ──────────────────────────────────────────────────────────
