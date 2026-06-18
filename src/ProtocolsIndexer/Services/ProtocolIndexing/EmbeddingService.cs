@@ -114,6 +114,7 @@ public class EmbeddingService : IEmbeddingService
                 if (!result.Succeeded)
                 {
                     _logger.LogWarning("Failed to upload {Key}: {Error}", result.Key, result.ErrorMessage);
+                    Instrumentation.UploadFailures.Add(1);
                     failed++;
                 }
                 else

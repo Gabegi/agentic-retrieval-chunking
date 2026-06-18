@@ -60,19 +60,30 @@ var host = new HostBuilder()
             .UseOpenTelemetry();
 
         var appInsightsConnectionString = ctx.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+        var isDev = string.IsNullOrEmpty(appInsightsConnectionString);
+
         services.AddOpenTelemetry()
+            .ConfigureResource(r => r.AddService(
+                serviceName:    "protocols-indexer",
+                serviceVersion: "1.0.0"))
             .WithTracing(tracing =>
             {
-                tracing.AddSource("Microsoft.Extensions.AI")
-                       .AddConsoleExporter();
-                if (!string.IsNullOrEmpty(appInsightsConnectionString))
+                tracing
+                    .AddSource("Microsoft.Extensions.AI")
+                    .AddSource(Instrumentation.ActivitySourceName);
+                if (isDev)
+                    tracing.AddConsoleExporter();
+                else
                     tracing.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsightsConnectionString);
             })
             .WithMetrics(metrics =>
             {
-                metrics.AddMeter("Microsoft.Extensions.AI")
-                       .AddConsoleExporter();
-                if (!string.IsNullOrEmpty(appInsightsConnectionString))
+                metrics
+                    .AddMeter("Microsoft.Extensions.AI")
+                    .AddMeter(Instrumentation.MeterName);
+                if (isDev)
+                    metrics.AddConsoleExporter();
+                else
                     metrics.AddAzureMonitorMetricExporter(o => o.ConnectionString = appInsightsConnectionString);
             });
 

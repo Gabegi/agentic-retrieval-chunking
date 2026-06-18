@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Azure.AI.OpenAI;
 using Azure.Storage.Blobs;
@@ -5,6 +6,7 @@ using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
+using ProtocolsIndexer.Observability;
 
 namespace ProtocolsIndexer.Services;
 
@@ -42,6 +44,9 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
     // ── Per-blob pipeline: extract → embed → index ────────────────────────
     public async Task ProcessBlobAsync(string blobName, byte[] bytes, CancellationToken ct = default)
     {
+        using var activity = Instrumentation.ActivitySource.StartActivity("ProcessBlob", ActivityKind.Internal);
+        activity?.SetTag("blob.name", blobName);
+
         try
         {
             if (!_indexEnsured)
@@ -50,20 +55,37 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
                 _indexEnsured = true;
             }
 
+            using var extractActivity = Instrumentation.ActivitySource.StartActivity("Extract", ActivityKind.Internal);
             var run = await _services[0].ExtractAsync(blobName, bytes, ct);
+            extractActivity?.SetTag("chunks", run.ChunkCount);
+            extractActivity?.SetTag("fallback", run.UsedFallback);
+
             if (run.Error != null)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, run.Error);
+                Instrumentation.BlobsProcessed.Add(1,
+                    new KeyValuePair<string, object?>("status", "extraction_failed"));
                 _logger.LogError("Extraction failed for {Blob}: {Error}", blobName, run.Error);
                 return;
             }
+
+            Instrumentation.ChunksExtracted.Record(run.ChunkCount,
+                new KeyValuePair<string, object?>("service", run.ServiceName),
+                new KeyValuePair<string, object?>("fallback", run.UsedFallback));
             _logger.LogInformation("{Blob} → {Chunks} chunks extracted", blobName, run.ChunkCount);
 
             var embedded = await _embeddingService.EmbedDocumentsAsync(run.Chunks, ct);
             await _embeddingService.UploadDocumentsAsync(embedded, ct);
+
+            Instrumentation.BlobsProcessed.Add(1,
+                new KeyValuePair<string, object?>("status", "success"));
             _logger.LogInformation("{Blob} indexed", blobName);
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            Instrumentation.BlobsProcessed.Add(1,
+                new KeyValuePair<string, object?>("status", "error"));
             _logger.LogError("Pipeline failed for {Blob} — {Type}: {Message}\n{Stack}",
                 blobName, ex.GetType().Name, ex.Message, ex.StackTrace);
             throw;

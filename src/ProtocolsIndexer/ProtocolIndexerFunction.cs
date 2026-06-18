@@ -40,6 +40,7 @@ public class ProtocolIndexerFunction
     {
         if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
         _logger.LogInformation("Blob trigger: {Name}", name);
+        _telemetry.Initialize();
         await _orchestrator.ProcessBlobAsync(name, content, context.CancellationToken);
     }
 
