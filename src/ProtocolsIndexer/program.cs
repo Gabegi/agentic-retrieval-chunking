@@ -89,6 +89,7 @@ var host = new HostBuilder()
             });
 
         services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
+        services.AddSingleton<IRagQueryService, RagQueryService>();
 
         services.AddSingleton<IExtractionService, PdfPigExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
