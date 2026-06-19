@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using Azure.Storage.Blobs;
@@ -46,22 +47,9 @@ public class RagEvaluationTests
         return Task.CompletedTask;
     }
 
-    // Dutch medical protocol golden queries — scores are 1–5, threshold ≥ 3 is "acceptable"
+    // Scores are 1–5; ≥ 3 is acceptable quality
     [TestMethod]
-    [DataRow("salmonella-uitbraak",
-        "Wat zijn de maatregelen bij een uitbraak van salmonella in een kinderdagverblijf?")]
-    [DataRow("tuberculose-isolatie",
-        "Wanneer is isolatie vereist bij tuberculose en hoe lang duurt de besmettelijke periode?")]
-    [DataRow("legionella-behandeling",
-        "Welke antibiotica worden aanbevolen voor de behandeling van legionellose en wat zijn de doseringen?")]
-    [DataRow("hepatitis-a-incubatie",
-        "Wat zijn de incubatietijd en de klinische symptomen van hepatitis A?")]
-    [DataRow("meningokokken-protocol",
-        "Hoe moet een arts handelen bij vermoeden van meningokokkenziekte bij een kind?")]
-    [DataRow("mazelen-bronopsporing",
-        "Wat is het beleid voor bronopsporing en vaccinatie bij een bevestigd geval van mazelen?")]
-    [DataRow("kinkhoest-profylaxe",
-        "Wanneer is profylactische antibiotica geïndiceerd bij blootstelling aan kinkhoest?")]
+    [DynamicData(nameof(GoldenQueries), DynamicDataSourceType.Property)]
     public async Task EvaluateQuery(string scenarioName, string query)
     {
         var row = await _evaluator.RunAsync(scenarioName, query, q => _ragService.AskAsync(q));
@@ -79,7 +67,19 @@ public class RagEvaluationTests
             $"Coherence {row.Coherence:F1}/5 below threshold for '{scenarioName}'");
     }
 
+    public static IEnumerable<object[]> GoldenQueries
+    {
+        get
+        {
+            var path    = Path.Combine(AppContext.BaseDirectory, "testdata", "golden-queries.json");
+            var queries = JsonSerializer.Deserialize<GoldenQuery[]>(File.ReadAllText(path))!;
+            return queries.Select(q => new object[] { q.Name, q.Query });
+        }
+    }
+
     private static string Env(string name) =>
         Environment.GetEnvironmentVariable(name)
         ?? throw new InvalidOperationException($"Missing required env var: {name}");
 }
+
+file record GoldenQuery(string Name, string Query, string ExpectedAnswer);
