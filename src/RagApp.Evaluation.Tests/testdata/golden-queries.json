@@ -1,0 +1,42 @@
+[
+  {
+    "name": "chikungunya-incubatietijd",
+    "query": "Wat is de incubatietijd van chikungunya?",
+    "expectedAnswer": "Gemiddeld 3-7 dagen, spreiding 1-12 dagen."
+  },
+  {
+    "name": "chikungunya-meldingsplicht",
+    "query": "Is chikungunya meldingsplichtig in Europees Nederland?",
+    "expectedAnswer": "Nee, alleen in Caribisch Nederland (groep C)."
+  },
+  {
+    "name": "chikungunya-muggen",
+    "query": "Welke muggen verspreiden CHIKV?",
+    "expectedAnswer": "Aedes aegypti en Aedes albopictus (tijgermug)."
+  },
+  {
+    "name": "chikungunya-chronische-klachten",
+    "query": "Hoeveel procent van de patiënten ontwikkelt chronische klachten na chikungunya?",
+    "expectedAnswer": "40-80% (gemiddeld 50%)."
+  },
+  {
+    "name": "chikungunya-vaccin",
+    "query": "Is er een vaccin tegen chikungunya?",
+    "expectedAnswer": "Ja, zie de factsheet Chikungunyavaccinatie (apart document)."
+  },
+  {
+    "name": "chikungunya-perinataal",
+    "query": "Kan chikungunya van moeder op kind overgaan?",
+    "expectedAnswer": "Ja, perinataal tijdens bevalling, kans 3-50%."
+  },
+  {
+    "name": "chikungunya-vs-dengue-bloedingen",
+    "query": "Wat is het verschil tussen chikungunya en dengue wat betreft bloedingen?",
+    "expectedAnswer": "Bij dengue komen bloedingen voor (+), bij chikungunya niet (-)."
+  },
+  {
+    "name": "chikungunya-risicoklasse",
+    "query": "Welke risicoklasse heeft CHIKV als biologisch agens?",
+    "expectedAnswer": "Risicoklasse 3."
+  }
+]
