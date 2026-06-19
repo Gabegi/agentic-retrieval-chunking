@@ -69,7 +69,9 @@ public class RagQueryService : IRagQueryService
         var completion = await chatClient.CompleteChatAsync(messages, options, ct);
         sw.Stop();
 
-        var citations        = completion.Value.GetAzureMessageContext()?.Citations ?? [];
+#pragma warning disable AOAI001
+        var citations        = completion.Value.GetMessageContext()?.Citations ?? [];
+#pragma warning restore AOAI001
         var retrievedContext = string.Join("\n\n---\n\n",
             citations.Select(c => string.IsNullOrEmpty(c.Title) ? c.Content : $"[{c.Title}]\n{c.Content}"));
 
