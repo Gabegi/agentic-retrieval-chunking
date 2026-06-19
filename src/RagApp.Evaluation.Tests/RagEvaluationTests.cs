@@ -3,7 +3,6 @@ using Azure.AI.OpenAI;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.AI.OpenAI;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Services;
