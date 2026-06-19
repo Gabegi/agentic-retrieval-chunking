@@ -1,4 +1,5 @@
 [
+  // ── Chikungunya ──────────────────────────────────────────────────────────
   {
     "name": "chikungunya-incubatietijd",
     "query": "Wat is de incubatietijd van chikungunya?",
@@ -38,5 +39,135 @@
     "name": "chikungunya-risicoklasse",
     "query": "Welke risicoklasse heeft CHIKV als biologisch agens?",
     "expectedAnswer": "Risicoklasse 3."
+  },
+
+  // ── Tuberculose ──────────────────────────────────────────────────────────
+  {
+    "name": "tbc-isolatie-indicatie",
+    "query": "Wanneer is isolatie vereist bij tuberculose en hoe lang duurt de besmettelijke periode?",
+    "expectedAnswer": "Isolatie is vereist bij longtuberculose zolang de patiënt positief is bij kweek of microscopie; na effectieve behandeling doorgaans na 2 weken niet meer besmettelijk."
+  },
+  {
+    "name": "tbc-meldingsplicht",
+    "query": "Is tuberculose meldingsplichtig in Nederland?",
+    "expectedAnswer": "Ja, tuberculose is een meldingsplichtige ziekte (groep B1)."
+  },
+  {
+    "name": "tbc-contactonderzoek",
+    "query": "Hoe wordt contactonderzoek uitgevoerd bij een geval van longtuberculose?",
+    "expectedAnswer": "Contactonderzoek wordt uitgevoerd door de GGD; huisgenoten en nauwe contacten worden getest met tuberculinehuidtest of IGRA."
+  },
+
+  // ── Salmonella ───────────────────────────────────────────────────────────
+  {
+    "name": "salmonella-uitbraak-kinderdagverblijf",
+    "query": "Wat zijn de maatregelen bij een uitbraak van salmonella in een kinderdagverblijf?",
+    "expectedAnswer": "Meld aan de GGD, sluit besmette kinderen uit tot 48 uur na laatste symptomen, hygiënemaatregelen voor personeel en keukens, bronopsporing."
+  },
+  {
+    "name": "salmonella-incubatietijd",
+    "query": "Wat is de incubatietijd van salmonellose?",
+    "expectedAnswer": "6-72 uur, meestal 12-36 uur."
+  },
+  {
+    "name": "salmonella-uitscheiding",
+    "query": "Hoe lang scheidt een patiënt salmonella uit via de ontlasting?",
+    "expectedAnswer": "Gemiddeld 4-5 weken, maar dit kan langer zijn bij zuigelingen en immuungecompromitteerden."
+  },
+
+  // ── Hepatitis A ──────────────────────────────────────────────────────────
+  {
+    "name": "hep-a-incubatietijd",
+    "query": "Wat zijn de incubatietijd en de klinische symptomen van hepatitis A?",
+    "expectedAnswer": "Incubatietijd 15-50 dagen (gemiddeld 28 dagen); symptomen: koorts, misselijkheid, geelzucht, donkere urine."
+  },
+  {
+    "name": "hep-a-besmettelijke-periode",
+    "query": "Wanneer is een patiënt met hepatitis A het meest besmettelijk?",
+    "expectedAnswer": "Twee weken voor tot één week na het begin van de geelzucht."
+  },
+  {
+    "name": "hep-a-profylaxe",
+    "query": "Welke profylaxe is beschikbaar na blootstelling aan hepatitis A?",
+    "expectedAnswer": "Hepatitis A-vaccin (geprefereerd) of immunoglobulinen, beide effectief binnen 2 weken na blootstelling."
+  },
+
+  // ── Meningokokkenziekte ──────────────────────────────────────────────────
+  {
+    "name": "meningokokken-spoedbeleid",
+    "query": "Hoe moet een arts handelen bij vermoeden van meningokokkenziekte bij een kind?",
+    "expectedAnswer": "Direct i.v. penicilline toedienen vóór ziekenhuisopname; meld aan GGD; start profylaxe voor huisgenoten."
+  },
+  {
+    "name": "meningokokken-profylaxe-contacten",
+    "query": "Welk antibioticum wordt gegeven als chemoprofylaxe aan huisgenoten van een meningokokkenpatiënt?",
+    "expectedAnswer": "Rifampicine of ciprofloxacine (éénmalig) of ceftriaxon."
+  },
+  {
+    "name": "meningokokken-meldingstermijn",
+    "query": "Binnen hoeveel uur moet meningokokkenziekte worden gemeld bij de GGD?",
+    "expectedAnswer": "Direct (onmiddellijk), ook buiten kantooruren — meningokokkenziekte is een meldingsplichtige ziekte groep A."
+  },
+
+  // ── Mazelen ──────────────────────────────────────────────────────────────
+  {
+    "name": "mazelen-besmettelijkheid",
+    "query": "Hoe besmettelijk is mazelen en hoe lang is iemand besmettelijk?",
+    "expectedAnswer": "Uiterst besmettelijk (R0 12-18); besmettelijk van 4 dagen voor tot 4 dagen na het uitbreken van de huiduitslag."
+  },
+  {
+    "name": "mazelen-vaccinatie-na-blootstelling",
+    "query": "Wat is het beleid voor vaccinatie na blootstelling aan mazelen?",
+    "expectedAnswer": "Vaccinatie binnen 72 uur na blootstelling is effectief; immunoglobulinen binnen 6 dagen voor risicogroepen."
+  },
+
+  // ── Kinkhoest ────────────────────────────────────────────────────────────
+  {
+    "name": "kinkhoest-profylaxe",
+    "query": "Wanneer is profylactische antibiotica geïndiceerd bij blootstelling aan kinkhoest?",
+    "expectedAnswer": "Azitromycine profylaxe is geïndiceerd voor huisgenoten en risicovol contact, met name bij zuigelingen jonger dan 6 maanden en zwangeren."
+  },
+  {
+    "name": "kinkhoest-verwekker",
+    "query": "Welke bacterie veroorzaakt kinkhoest?",
+    "expectedAnswer": "Bordetella pertussis."
+  },
+
+  // ── Legionellose ─────────────────────────────────────────────────────────
+  {
+    "name": "legionella-behandeling",
+    "query": "Welke antibiotica worden aanbevolen voor de behandeling van legionellose?",
+    "expectedAnswer": "Fluorochinolonen (levofloxacine) of macroliden (azitromycine) zijn de eerste keuze."
+  },
+  {
+    "name": "legionella-transmissie",
+    "query": "Hoe wordt legionellose overgedragen en is er mens-op-mens transmissie?",
+    "expectedAnswer": "Via inademing van met Legionella besmet aerosolwater (bijv. koeltorens, douchekoppen); geen mens-op-mens overdracht."
+  },
+
+  // ── Influenza ─────────────────────────────────────────────────────────────
+  {
+    "name": "influenza-antivirale-behandeling",
+    "query": "Wanneer is antivirale behandeling met oseltamivir geïndiceerd bij influenza?",
+    "expectedAnswer": "Bij risicogroepen (ouderen, immuungecompromitteerden, ernstige zieken) zo snel mogelijk starten, bij voorkeur binnen 48 uur na begin klachten."
+  },
+  {
+    "name": "influenza-incubatietijd",
+    "query": "Wat is de incubatietijd van influenza?",
+    "expectedAnswer": "1-4 dagen, gemiddeld 2 dagen."
+  },
+
+  // ── MRSA ─────────────────────────────────────────────────────────────────
+  {
+    "name": "mrsa-search-and-destroy",
+    "query": "Wat houdt het 'search and destroy'-beleid voor MRSA in Nederland in?",
+    "expectedAnswer": "Actief screenen van risicogroepen (bijv. ziekenhuisopnames vanuit het buitenland) en bij dragerschap dekolonisatie nastreven om verspreiding te voorkomen."
+  },
+
+  // ── Lyme-borreliose ──────────────────────────────────────────────────────
+  {
+    "name": "lyme-behandeling-vroeg",
+    "query": "Wat is de aanbevolen antibiotische behandeling bij vroege gelokaliseerde lymeziekte?",
+    "expectedAnswer": "Doxycycline 14 dagen oraal (eerste keuze bij volwassenen); amoxicilline als alternatief."
   }
 ]
