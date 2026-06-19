@@ -1,4 +1,4 @@
-name: 5 - Evaluate RAG Quality
+name: 4 - Evaluate RAG Quality
 
 on:
   workflow_dispatch:

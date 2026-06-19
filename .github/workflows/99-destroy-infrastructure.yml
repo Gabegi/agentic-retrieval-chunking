@@ -1,4 +1,4 @@
-name: 4 - Destroy Infrastructure
+name: 99 - Destroy Infrastructure
 
 on:
   schedule:
