@@ -1,12 +1,13 @@
 name: 4 - Evaluate RAG Quality
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 6 * * 1'   # Weekly, Monday 06:00 UTC
+  workflow_run:
+    workflows: ["3 - Deploy Protocol Indexer"]
+    types: [completed]
 
 jobs:
   evaluate:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: [self-hosted]
     environment: prod
     steps:
