@@ -31,6 +31,7 @@ jobs:
           OPENAI_EMBEDDING_DEPLOYMENT: ${{ vars.OPENAI_EMBEDDING_DEPLOYMENT }}
           OPENAI_GPT_DEPLOYMENT:       ${{ vars.OPENAI_GPT_DEPLOYMENT }}
           OPENAI_GPT_MODEL_NAME:       ${{ vars.OPENAI_GPT_MODEL_NAME }}
+          OPENAI_EVAL_DEPLOYMENT:      ${{ vars.OPENAI_EVAL_DEPLOYMENT }}
           SEARCH_INDEX_NAME:           ${{ vars.SEARCH_INDEX_NAME }}
           STORAGE_ACCOUNT_URL:         ${{ vars.STORAGE_ACCOUNT_URL }}
           STORAGE_CONTAINER:           ${{ vars.STORAGE_CONTAINER }}
