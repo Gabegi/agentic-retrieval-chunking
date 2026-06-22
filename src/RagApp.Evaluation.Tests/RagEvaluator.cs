@@ -1,93 +1,81 @@
-using System.Text.Json;
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Specialized;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Quality;
 using ProtocolsIndexer.Services;
+using RagApp.Evaluation.Tests.Models;
 
-namespace RagApp.Evaluation.Tests;
+namespace RagApp.Evaluation.Tests.Evaluation;
 
-public record EvalRow(
-    string          ScenarioName,
-    string          Query,
-    string          Response,
-    string          RetrievedContext,
-    long            LatencyMs,
-    int             InputTokens,
-    int             OutputTokens,
-    double          Groundedness,
-    double          Relevance,
-    double          Coherence,
-    DateTimeOffset  Timestamp);
-
-public class RagEvaluator
+/// <summary>
+/// Calls the RAG app for a given TestQuery, scores the response with 4 evaluators
+/// (run in parallel), and returns the result as an EvalRow. Does no I/O beyond the
+/// ragCall itself — persistence is EvalResultWriter's job.
+/// </summary>
+public sealed class RagEvaluator
 {
     private readonly GroundednessEvaluator _groundedness = new();
-    private readonly RelevanceEvaluator   _relevance    = new();
-    private readonly CoherenceEvaluator   _coherence    = new();
-    private readonly ChatConfiguration    _judgeConfig;
-    private readonly BlobContainerClient  _container;
+    private readonly RelevanceEvaluator _relevance = new();
+    private readonly CoherenceEvaluator _coherence = new();
+    private readonly EquivalenceEvaluator _equivalence = new();
+    private readonly ChatConfiguration _judgeConfig;
 
-    public RagEvaluator(IChatClient judgeClient, BlobContainerClient container)
+    public RagEvaluator(IChatClient judgeClient)
     {
         _judgeConfig = new ChatConfiguration(judgeClient);
-        _container   = container;
     }
 
     public async Task<EvalRow> RunAsync(
-        string scenarioName,
-        string query,
+        TestQuery testQuery,
         Func<string, Task<RagQueryResult>> ragCall,
         CancellationToken ct = default)
     {
-        var result = await ragCall(query);
+        var result = await ragCall(testQuery.Query);
 
         var chatResponse = new ChatResponse([new ChatMessage(ChatRole.Assistant, result.Answer)])
         {
             Usage = new UsageDetails
             {
-                InputTokenCount  = result.InputTokens,
+                InputTokenCount = result.InputTokens,
                 OutputTokenCount = result.OutputTokens,
-                TotalTokenCount  = result.InputTokens + result.OutputTokens
+                TotalTokenCount = result.InputTokens + result.OutputTokens
             }
         };
 
-        var messages = new List<ChatMessage> { new(ChatRole.User, query) };
+        var messages = new List<ChatMessage> { new(ChatRole.User, testQuery.Query) };
+
         var groundednessCtx = new List<EvaluationContext>
         {
             new GroundednessEvaluatorContext(result.RetrievedContext)
         };
+        var equivalenceCtx = new List<EvaluationContext>
+        {
+            new EquivalenceEvaluatorContext(testQuery.ExpectedAnswer)
+        };
 
-        var groundednessResult = await _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct);
-        var relevanceResult    = await _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
-        var coherenceResult    = await _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
+        // Run all 4 judge calls in parallel instead of awaiting one by one.
+        var groundednessTask = _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct);
+        var relevanceTask = _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
+        var coherenceTask = _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
+        var equivalenceTask = _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct);
 
-        var row = new EvalRow(
-            ScenarioName:    scenarioName,
-            Query:           query,
-            Response:        result.Answer,
+        await Task.WhenAll(groundednessTask, relevanceTask, coherenceTask, equivalenceTask);
+
+        return new EvalRow(
+            ScenarioName: testQuery.Name,
+            Department: testQuery.Department,
+            Query: testQuery.Query,
+            Difficulty: testQuery.Difficulty,
+            ExpectedAnswer: testQuery.ExpectedAnswer,
+            ExpectedSources: testQuery.ExpectedSources,
+            Response: result.Answer,
             RetrievedContext: result.RetrievedContext,
-            LatencyMs:       result.LatencyMs,
-            InputTokens:     result.InputTokens,
-            OutputTokens:    result.OutputTokens,
-            Groundedness:    groundednessResult.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName)?.Value ?? 0,
-            Relevance:       relevanceResult.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
-            Coherence:       coherenceResult.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
-            Timestamp:       DateTimeOffset.UtcNow);
-
-        await AppendToBlobAsync(row, ct);
-        return row;
-    }
-
-    private async Task AppendToBlobAsync(EvalRow row, CancellationToken ct)
-    {
-        var blobName = $"eval-results/{DateTime.UtcNow:yyyy-MM-dd}.jsonl";
-        var blob     = _container.GetAppendBlobClient(blobName);
-        await blob.CreateIfNotExistsAsync(cancellationToken: ct);
-
-        var line  = JsonSerializer.Serialize(row) + "\n";
-        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(line));
-        await blob.AppendBlockAsync(stream, cancellationToken: ct);
+            LatencyMs: result.LatencyMs,
+            InputTokens: result.InputTokens,
+            OutputTokens: result.OutputTokens,
+            Groundedness: groundednessTask.Result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName)?.Value ?? 0,
+            Relevance: relevanceTask.Result.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
+            Coherence: coherenceTask.Result.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
+            Equivalence: equivalenceTask.Result.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
+            Timestamp: DateTimeOffset.UtcNow);
     }
 }
