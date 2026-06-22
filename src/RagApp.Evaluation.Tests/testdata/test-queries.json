@@ -1,0 +1,29 @@
+[
+  {
+    "Name": "wlz-huisdier",
+    "Department": "WLZ",
+    "Query": "Mag de cliënt een huisdier meenemen?",
+    "ExpectedAnswer": "dependent on location",
+    "ExpectedSources": "Excel Sharepoint: WLZ-locatie-informatie met aantal kamers en bijzonderheden",
+    "Difficulty": "Low",
+    "Value": "binnen 2 uur; 2 keer gehoord (bellen 2 minuten)"
+  },
+  {
+    "Name": "wlz-roken",
+    "Department": "WLZ",
+    "Query": "Mag ik binnen roken?",
+    "ExpectedAnswer": "nee",
+    "ExpectedSources": "Is beleid. Mag niet.",
+    "Difficulty": "Low",
+    "Value": ""
+  },
+  {
+    "Name": "speczorg-zaterdag",
+    "Department": "specialistische zorg",
+    "Query": "Mag ik op zaterdag een cliënt inplannen?",
+    "ExpectedAnswer": "dependent on location; voor het zorgpad zouden ze eventueel wel moeten accepteren",
+    "ExpectedSources": "geen informatie opgeschreven; alleen uit ervaring",
+    "Difficulty": "Medium",
+    "Value": ""
+  }
+]
