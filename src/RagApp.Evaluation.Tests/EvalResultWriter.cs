@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Azure.Storage.Blobs;
-using Models;
+using RagApp.Evaluation.Tests.Models;
 
 namespace RagApp.Evaluation.Tests.Evaluation;
 

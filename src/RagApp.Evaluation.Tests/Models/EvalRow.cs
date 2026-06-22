@@ -1,3 +1,5 @@
+namespace RagApp.Evaluation.Tests.Models;
+
 public record EvalRow(
     // Identity
     string          ScenarioName,

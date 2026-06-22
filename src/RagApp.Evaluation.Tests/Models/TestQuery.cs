@@ -1,3 +1,5 @@
+namespace RagApp.Evaluation.Tests.Models;
+
 public record TestQuery(
     string Name,            // short id for the scenario, e.g. "wlz-huisdier"
     string Department,      // Afdeling
