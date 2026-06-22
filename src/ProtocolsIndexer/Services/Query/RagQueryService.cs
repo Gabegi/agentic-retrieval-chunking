@@ -20,18 +20,21 @@ public interface IRagQueryService
 
 public class RagQueryService : IRagQueryService
 {
-    private readonly AzureOpenAIClient _openAi;
-    private readonly IndexerConfig     _config;
+    private readonly IChatClient   _chatClient;
+    private readonly IndexerConfig _config;
 
-    public RagQueryService(AzureOpenAIClient openAi, IndexerConfig config)
+    public RagQueryService(IChatClient chatClient, IndexerConfig config)
     {
-        _openAi = openAi;
-        _config = config;
+        _chatClient = chatClient;
+        _config     = config;
     }
 
     public async Task<RagQueryResult> AskAsync(string question, CancellationToken ct = default)
     {
-        var chatClient = _openAi.GetChatClient(_config.OpenAiGptDeployment);
+        // Azure AI On Your Data requires ChatCompletionOptions.AddDataSource, which is
+        // Azure-specific and not exposed by IChatClient. GetService<ChatClient>() retrieves
+        // the underlying deployment-scoped client registered in DI.
+        var chatClient = _chatClient.GetService<ChatClient>()!;
 
 #pragma warning disable AOAI001
         var options = new ChatCompletionOptions();
