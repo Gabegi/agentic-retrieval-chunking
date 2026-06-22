@@ -21,6 +21,7 @@ public record EvalRow(
     long            LatencyMs,
     int             InputTokens,
     int             OutputTokens,
+    double          CostUsd,            // (InputTokens × inputPrice + OutputTokens × outputPrice) / 1M
 
     // Scores
     double          Groundedness,       // 1-5  LLM — response grounded in retrieved context?
