@@ -38,9 +38,10 @@ public class RagEvaluationTests
         var container = new BlobServiceClient(new Uri(config.StorageAccountUrl), credential)
                             .GetBlobContainerClient(config.StorageContainer);
 
-        IChatClient judgeClient = openAi.GetChatClient(config.OpenAiGptDeployment).AsIChatClient();
+        IChatClient ragChatClient = openAi.GetChatClient(config.OpenAiGptDeployment).AsIChatClient();
+        IChatClient judgeClient   = openAi.GetChatClient(Env("OPENAI_EVAL_DEPLOYMENT")).AsIChatClient();
 
-        _ragService = new RagQueryService(openAi, config);
+        _ragService = new RagQueryService(ragChatClient, config);
         _evaluator  = new RagEvaluator(judgeClient, container);
 
         return Task.CompletedTask;
