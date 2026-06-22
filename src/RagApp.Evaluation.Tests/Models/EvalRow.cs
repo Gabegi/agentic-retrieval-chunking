@@ -48,6 +48,7 @@ public record EvalRow(
         LatencyMs: latencyMs,
         InputTokens: 0,
         OutputTokens: 0,
+        CostUsd: 0,
         Groundedness: 0, Relevance: 0, Coherence: 0,
         Equivalence: 0, Retrieval: 0, F1: 0,
         Timestamp: DateTimeOffset.UtcNow);

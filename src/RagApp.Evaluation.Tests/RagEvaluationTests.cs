@@ -67,8 +67,11 @@ public class RagEvaluationTests
 
         Console.WriteLine(
             $"[{row.ScenarioName}] G={row.Groundedness:F1} R={row.Relevance:F1} " +
-            $"C={row.Coherence:F1} Eq={row.Equivalence:F1} Ret={row.Retrieval:F1} F1={row.F1:F2}  ({row.LatencyMs}ms)");
+            $"C={row.Coherence:F1} Eq={row.Equivalence:F1} Ret={row.Retrieval:F1} F1={row.F1:F2}  " +
+            $"{row.LatencyMs}ms  ${row.CostUsd:F4}  in={row.InputTokens} out={row.OutputTokens}");
 
+        Assert.IsTrue(row.Succeeded,
+            $"RAG call failed for '{testQuery.Name}': {row.Error}");
         Assert.IsTrue(row.Groundedness >= MinGroundedness,
             $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
     }

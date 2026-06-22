@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.NLP;
@@ -18,13 +19,17 @@ namespace RagApp.Evaluation.Tests.Evaluation;
 /// </summary>
 public sealed class RagEvaluator
 {
+    // GPT-4.1 list pricing (USD per 1 M tokens) — update when model changes.
+    private const double InputUsdPerMToken  = 2.00;
+    private const double OutputUsdPerMToken = 8.00;
+
     private readonly GroundednessEvaluator _groundedness = new();
     private readonly RelevanceEvaluator   _relevance    = new();
     private readonly CoherenceEvaluator   _coherence    = new();
     private readonly EquivalenceEvaluator _equivalence  = new();
     private readonly RetrievalEvaluator   _retrieval    = new();
     private readonly F1Evaluator          _f1           = new();
-    private readonly ChatConfiguration _judgeConfig;
+    private readonly ChatConfiguration    _judgeConfig;
 
     public RagEvaluator(IChatClient judgeClient)
     {
@@ -36,7 +41,20 @@ public sealed class RagEvaluator
         Func<string, Task<RagQueryResult>> ragCall,
         CancellationToken ct = default)
     {
-        var result = await ragCall(testQuery.Query);
+        var sw = Stopwatch.StartNew();
+        RagQueryResult result;
+        try
+        {
+            result = await ragCall(testQuery.Query);
+            sw.Stop();
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return EvalRow.ForFailure(testQuery, ex.Message, sw.ElapsedMilliseconds);
+        }
+
+        var costUsd = (result.InputTokens * InputUsdPerMToken + result.OutputTokens * OutputUsdPerMToken) / 1_000_000.0;
 
         var chatResponse = new ChatResponse([new ChatMessage(ChatRole.Assistant, result.Answer)])
         {
@@ -91,6 +109,7 @@ public sealed class RagEvaluator
             LatencyMs:       result.LatencyMs,
             InputTokens:     result.InputTokens,
             OutputTokens:    result.OutputTokens,
+            CostUsd:         costUsd,
             Groundedness: groundednessTask.Result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName)?.Value ?? 0,
             Relevance:    relevanceTask.Result.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
             Coherence:    coherenceTask.Result.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
