@@ -60,6 +60,12 @@ var host = new HostBuilder()
               .AsIEmbeddingGenerator())
             .UseOpenTelemetry();
 
+        services.AddChatClient(sp =>
+            sp.GetRequiredService<AzureOpenAIClient>()
+              .GetChatClient(config.OpenAiGptDeployment)
+              .AsIChatClient())
+            .UseOpenTelemetry();
+
         var appInsightsConnectionString = ctx.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
         var isDev = string.IsNullOrEmpty(appInsightsConnectionString);
 
