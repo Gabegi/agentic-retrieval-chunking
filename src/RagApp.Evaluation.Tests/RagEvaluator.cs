@@ -54,31 +54,43 @@ public sealed class RagEvaluator
         {
             new EquivalenceEvaluatorContext(testQuery.ExpectedAnswer)
         };
+        var retrievalCtx = new List<EvaluationContext>
+        {
+            new RetrievalEvaluatorContext(result.RetrievedContext)
+        };
+        var f1Ctx = new List<EvaluationContext>
+        {
+            new F1EvaluatorContext(testQuery.ExpectedAnswer)
+        };
 
-        // Run all 4 judge calls in parallel instead of awaiting one by one.
+        // Run all 6 evaluators in parallel.
         var groundednessTask = _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask();
         var relevanceTask    = _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask();
         var coherenceTask    = _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask();
         var equivalenceTask  = _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask();
+        var retrievalTask    = _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask();
+        var f1Task           = _f1.EvaluateAsync(messages, chatResponse, chatConfig: null, f1Ctx, ct).AsTask();
 
-        await Task.WhenAll(groundednessTask, relevanceTask, coherenceTask, equivalenceTask);
+        await Task.WhenAll(groundednessTask, relevanceTask, coherenceTask, equivalenceTask, retrievalTask, f1Task);
 
         return new EvalRow(
-            ScenarioName: testQuery.Name,
-            Department: testQuery.Department,
-            Query: testQuery.Query,
-            Difficulty: testQuery.Difficulty,
-            ExpectedAnswer: testQuery.ExpectedAnswer,
+            ScenarioName:    testQuery.Name,
+            Department:      testQuery.Department,
+            Query:           testQuery.Query,
+            Difficulty:      testQuery.Difficulty,
+            ExpectedAnswer:  testQuery.ExpectedAnswer,
             ExpectedSources: testQuery.ExpectedSources,
-            Response: result.Answer,
+            Response:        result.Answer,
             RetrievedContext: result.RetrievedContext,
-            LatencyMs: result.LatencyMs,
-            InputTokens: result.InputTokens,
-            OutputTokens: result.OutputTokens,
+            LatencyMs:       result.LatencyMs,
+            InputTokens:     result.InputTokens,
+            OutputTokens:    result.OutputTokens,
             Groundedness: groundednessTask.Result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName)?.Value ?? 0,
-            Relevance: relevanceTask.Result.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
-            Coherence: coherenceTask.Result.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
-            Equivalence: equivalenceTask.Result.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
-            Timestamp: DateTimeOffset.UtcNow);
+            Relevance:    relevanceTask.Result.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
+            Coherence:    coherenceTask.Result.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
+            Equivalence:  equivalenceTask.Result.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
+            Retrieval:    retrievalTask.Result.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,
+            F1:           f1Task.Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0,
+            Timestamp:    DateTimeOffset.UtcNow);
     }
 }
