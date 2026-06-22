@@ -53,10 +53,10 @@ public sealed class RagEvaluator
         };
 
         // Run all 4 judge calls in parallel instead of awaiting one by one.
-        var groundednessTask = _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct);
-        var relevanceTask = _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
-        var coherenceTask = _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
-        var equivalenceTask = _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct);
+        var groundednessTask = _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask();
+        var relevanceTask    = _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask();
+        var coherenceTask    = _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask();
+        var equivalenceTask  = _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask();
 
         await Task.WhenAll(groundednessTask, relevanceTask, coherenceTask, equivalenceTask);
 
