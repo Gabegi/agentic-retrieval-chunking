@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using Azure.AI.OpenAI;
 using Azure.AI.OpenAI.Chat;
+using Microsoft.Extensions.AI;
 using OpenAI.Chat;
 using ProtocolsIndexer.Configuration;
 
