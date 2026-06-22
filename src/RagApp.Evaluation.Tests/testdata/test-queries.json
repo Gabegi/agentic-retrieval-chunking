@@ -3,27 +3,63 @@
     "Name": "wlz-huisdier",
     "Department": "WLZ",
     "Query": "Mag de cliënt een huisdier meenemen?",
-    "ExpectedAnswer": "dependent on location",
-    "ExpectedSources": "Excel Sharepoint: WLZ-locatie-informatie met aantal kamers en bijzonderheden",
+    "ExpectedAnswer": "Dependent on location.",
+    "ExpectedSources": "Excel SharePoint: \"WLZ-locatie-informatie met aantal kamers en bijzonderheden\"",
     "Difficulty": "Low",
-    "Value": "binnen 2 uur; 2 keer gehoord (bellen 2 minuten)"
+    "Value": "Binnen 2 uur; 2 keer gehoord (bellen 2 minuten)."
+  },
+  {
+    "Name": "speczorg-zaterdag-inplannen",
+    "Department": "specialistische zorg",
+    "Query": "Mag ik op zaterdag een cliënt inplannen?",
+    "ExpectedAnswer": "Dependent on location (voor het zorgpad zouden ze eventueel wel moeten accepteren; ga maar bellen).",
+    "ExpectedSources": "Geen informatie opgeschreven; alleen uit ervaring.",
+    "Difficulty": "Medium",
+    "Value": ""
   },
   {
     "Name": "wlz-roken",
     "Department": "WLZ",
     "Query": "Mag ik binnen roken?",
-    "ExpectedAnswer": "nee",
+    "ExpectedAnswer": "Nee.",
     "ExpectedSources": "Is beleid. Mag niet.",
     "Difficulty": "Low",
     "Value": ""
   },
   {
-    "Name": "speczorg-zaterdag",
+    "Name": "speczorg-opnamedag-mailen",
     "Department": "specialistische zorg",
-    "Query": "Mag ik op zaterdag een cliënt inplannen?",
-    "ExpectedAnswer": "dependent on location; voor het zorgpad zouden ze eventueel wel moeten accepteren",
-    "ExpectedSources": "geen informatie opgeschreven; alleen uit ervaring",
+    "Query": "Ik wil een opnamedag inplannen. Naar wie moet ik dit mailen?",
+    "ExpectedAnswer": "Meestal de PB'er - staat in contactpersonen v&v.",
+    "ExpectedSources": "In beslisboom staat: projectleider → onduidelijkheid binnen het team; contactpersonen v&v.",
     "Difficulty": "Medium",
+    "Value": "1 case = 4 minuten (lezen beslisboom, communiceren met collega's, beslis maken). Daarna pas met onzekerheid toch de PB'er contacteren met de kans dat het niet klopt."
+  },
+  {
+    "Name": "wlz-eten-locatie-x",
+    "Department": "WLZ",
+    "Query": "Hoe zit het met het eten op locatie x?",
+    "ExpectedAnswer": "Broodmaaltijd, kunnen geholpen worden bijvoorbeeld.",
+    "ExpectedSources": "",
+    "Difficulty": "",
     "Value": ""
+  },
+  {
+    "Name": "thuiszorg-zorgmoment-niet-gekomen",
+    "Department": "Thuiszorg",
+    "Query": "Ik heb een zorgmoment vandaag, maar die is nog niet gekomen.",
+    "ExpectedAnswer": "Bel naar wijkverpleegkundige van wijkteam.",
+    "ExpectedSources": "Cordaan website.",
+    "Difficulty": "Low",
+    "Value": "In 1 uur, 2 cases (1 bel, 1 email) - 3 minuten (op Cordaan website zoeken naar juiste wijkteam o.b.v. postcode, dat wijkteam opzoeken in Excel en naar juiste telefoonnummer + wijkverpleegkundige zoeken)."
+  },
+  {
+    "Name": "thuiszorg-zelf-zorgaanbieder",
+    "Department": "Thuiszorg",
+    "Query": "Mag ik zelf een zorgaanbieder zoeken?",
+    "ExpectedAnswer": "Ja, maar het is belangrijk dat u het aan Cordaan laat weten dat u zorg krijgt bij een andere organisatie. In de tussentijd kunt u de benodigde zorg krijgen bij de huisarts. In principe heb je altijd een indicatie nodig, en je kan je voorkeur aangeven.",
+    "ExpectedSources": "",
+    "Difficulty": "",
+    "Value": "Wanneer twee zorgorganisaties voor thuiszorg zijn ingezet, kan het niet worden gedeclareerd. Het gebeurt dus regelmatig (1x per 3 maanden) dat cliënten vergeten de zorg af te zeggen bij de andere zorgaanbieder. Daarom gaat het CSB/wijkverpleegkundige haar tijd en resources erin gooien om te horen (een dag van tevoren) dat de andere zorgverlener al was langsgeweest. 1) niet declareerbaar 2) frustrerend."
   }
 ]
