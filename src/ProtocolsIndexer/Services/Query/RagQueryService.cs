@@ -56,7 +56,7 @@ public class RagQueryService : IRagQueryService
         });
 #pragma warning restore AOAI001
 
-        ChatMessage[] messages =
+        OpenAI.Chat.ChatMessage[] messages =
         [
             new SystemChatMessage(
                 "Je bent een medische informatieassistent voor LCI-richtlijnen (Landelijke Coördinatie Infectieziektebestrijding). " +

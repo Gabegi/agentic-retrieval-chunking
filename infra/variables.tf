@@ -27,6 +27,12 @@ variable "openai_extraction_deployment" {
   default     = "gpt-41-extraction"
 }
 
+variable "openai_eval_deployment" {
+  description = "Name of the Azure OpenAI gpt-5 deployment used as the LLM judge in evaluation tests"
+  type        = string
+  default     = "gpt-5-eval"
+}
+
 variable "search_index_name" {
   description = "Name of the Azure AI Search index"
   type        = string

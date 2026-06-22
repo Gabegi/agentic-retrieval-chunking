@@ -61,6 +61,22 @@ resource "azurerm_cognitive_deployment" "extraction" {
 }
 
 
+resource "azurerm_cognitive_deployment" "evaluation" {
+  name                 = var.openai_eval_deployment
+  cognitive_account_id = azurerm_cognitive_account.openai.id
+
+  model {
+    format  = "OpenAI"
+    name    = "gpt-5"
+    version = "2025-06-01"
+  }
+
+  sku {
+    name     = "Standard"
+    capacity = 10
+  }
+}
+
 resource "azurerm_role_assignment" "sp_openai_user" {
   scope                = azurerm_cognitive_account.openai.id
   role_definition_name = "Cognitive Services OpenAI User"
