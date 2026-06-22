@@ -28,4 +28,24 @@ public record EvalRow(
     double          Retrieval,          // 1-5  LLM — was the right context fetched?
     double          F1,                 // 0-1  NLP — token overlap vs expected answer
 
-    DateTimeOffset  Timestamp);
+     DateTimeOffset Timestamp)
+{
+    /// <summary>Builds a row representing a failed RAG call, with all scores zeroed.</summary>
+    public static EvalRow ForFailure(TestQuery q, string error, long latencyMs) => new(
+        ScenarioName: q.Name,
+        Department: q.Department,
+        Query: q.Query,
+        Difficulty: q.Difficulty,
+        ExpectedAnswer: q.ExpectedAnswer,
+        ExpectedSources: q.ExpectedSources,
+        Response: "",
+        RetrievedContext: "",
+        Succeeded: false,
+        Error: error,
+        LatencyMs: latencyMs,
+        InputTokens: 0,
+        OutputTokens: 0,
+        Groundedness: 0, Relevance: 0, Coherence: 0,
+        Equivalence: 0, Retrieval: 0, F1: 0,
+        Timestamp: DateTimeOffset.UtcNow);
+}

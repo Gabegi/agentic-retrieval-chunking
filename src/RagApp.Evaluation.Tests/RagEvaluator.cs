@@ -11,6 +11,10 @@ namespace RagApp.Evaluation.Tests.Evaluation;
 /// Calls the RAG app for a given TestQuery, scores the response with 4 evaluators
 /// (run in parallel), and returns the result as an EvalRow. Does no I/O beyond the
 /// ragCall itself — persistence is EvalResultWriter's job.
+///
+/// We deliberately evaluate the OUTCOME (final answer) only. The agentic evaluators
+/// (IntentResolution, TaskAdherence, ToolCallAccuracy) are skipped: they need the
+/// agent's internal tool-call trace, which our single-turn test data does not carry.
 /// </summary>
 public sealed class RagEvaluator
 {
@@ -69,7 +73,7 @@ public sealed class RagEvaluator
         var coherenceTask    = _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask();
         var equivalenceTask  = _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask();
         var retrievalTask    = _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask();
-        var f1Task           = _f1.EvaluateAsync(messages, chatResponse, chatConfig: null, f1Ctx, ct).AsTask();
+        var f1Task           = _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct).AsTask();
 
         await Task.WhenAll(groundednessTask, relevanceTask, coherenceTask, equivalenceTask, retrievalTask, f1Task);
 
