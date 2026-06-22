@@ -15,9 +15,11 @@ namespace RagApp.Evaluation.Tests.Evaluation;
 public sealed class RagEvaluator
 {
     private readonly GroundednessEvaluator _groundedness = new();
-    private readonly RelevanceEvaluator _relevance = new();
-    private readonly CoherenceEvaluator _coherence = new();
-    private readonly EquivalenceEvaluator _equivalence = new();
+    private readonly RelevanceEvaluator   _relevance    = new();
+    private readonly CoherenceEvaluator   _coherence    = new();
+    private readonly EquivalenceEvaluator _equivalence  = new();
+    private readonly RetrievalEvaluator   _retrieval    = new();
+    private readonly F1Evaluator          _f1           = new();
     private readonly ChatConfiguration _judgeConfig;
 
     public RagEvaluator(IChatClient judgeClient)
