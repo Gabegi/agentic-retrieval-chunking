@@ -14,6 +14,8 @@ public record EvalRow(
     // Actual output
     string          Response,
     string          RetrievedContext,
+    bool            Succeeded,
+    string          Error,
 
     // Performance
     long            LatencyMs,

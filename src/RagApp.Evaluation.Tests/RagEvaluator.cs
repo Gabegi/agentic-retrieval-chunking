@@ -86,6 +86,8 @@ public sealed class RagEvaluator
             ExpectedSources: testQuery.ExpectedSources,
             Response:        result.Answer,
             RetrievedContext: result.RetrievedContext,
+            Succeeded:       true,
+            Error:           "",
             LatencyMs:       result.LatencyMs,
             InputTokens:     result.InputTokens,
             OutputTokens:    result.OutputTokens,
