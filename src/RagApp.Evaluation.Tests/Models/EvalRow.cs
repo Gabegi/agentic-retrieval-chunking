@@ -21,9 +21,11 @@ public record EvalRow(
     int             OutputTokens,
 
     // Scores
-    double          Groundedness,
-    double          Relevance,
-    double          Coherence,
-    double          Equivalence,        // NEW — Response vs ExpectedAnswer
+    double          Groundedness,       // 1-5  LLM — response grounded in retrieved context?
+    double          Relevance,          // 1-5  LLM — response relevant to the question?
+    double          Coherence,          // 1-5  LLM — response coherent and well-formed?
+    double          Equivalence,        // 1-5  LLM — same meaning as expected answer?
+    double          Retrieval,          // 1-5  LLM — was the right context fetched?
+    double          F1,                 // 0-1  NLP — token overlap vs expected answer
 
     DateTimeOffset  Timestamp);
