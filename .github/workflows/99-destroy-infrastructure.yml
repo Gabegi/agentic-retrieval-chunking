@@ -47,7 +47,7 @@ jobs:
 
       - name: Destroy all resources except RG and storage account
         run: |
-          mapfile -t resources < <(terraform state list | grep -v -E '^data\.|^azurerm_resource_group\.main$|^azurerm_storage_account\.documents$|^azurerm_storage_container\.documents$')
+          mapfile -t resources < <(terraform state list | grep -v -E '^data\.|^azurerm_resource_group\.main$|^azurerm_storage_account\.documents$|^azurerm_storage_container\.protocols$')
           if [ ${#resources[@]} -eq 0 ]; then
             echo "Nothing to destroy."
             exit 0
