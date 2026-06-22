@@ -22,7 +22,10 @@
     <ProjectReference Include="..\ProtocolsIndexer\ProtocolsIndexer.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="testdata\golden-queries.json">
+    <None Update="testdata\orginial-test-queries.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="testdata\test-questions.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

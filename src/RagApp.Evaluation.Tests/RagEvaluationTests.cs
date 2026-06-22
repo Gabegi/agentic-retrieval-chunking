@@ -78,9 +78,9 @@ public class RagEvaluationTests
     {
         get
         {
-            var dir = Path.Combine(AppContext.BaseDirectory, "TestData");
+            var dir = Path.Combine(AppContext.BaseDirectory, "testdata");
 
-            var curated = LoadFile(Path.Combine(dir, "test-queries-curated.json"));
+            var curated = LoadFile(Path.Combine(dir, "orginial-test-queries.json"));
 
             var generatedPath = Path.Combine(dir, "test-queries-generated.json");
             var generated = File.Exists(generatedPath) ? LoadFile(generatedPath) : [];
