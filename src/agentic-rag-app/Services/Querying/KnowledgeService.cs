@@ -10,8 +10,8 @@ namespace ProtocolsIndexer.Services;
 
 public class KnowledgeService : IKnowledgeService
 {
-    private readonly SearchIndexClient       _indexClient;
-    private readonly IndexerConfig           _config;
+    private readonly SearchIndexClient        _indexClient;
+    private readonly IndexerConfig            _config;
     private readonly ILogger<KnowledgeService> _logger;
 
     public KnowledgeService(
@@ -32,26 +32,30 @@ public class KnowledgeService : IKnowledgeService
             name: _config.KnowledgeSourceName,
             searchIndexParameters: new SearchIndexKnowledgeSourceParameters(_config.SearchIndexName)
             {
+                // Limit BM25 to fields that carry semantic meaning
                 SearchFields =
                 {
                     new SearchIndexFieldReference("content"),
-                    new SearchIndexFieldReference("heading"),
-                    new SearchIndexFieldReference("richtlijn_name"),
-                    new SearchIndexFieldReference("content_vector")
+                    new SearchIndexFieldReference("title"),
+                    new SearchIndexFieldReference("summary"),
+                    new SearchIndexFieldReference("document_type"),
                 },
+                // All structured fields returned so the model has full document context
                 SourceDataFields =
                 {
                     new SearchIndexFieldReference("id"),
                     new SearchIndexFieldReference("source_file"),
-                    new SearchIndexFieldReference("richtlijn_name"),
-                    new SearchIndexFieldReference("heading"),
-                    new SearchIndexFieldReference("page_number"),
-                    new SearchIndexFieldReference("content")
+                    new SearchIndexFieldReference("title"),
+                    new SearchIndexFieldReference("document_type"),
+                    new SearchIndexFieldReference("summary"),
+                    new SearchIndexFieldReference("version"),
+                    new SearchIndexFieldReference("content"),
                 }
+                // note: content_vector is excluded — not needed for LLM context
             }
         )
         {
-            Description = "Knowledge source for Dutch medical protocols index"
+            Description = "Knowledge source for Zenya corporate document index"
         };
 
         await _indexClient.CreateOrUpdateKnowledgeSourceAsync(knowledgeSource, onlyIfUnchanged: false, ct);
@@ -74,17 +78,19 @@ public class KnowledgeService : IKnowledgeService
             knowledgeSources: new[] { new KnowledgeSourceReference(_config.KnowledgeSourceName) }
         )
         {
-            Description = "Contains Dutch medical protocols (richtlijnen) covering clinical guidelines, " +
-                          "treatment protocols, and medical recommendations for a wide range of conditions.",
+            Description = "Contains Zenya corporate documents including procedures, guidelines, " +
+                          "and policies. Use this index to answer questions about document content, " +
+                          "processes, responsibilities, and organizational procedures.",
 
-            RetrievalInstructions = "Search for protocols by condition name, treatment type, or specialty. " +
-                                    "The content is in Dutch — use Dutch medical terminology when searching. " +
-                                    "Always cite the richtlijn_name and source_file in your answer.",
+            RetrievalInstructions = "Search for documents by title, topic, or document type. " +
+                                    "Always cite the document title and source file in your answer. " +
+                                    "For process or procedure questions, look for the relevant procedure document. " +
+                                    "If multiple documents are relevant, discuss each separately.",
 
-            AnswerInstructions = "Provide a comprehensive and complete answer based on the protocol content. " +
-                                 "Do not summarize or shorten clinical steps, dosing regimens, incubation periods, or diagnostic criteria. " +
-                                 "Always mention which richtlijn (guideline) and section the information comes from. " +
-                                 "If multiple protocols are relevant, discuss each separately.",
+            AnswerInstructions = "Provide a complete and accurate answer based on the document content. " +
+                                 "Always mention which document the information comes from. " +
+                                 "Do not summarize or omit steps from procedures or guidelines. " +
+                                 "If multiple documents are relevant, discuss each one separately.",
 
             OutputMode               = KnowledgeRetrievalOutputMode.AnswerSynthesis,
             RetrievalReasoningEffort = new KnowledgeRetrievalMediumReasoningEffort(),
