@@ -38,7 +38,7 @@ public class RagQueryService : IRagQueryService
             FieldMappings = new DataSourceFieldMappings
             {
                 ContentFieldNames = { "content" },
-                TitleFieldName    = "richtlijn_name",
+                TitleFieldName    = "title",
                 FilePathFieldName = "source_file",
                 VectorFieldNames  = { "content_vector" },
             },
