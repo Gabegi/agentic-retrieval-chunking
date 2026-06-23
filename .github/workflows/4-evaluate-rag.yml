@@ -3,7 +3,7 @@ name: 4 - Evaluate RAG Quality
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: ["3 - Deploy Protocol Indexer"]
+    workflows: ["3 - Deploy Application"]
     types: [completed]
 
 jobs:

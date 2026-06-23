@@ -1,0 +1,12 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.github",
+    "\\.github\\workflows",
+    "\\src",
+    "\\src\\agentic-rag-app",
+    "\\src\\RagApp.Evaluation.Tests"
+  ],
+  "SelectedNode": "\\src\\agentic-rag-app\\Services",
+  "PreviewInSolutionExplorer": false
+}

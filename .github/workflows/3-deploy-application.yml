@@ -1,4 +1,4 @@
-name: 3 - Deploy Protocol Indexer
+name: 3 - Deploy Application
 
 on:
   workflow_dispatch:
