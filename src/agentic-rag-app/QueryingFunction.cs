@@ -6,12 +6,12 @@ using ProtocolsIndexer.Services;
 
 namespace ProtocolsIndexer;
 
-public class QueryFunction
+public class QueryingFunction
 {
-    private readonly IRagQueryService      _ragService;
-    private readonly ILogger<QueryFunction> _logger;
+    private readonly IRagQueryService          _ragService;
+    private readonly ILogger<QueryingFunction>  _logger;
 
-    public QueryFunction(IRagQueryService ragService, ILogger<QueryFunction> logger)
+    public QueryingFunction(IRagQueryService ragService, ILogger<QueryingFunction> logger)
     {
         _ragService = ragService;
         _logger     = logger;

@@ -9,20 +9,20 @@ using ProtocolsIndexer.Services;
 
 namespace ProtocolsIndexer;
 
-public class ProtocolIndexerFunction
+public class IndexingFunction
 {
-    private readonly IPipelineOrchestrator            _orchestrator;
-    private readonly IKnowledgeService                _knowledgeService;
-    private readonly IRequestTelemetry               _telemetry;
-    private readonly BlobContainerClient              _container;
-    private readonly ILogger<ProtocolIndexerFunction> _logger;
+    private readonly IPipelineOrchestrator         _orchestrator;
+    private readonly IKnowledgeService             _knowledgeService;
+    private readonly IRequestTelemetry             _telemetry;
+    private readonly BlobContainerClient           _container;
+    private readonly ILogger<IndexingFunction>     _logger;
 
-    public ProtocolIndexerFunction(
-        IPipelineOrchestrator            orchestrator,
-        IKnowledgeService                knowledgeService,
-        IRequestTelemetry               telemetry,
-        BlobContainerClient              container,
-        ILogger<ProtocolIndexerFunction> logger)
+    public IndexingFunction(
+        IPipelineOrchestrator          orchestrator,
+        IKnowledgeService              knowledgeService,
+        IRequestTelemetry              telemetry,
+        BlobContainerClient            container,
+        ILogger<IndexingFunction>      logger)
     {
         _orchestrator     = orchestrator;
         _knowledgeService = knowledgeService;
