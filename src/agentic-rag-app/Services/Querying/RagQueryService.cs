@@ -3,20 +3,9 @@ using Azure.AI.OpenAI.Chat;
 using Microsoft.Extensions.AI;
 using OpenAI.Chat;
 using ProtocolsIndexer.Configuration;
+using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
-
-public record RagQueryResult(
-    string Answer,
-    string RetrievedContext,
-    long   LatencyMs,
-    int    InputTokens,
-    int    OutputTokens);
-
-public interface IRagQueryService
-{
-    Task<RagQueryResult> AskAsync(string question, CancellationToken ct = default);
-}
 
 public class RagQueryService : IRagQueryService
 {
