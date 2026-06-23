@@ -1,0 +1,111 @@
+using System.Globalization;
+using CsvHelper;
+using CsvHelper.Configuration;
+using ProtocolsIndexer.Models;
+
+namespace ProtocolsIndexer.Services;
+
+public static class CsvExtractor
+{
+    private static readonly CsvConfiguration Config = new(CultureInfo.InvariantCulture)
+    {
+        Delimiter        = ",",
+        HasHeaderRecord  = true,
+        MissingFieldFound = null,
+    };
+
+    private static CsvReader OpenCsv(string path)
+    {
+        var csv = new CsvReader(new StreamReader(path), Config);
+        csv.Read();
+        csv.ReadHeader();
+        return csv;
+    }
+
+    private static string RequireDocumentId(CsvReader csv)
+    {
+        var docId = csv.GetField("DOCUMENT_ID") ?? "";
+        if (string.IsNullOrWhiteSpace(docId))
+            throw new FormatException("DOCUMENT_ID is missing or empty.");
+        return docId;
+    }
+
+    private static int ParsePageIndex(CsvReader csv)
+    {
+        var raw = csv.GetField("PAGE_INDEX");
+        if (!int.TryParse(raw, out var value))
+            throw new FormatException($"PAGE_INDEX '{raw}' is not a valid integer.");
+        return value;
+    }
+
+    public static ExtractionResult<PageRecord> ExtractPages(string path)
+    {
+        var result = new ExtractionResult<PageRecord>();
+        using var csv = OpenCsv(path);
+        int rowNumber = 1;
+
+        while (csv.Read())
+        {
+            rowNumber++;
+            try
+            {
+                result.AddRecord(new PageRecord
+                {
+                    DocumentId      = RequireDocumentId(csv),
+                    Title           = csv.GetField("TITLE") ?? "",
+                    QuickCode       = csv.GetField("QUICK_CODE") ?? "",
+                    FolderPath      = csv.GetField("FOLDER_MINI_FULL_PATH") ?? "",
+                    LastModifiedRaw = csv.GetField("LAST_MODIFIED_DATETIME") ?? "",
+                    PageIndex       = ParsePageIndex(csv),
+                    PageContent     = csv.GetField("PAGE_CONTENT") ?? "",
+                });
+            }
+            catch (Exception ex)
+            {
+                result.AddError(new ExtractionError
+                {
+                    RowNumber  = rowNumber,
+                    DocumentId = csv.TryGetField<string>("DOCUMENT_ID", out var id) ? id : null,
+                    Message    = ex.Message,
+                });
+            }
+        }
+
+        return result;
+    }
+
+    public static ExtractionResult<IndexRecord> ExtractIndex(string path)
+    {
+        var result = new ExtractionResult<IndexRecord>();
+        using var csv = OpenCsv(path);
+        int rowNumber = 1;
+
+        while (csv.Read())
+        {
+            rowNumber++;
+            try
+            {
+                result.AddRecord(new IndexRecord
+                {
+                    DocumentId        = RequireDocumentId(csv),
+                    DocumentTypeName  = csv.GetField("DOCUMENT_TYPE_NAME") ?? "",
+                    Summary           = csv.GetField("SUMMARY") ?? "",
+                    Version           = csv.GetField("VERSION") ?? "",
+                    CheckDateRaw      = csv.GetField("CHECK_DATE") ?? "",
+                    AttentionFlagsRaw = csv.GetField("ATTENTION_REQUIRED_FLAGS") ?? "",
+                });
+            }
+            catch (Exception ex)
+            {
+                result.AddError(new ExtractionError
+                {
+                    RowNumber  = rowNumber,
+                    DocumentId = csv.TryGetField<string>("DOCUMENT_ID", out var id) ? id : null,
+                    Message    = ex.Message,
+                });
+            }
+        }
+
+        return result;
+    }
+}
