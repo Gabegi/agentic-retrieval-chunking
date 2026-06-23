@@ -20,13 +20,13 @@
     <PackageReference Include="Microsoft.Extensions.AI.Evaluation.NLP"        Version="*-*" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ProtocolsIndexer\ProtocolsIndexer.csproj" />
+    <ProjectReference Include="..\agentic-rag-app\ProtocolsIndexer.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="testdata\orginial-test-queries.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="testdata\test-questions.json">
+    <None Update="testdata\test-quesries.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
