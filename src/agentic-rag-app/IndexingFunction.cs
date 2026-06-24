@@ -1,8 +1,12 @@
 using System.Net;
+using System.Text.Json;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Specialized;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.DurableTask;
 using Microsoft.DurableTask.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Services;
@@ -12,26 +16,31 @@ namespace ProtocolsIndexer;
 // Generic indexing entrypoint. Source-agnostic: pass ?source=csv (or pdf, etc.)
 // to select the registered extractor. The pipeline steps are the same for all sources.
 //
-// How source routing works:
+// Source routing:
 // • ?source=csv  → resolves CsvExtractionOrchestrator (Source = "csv")
 // • ?source=pdf  → resolves PdfExtractionOrchestrator (Source = "pdf") once implemented
-// The source value is just a routing key — the extractor itself knows where to find its data
-// (e.g. CsvExtractionOrchestrator hardcodes the "documentscsv" container and blob names).
 // To add a new source: implement IExtractionOrchestrator, set Source, register in program.cs.
+//
+// Payload pattern: extracted docs and chunks are written to blob (container: indexing-pipeline,
+// paths: {instanceId}/extracted.json and {instanceId}/chunks.json). Only the blob name string
+// travels through Durable Table Storage, avoiding the 64KB row-size limit.
 public class IndexingFunction
 {
     private readonly IRagPipelineOrchestrator  _orchestrator;
     private readonly IKnowledgeService         _knowledgeService;
+    private readonly BlobContainerClient       _pipelineContainer;
     private readonly ILogger<IndexingFunction> _logger;
 
     public IndexingFunction(
         IRagPipelineOrchestrator  orchestrator,
         IKnowledgeService         knowledgeService,
+        [FromKeyedServices("pipeline-temp")] BlobContainerClient pipelineContainer,
         ILogger<IndexingFunction> logger)
     {
-        _orchestrator     = orchestrator;
-        _knowledgeService = knowledgeService;
-        _logger           = logger;
+        _orchestrator      = orchestrator;
+        _knowledgeService  = knowledgeService;
+        _pipelineContainer = pipelineContainer;
+        _logger            = logger;
     }
 
     // POST /api/index?source=csv — starts a Durable orchestration for the given source
@@ -56,30 +65,43 @@ public class IndexingFunction
     [Function("IndexingOrchestrator")]
     public async Task RunOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
-        var source = context.GetInput<string>()!;
-        var docs   = await context.CallActivityAsync<List<ExtractionDocument>>("ExtractActivity", source);
-        var chunks = await context.CallActivityAsync<List<ProtocolDocument>>("ChunkActivity", docs);
-        await context.CallActivityAsync("EmbedAndUploadActivity", chunks);
+        var source     = context.GetInput<string>()!;
+        var docsBlob   = $"{context.InstanceId}/extracted.json";
+        var chunksBlob = $"{context.InstanceId}/chunks.json";
+
+        await context.CallActivityAsync("ExtractActivity",        new ExtractRequest(source, docsBlob));
+        await context.CallActivityAsync("ChunkActivity",          new ChunkRequest(docsBlob, chunksBlob));
+        await context.CallActivityAsync("EmbedAndUploadActivity", chunksBlob);
     }
 
-    // Step 1 — run the source-specific extractor, returns ExtractionDocuments
+    // Step 1 — run the source-specific extractor; serialise ExtractionDocuments to blob
     [Function("ExtractActivity")]
-    public async Task<List<ExtractionDocument>> ExtractActivity([ActivityTrigger] string source, FunctionContext context)
+    public async Task ExtractActivity([ActivityTrigger] ExtractRequest req, FunctionContext context)
     {
-        var docs = await _orchestrator.ExtractAsync(source, context.CancellationToken);
-        _logger.LogInformation("Extracted {Count} documents from '{Source}'", docs.Count, source);
-        return [.. docs];
+        var docs = await _orchestrator.ExtractAsync(req.Source, context.CancellationToken);
+        await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
+        _logger.LogInformation("Extracted {Count} docs from '{Source}' → {Blob}", docs.Count, req.Source, req.OutputBlob);
     }
 
-    // Step 2 — chunk ExtractionDocuments into ProtocolDocuments (generic, source-agnostic)
+    // Step 2 — read ExtractionDocuments, chunk, serialise ProtocolDocuments to blob; delete input blob
     [Function("ChunkActivity")]
-    public List<ProtocolDocument> ChunkActivity([ActivityTrigger] List<ExtractionDocument> docs)
-        => [.. _orchestrator.Chunk(docs)];
+    public async Task ChunkActivity([ActivityTrigger] ChunkRequest req, FunctionContext context)
+    {
+        var docs   = await ReadBlobAsync<List<ExtractionDocument>>(req.InputBlob, context.CancellationToken);
+        var chunks = _orchestrator.Chunk(docs);
+        await DeleteBlobAsync(req.InputBlob, context.CancellationToken);
+        await WriteBlobAsync(req.OutputBlob, chunks, context.CancellationToken);
+        _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks → {Blob}", docs.Count, chunks.Count, req.OutputBlob);
+    }
 
-    // Step 3 — embed vectors and upload to Azure AI Search
+    // Step 3 — read ProtocolDocuments, embed and upload to Azure AI Search; delete input blob
     [Function("EmbedAndUploadActivity")]
-    public async Task EmbedAndUploadActivity([ActivityTrigger] List<ProtocolDocument> docs, FunctionContext context)
-        => await _orchestrator.EmbedAndUploadAsync(docs, context.CancellationToken);
+    public async Task EmbedAndUploadActivity([ActivityTrigger] string chunksBlobName, FunctionContext context)
+    {
+        var chunks = await ReadBlobAsync<List<ProtocolDocument>>(chunksBlobName, context.CancellationToken);
+        await _orchestrator.EmbedAndUploadAsync(chunks, context.CancellationToken);
+        await DeleteBlobAsync(chunksBlobName, context.CancellationToken);
+    }
 
     // POST /api/setup-knowledge-base — run once after the index is populated
     [Function("SetupKnowledgeBase")]
@@ -94,4 +116,25 @@ public class IndexingFunction
         await response.WriteStringAsync("Knowledge source and knowledge base created or updated");
         return response;
     }
+
+    private async Task WriteBlobAsync<T>(string blobPath, T data, CancellationToken ct)
+    {
+        await _pipelineContainer.CreateIfNotExistsAsync(cancellationToken: ct);
+        var json = JsonSerializer.SerializeToUtf8Bytes(data);
+        using var ms = new MemoryStream(json);
+        await _pipelineContainer.GetBlockBlobClient(blobPath).UploadAsync(ms, overwrite: true, cancellationToken: ct);
+    }
+
+    private async Task<T> ReadBlobAsync<T>(string blobPath, CancellationToken ct)
+    {
+        var response = await _pipelineContainer.GetBlockBlobClient(blobPath).DownloadContentAsync(ct);
+        return JsonSerializer.Deserialize<T>(response.Value.Content)!;
+    }
+
+    private Task DeleteBlobAsync(string blobPath, CancellationToken ct) =>
+        _pipelineContainer.GetBlobClient(blobPath).DeleteIfExistsAsync(cancellationToken: ct);
 }
+
+// Input records for Durable activity functions — must be serializable by System.Text.Json.
+internal record ExtractRequest(string Source, string OutputBlob);
+internal record ChunkRequest(string InputBlob, string OutputBlob);
