@@ -10,8 +10,8 @@ public class ProtocolDocument
     [JsonPropertyName("source_file")]
     public string SourceFile { get; set; } = "";
 
-    [JsonPropertyName("richtlijn_name")]
-    public string? RichtlijnName { get; set; }
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
 
     [JsonPropertyName("publication_date")]
     public string? PublicationDate { get; set; }

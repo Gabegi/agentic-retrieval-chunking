@@ -60,7 +60,7 @@ public class RagPipelineOrchestrator : IRagPipelineOrchestrator
                 {
                     Id              = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", globalChunkIndex),
                     SourceFile      = doc.SourceId,
-                    RichtlijnName   = doc.Metadata.GetValueOrDefault("title"),
+                    Title           = doc.Metadata.GetValueOrDefault("title"),
                     PublicationDate = doc.Metadata.GetValueOrDefault("publication_date"),
                     Version         = doc.Metadata.GetValueOrDefault("version"),
                     Content         = content,

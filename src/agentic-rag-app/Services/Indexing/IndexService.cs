@@ -40,7 +40,7 @@ public class IndexService : IIndexService
         var semanticConfig = new SemanticConfiguration("semantic-config", new SemanticPrioritizedFields
         {
             ContentFields  = { new SemanticField("content") },
-            KeywordsFields = { new SemanticField("richtlijn_name"), new SemanticField("heading") }
+            KeywordsFields = { new SemanticField("title"), new SemanticField("heading") }
         });
 
         var semanticSearch = new SemanticSearch();
@@ -57,7 +57,7 @@ public class IndexService : IIndexService
             Fields =
             {
                 new SimpleField("id",                SearchFieldDataType.String)  { IsKey = true, IsFilterable = true },
-                new SearchableField("richtlijn_name")                            { IsFilterable = true, IsFacetable = true },
+                new SearchableField("title")                            { IsFilterable = true, IsFacetable = true },
                 new SimpleField("source_file",       SearchFieldDataType.String)  { IsFilterable = true },
                 new SearchableField("content")                                   { AnalyzerName = "nl.microsoft" },
                 new SearchableField("heading")                                   { IsFilterable = true, IsFacetable = true, AnalyzerName = "nl.microsoft" },
