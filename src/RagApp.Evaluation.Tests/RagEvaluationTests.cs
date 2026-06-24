@@ -20,8 +20,8 @@ public class RagEvaluationTests
     public TestContext TestContext { get; set; } = null!;
 
     // Only Groundedness hard-fails the build (factual/safety-critical).
-    // Relevance/Coherence/Equivalence are still scored and stored, but tracked
-    // as trends in the report rather than gating individual test runs.
+    // Relevance/Equivalence/Retrieval/F1 are scored and stored but tracked as
+    // trends in the report rather than gating individual test runs.
     private const double MinGroundedness = 3.0;
 
     [ClassInitialize]
@@ -58,7 +58,7 @@ public class RagEvaluationTests
     }
 
     [TestMethod]
-    [DynamicData(nameof(TestQueries), DynamicDataSourceType.Property)]
+    [DynamicData(nameof(TestQueries))]
     public async Task EvaluateQuery(TestQuery testQuery)
     {
         var row = await _evaluator.RunAsync(testQuery, q => _ragService.AskAsync(q));
@@ -66,8 +66,8 @@ public class RagEvaluationTests
 
         Console.WriteLine(
             $"[{row.ScenarioName}] G={row.Groundedness:F1} R={row.Relevance:F1} " +
-            $"C={row.Coherence:F1} Eq={row.Equivalence:F1} Ret={row.Retrieval:F1} F1={row.F1:F2}  " +
-            $"{row.LatencyMs}ms  ${row.CostUsd:F4}  in={row.InputTokens} out={row.OutputTokens}");
+            $"Eq={row.Equivalence:F1} Ret={row.Retrieval:F1} F1={row.F1:F2}  " +
+            $"{row.LatencyMs}ms  ${row.CostUsd:F4}  in={row.InputTokens} out={row.OutputTokens}  ok={row.Succeeded}");
 
         Assert.IsTrue(row.Succeeded,
             $"RAG call failed for '{testQuery.Name}': {row.Error}");
