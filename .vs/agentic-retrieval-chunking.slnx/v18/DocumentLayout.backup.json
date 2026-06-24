@@ -1,0 +1,262 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\ChunkingService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Indexing\\ChunkingService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\PipelineValidator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\PipelineValidator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvJoiner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvJoiner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\DataCleaner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\DataCleaner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvExtractor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvExtractor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\PDFExtraction\\DocumentIntelligenceExtractionService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Indexing\\PDFExtraction\\DocumentIntelligenceExtractionService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\Chunking\\PassThroughChunkingStrategy.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Indexing\\Chunking\\PassThroughChunkingStrategy.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\4-evaluate-rag.yml||{06C066C6-04A2-4E5D-8202-439FD4234EF1}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:.github\\workflows\\4-evaluate-rag.yml||{06C066C6-04A2-4E5D-8202-439FD4234EF1}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\3-deploy-application.yml||{06C066C6-04A2-4E5D-8202-439FD4234EF1}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:.github\\workflows\\3-deploy-application.yml||{06C066C6-04A2-4E5D-8202-439FD4234EF1}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\2-scrape-protocols.yml||{06C066C6-04A2-4E5D-8202-439FD4234EF1}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:.github\\workflows\\2-scrape-protocols.yml||{06C066C6-04A2-4E5D-8202-439FD4234EF1}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\1-deploy-infrastructure.yml||{06C066C6-04A2-4E5D-8202-439FD4234EF1}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:.github\\workflows\\1-deploy-infrastructure.yml||{06C066C6-04A2-4E5D-8202-439FD4234EF1}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Querying\\KnowledgeService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Querying\\KnowledgeService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\PipelineOrchestrator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\agentic-rag-app\\Services\\Indexing\\PipelineOrchestrator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 6,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "PipelineValidator.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\PipelineValidator.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\PipelineValidator.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\PipelineValidator.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\PipelineValidator.cs",
+              "ViewState": "AgIAAJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T14:53:43.517Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "CsvJoiner.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvJoiner.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvJoiner.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvJoiner.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvJoiner.cs",
+              "ViewState": "AgIAACQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T14:53:27.398Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "DataCleaner.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\DataCleaner.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\DataCleaner.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\DataCleaner.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\DataCleaner.cs",
+              "ViewState": "AgIAADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T14:52:55.83Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "CsvExtractor.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvExtractor.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvExtractor.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvExtractor.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Indexing\\CSVExtraction\\CsvExtractor.cs",
+              "ViewState": "AgIAAE4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T14:52:11.301Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "DocumentIntelligenceExtractionService.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\PDFExtraction\\DocumentIntelligenceExtractionService.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Indexing\\PDFExtraction\\DocumentIntelligenceExtractionService.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\PDFExtraction\\DocumentIntelligenceExtractionService.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Indexing\\PDFExtraction\\DocumentIntelligenceExtractionService.cs",
+              "ViewState": "AgIAACQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T14:19:53.192Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "ChunkingService.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\ChunkingService.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Indexing\\ChunkingService.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\ChunkingService.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Indexing\\ChunkingService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T14:14:12.687Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "PassThroughChunkingStrategy.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\Chunking\\PassThroughChunkingStrategy.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Indexing\\Chunking\\PassThroughChunkingStrategy.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\Chunking\\PassThroughChunkingStrategy.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Indexing\\Chunking\\PassThroughChunkingStrategy.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T14:14:03.55Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "3-deploy-application.yml",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\3-deploy-application.yml",
+              "RelativeDocumentMoniker": ".github\\workflows\\3-deploy-application.yml",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\3-deploy-application.yml",
+              "RelativeToolTip": ".github\\workflows\\3-deploy-application.yml",
+              "ViewState": "AgIAAAMAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003775|",
+              "WhenOpened": "2026-06-23T14:12:46.757Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "2-scrape-protocols.yml",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\2-scrape-protocols.yml",
+              "RelativeDocumentMoniker": ".github\\workflows\\2-scrape-protocols.yml",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\2-scrape-protocols.yml",
+              "RelativeToolTip": ".github\\workflows\\2-scrape-protocols.yml",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003775|",
+              "WhenOpened": "2026-06-23T14:12:44.171Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "1-deploy-infrastructure.yml",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\1-deploy-infrastructure.yml",
+              "RelativeDocumentMoniker": ".github\\workflows\\1-deploy-infrastructure.yml",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\1-deploy-infrastructure.yml",
+              "RelativeToolTip": ".github\\workflows\\1-deploy-infrastructure.yml",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003775|",
+              "WhenOpened": "2026-06-23T14:12:40.945Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "4-evaluate-rag.yml",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\4-evaluate-rag.yml",
+              "RelativeDocumentMoniker": ".github\\workflows\\4-evaluate-rag.yml",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\.github\\workflows\\4-evaluate-rag.yml",
+              "RelativeToolTip": ".github\\workflows\\4-evaluate-rag.yml",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAAAAUAAAAnAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003775|",
+              "WhenOpened": "2026-06-23T14:11:24.041Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "KnowledgeService.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Querying\\KnowledgeService.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Querying\\KnowledgeService.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Querying\\KnowledgeService.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Querying\\KnowledgeService.cs",
+              "ViewState": "AgIAADMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T13:58:30.708Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "PipelineOrchestrator.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\PipelineOrchestrator.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\Services\\Indexing\\PipelineOrchestrator.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\Services\\Indexing\\PipelineOrchestrator.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\Services\\Indexing\\PipelineOrchestrator.cs",
+              "ViewState": "AgIAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T13:58:18.76Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "program.cs",
+              "DocumentMoniker": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\program.cs",
+              "RelativeDocumentMoniker": "src\\agentic-rag-app\\program.cs",
+              "ToolTip": "C:\\Users\\gabriel.pirastru\\Desktop\\code\\agentic-retrieval-chunking\\src\\agentic-rag-app\\program.cs",
+              "RelativeToolTip": "src\\agentic-rag-app\\program.cs",
+              "ViewState": "AgIAAEIAAAAAAAAAAAAAAA4AAAAlAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-23T07:08:10.288Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
