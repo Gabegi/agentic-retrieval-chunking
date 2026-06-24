@@ -97,7 +97,7 @@ var host = new HostBuilder()
         services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
         services.AddSingleton<IRagQueryService, RagQueryService>();
 
-        services.AddSingleton<IChunkingStrategy, PassThroughChunkingStrategy>();
+        services.AddSingleton<IChunkingStrategy, ChunkingStrategy1>();
         services.AddSingleton<IChunkingService, ChunkingService>();
 
         services.AddSingleton<IExtractionService, PdfPigExtractionService>();
