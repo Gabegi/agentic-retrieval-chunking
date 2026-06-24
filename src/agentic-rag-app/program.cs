@@ -44,15 +44,8 @@ var host = new HostBuilder()
         services.AddSingleton(_ =>
             new BlobServiceClient(new Uri(config.StorageAccountUrl), credential));
 
-        services.AddSingleton(sp =>
-            sp.GetRequiredService<BlobServiceClient>()
-              .GetBlobContainerClient(config.StorageContainer));
-
         services.AddSingleton(_ =>
             new AzureOpenAIClient(new Uri(config.OpenAiEndpoint), credential));
-
-        services.AddSingleton(_ =>
-            new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
 
         services.AddEmbeddingGenerator(sp =>
             sp.GetRequiredService<AzureOpenAIClient>()
