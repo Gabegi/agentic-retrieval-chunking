@@ -20,8 +20,8 @@ public class RagEvaluationTests
     public TestContext TestContext { get; set; } = null!;
 
     // Only Groundedness hard-fails the build (factual/safety-critical).
-    // Relevance/Equivalence/Retrieval/F1 are scored and stored but tracked as
-    // trends in the report rather than gating individual test runs.
+    // Relevance/Coherence/Equivalence/Retrieval/F1 are scored and stored but tracked
+    // as trends in the report rather than gating individual test runs.
     private const double MinGroundedness = 3.0;
 
     [ClassInitialize]
@@ -65,7 +65,7 @@ public class RagEvaluationTests
         await _writer.WriteAsync(row);
 
         Console.WriteLine(
-            $"[{row.ScenarioName}] G={row.Groundedness:F1} R={row.Relevance:F1} " +
+            $"[{row.ScenarioName}] G={row.Groundedness:F1} R={row.Relevance:F1} C={row.Coherence:F1} " +
             $"Eq={row.Equivalence:F1} Ret={row.Retrieval:F1} F1={row.F1:F2}  " +
             $"{row.LatencyMs}ms  ${row.CostUsd:F4}  in={row.InputTokens} out={row.OutputTokens}  ok={row.Succeeded}");
 
@@ -75,19 +75,23 @@ public class RagEvaluationTests
             $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
     }
 
-    // Merges the curated set with the generated set (if present) into one test list.
+    // Merges all test sets into one list:
+    //   original-test-queries.json  — hand-curated, always required
+    //   test-queries.json           — secondary curated set, always required
+    //   test-queries-generated.json — auto-generated, optional (skipped if absent)
     public static IEnumerable<object[]> TestQueries
     {
         get
         {
             var dir = Path.Combine(AppContext.BaseDirectory, "testdata");
 
-            var curated = LoadFile(Path.Combine(dir, "original-test-queries.json"));
+            var curated   = LoadFile(Path.Combine(dir, "original-test-queries.json"));
+            var secondary = LoadFile(Path.Combine(dir, "test-queries.json"));
 
             var generatedPath = Path.Combine(dir, "test-queries-generated.json");
             var generated = File.Exists(generatedPath) ? LoadFile(generatedPath) : [];
 
-            return curated.Concat(generated).Select(q => new object[] { q });
+            return curated.Concat(secondary).Concat(generated).Select(q => new object[] { q });
         }
     }
 
