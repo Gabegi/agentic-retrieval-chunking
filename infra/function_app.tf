@@ -8,6 +8,11 @@ resource "azurerm_storage_account" "func_indexer" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
 
+  network_rules {
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+  }
+
   tags = {
     project     = "agentic-rag-chunking"
     environment = "dev"
@@ -78,7 +83,6 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
     "OPENAI_GPT_DEPLOYMENT"            = var.openai_gpt_deployment
     "OPENAI_GPT_MODEL_NAME"            = var.openai_gpt_model_name
     "OPENAI_EXTRACTION_DEPLOYMENT"     = var.openai_extraction_deployment
-    "DOCUMENT_INTELLIGENCE_ENDPOINT"   = azurerm_cognitive_account.document_intelligence.endpoint
     "SEARCH_INDEX_NAME"                = var.search_index_name
     "KNOWLEDGE_SOURCE_NAME"            = var.knowledge_source_name
     "KNOWLEDGE_BASE_NAME"              = var.knowledge_base_name
