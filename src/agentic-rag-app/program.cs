@@ -1,4 +1,3 @@
-using Azure.AI.DocumentIntelligence;
 using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
