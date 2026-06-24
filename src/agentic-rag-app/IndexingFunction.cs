@@ -122,7 +122,7 @@ public class IndexingFunction
         await _pipelineContainer.CreateIfNotExistsAsync(cancellationToken: ct);
         var json = JsonSerializer.SerializeToUtf8Bytes(data);
         using var ms = new MemoryStream(json);
-        await _pipelineContainer.GetBlockBlobClient(blobPath).UploadAsync(ms, overwrite: true, cancellationToken: ct);
+        await _pipelineContainer.GetBlockBlobClient(blobPath).UploadAsync(ms, true, ct);
     }
 
     private async Task<T> ReadBlobAsync<T>(string blobPath, CancellationToken ct)
