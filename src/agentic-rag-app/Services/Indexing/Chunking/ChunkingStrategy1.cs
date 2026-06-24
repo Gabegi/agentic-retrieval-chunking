@@ -2,9 +2,19 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-// Sentence-aware sliding-window: splits at sentence boundaries up to maxChars,
-// with overlapChars of back-overlap so facts near a split appear in both chunks.
-// Mirrors the ChunkingUtils.SplitContent logic used by both PDF extraction services.
+// Strategy 1 — Sentence-Aware Sliding Window
+//
+// Process:
+// • If the entire content fits within maxChars (default 1500), return it as a single chunk.
+// • Otherwise, slide a window of maxChars forward through the text:
+//     - Prefer to split at a sentence boundary (. ! ?) found in the back half of the window,
+//       so chunks end on a complete thought.
+//     - Fall back to the nearest word boundary if no sentence end is found.
+//     - Hard-split at maxChars if no boundary exists at all.
+// • After emitting each chunk, step back ~overlapChars (default 150) to find the start of
+//   the nearest preceding sentence — that sentence begins the next chunk, so facts near a
+//   split boundary appear in both adjacent chunks.
+// • Repeat until the remaining text is shorter than maxChars, then emit it as the final chunk.
 public class ChunkingStrategy1 : IChunkingStrategy
 {
     private readonly int _maxChars;
