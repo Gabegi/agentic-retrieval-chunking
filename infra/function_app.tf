@@ -99,6 +99,19 @@ resource "azurerm_role_assignment" "func_indexer_storage_owner" {
   principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
 }
 
+# Durable Functions store orchestration state in queues and tables
+resource "azurerm_role_assignment" "func_indexer_storage_queue_contributor" {
+  scope                = azurerm_storage_account.func_indexer.id
+  role_definition_name = "Storage Queue Data Contributor"
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_indexer_storage_table_contributor" {
+  scope                = azurerm_storage_account.func_indexer.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+}
+
 resource "azurerm_role_assignment" "func_indexer_blob_reader" {
   scope                = azurerm_storage_account.documents.id
   role_definition_name = "Storage Blob Data Reader"
