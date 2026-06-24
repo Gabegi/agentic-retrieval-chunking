@@ -4,18 +4,21 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-// Owns the full CSV extraction pipeline: download → extract → join → clean → validate → map.
-// Returns extractor-agnostic ExtractionDocuments; callers have no knowledge of CSV internals.
-public class CsvExtractionOrchestrator
+// CSV implementation of IExtractionOrchestrator.
+// Downloads pages.csv + index.csv from blob storage, runs the full CSV pipeline,
+// and returns source-agnostic ExtractionDocuments. Callers see no CSV internals.
+public class CsvExtractionOrchestrator : IExtractionOrchestrator
 {
-    private readonly BlobContainerClient              _container;
+    private readonly BlobContainerClient                _container;
     private readonly ILogger<CsvExtractionOrchestrator> _logger;
+
+    public string Source => "csv";
 
     private const string PagesBlobName = "pages.csv";
     private const string IndexBlobName = "index.csv";
 
     public CsvExtractionOrchestrator(
-        BlobContainerClient              container,
+        BlobContainerClient                container,
         ILogger<CsvExtractionOrchestrator> logger)
     {
         _container = container;
