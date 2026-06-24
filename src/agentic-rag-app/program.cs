@@ -44,6 +44,17 @@ var host = new HostBuilder()
         services.AddSingleton(_ =>
             new BlobServiceClient(new Uri(config.StorageAccountUrl), credential));
 
+        // Pipeline temp storage — passes large payloads between Durable activities via blob
+        // rather than through Durable Table Storage (64KB row-size limit).
+        services.AddKeyedSingleton<BlobContainerClient>("pipeline-temp", (_, _) =>
+        {
+            var accountName = ctx.Configuration["AzureWebJobsStorage__accountName"]!;
+            return new BlobServiceClient(
+                new Uri($"https://{accountName}.blob.core.windows.net"),
+                credential)
+                .GetBlobContainerClient("indexing-pipeline");
+        });
+
         services.AddSingleton(_ =>
             new AzureOpenAIClient(new Uri(config.OpenAiEndpoint), credential));
 
