@@ -51,20 +51,6 @@ resource "azurerm_role_assignment" "sp_blob_contributor" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
-resource "azurerm_role_assignment" "developer_blob_reader" {
-  count                = var.developer_object_id != "" ? 1 : 0
-  scope                = azurerm_storage_account.documents.id
-  role_definition_name = "Storage Blob Data Reader"
-  principal_id         = var.developer_object_id
-}
-
-resource "azurerm_role_assignment" "developer_documentscsv_contributor" {
-  count                = var.developer_object_id != "" ? 1 : 0
-  scope                = azurerm_storage_container.documents_csv.resource_manager_id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = var.developer_object_id
-}
-
 resource "azurerm_role_assignment" "developer_document_intelligence" {
   count                = var.developer_object_id != "" ? 1 : 0
   scope                = azurerm_cognitive_account.document_intelligence.id
