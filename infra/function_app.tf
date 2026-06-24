@@ -76,7 +76,6 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
     "AzureWebJobsStorage__credential"  = "managedidentity"
     "ProtocolsStorage__blobServiceUri" = azurerm_storage_account.documents.primary_blob_endpoint
     "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.documents.primary_blob_endpoint
-    "STORAGE_CONTAINER"                = azurerm_storage_container.protocols.name
     "SEARCH_ENDPOINT"                  = "https://${azurerm_search_service.main.name}.search.windows.net"
     "OPENAI_ENDPOINT"                  = "https://${azurerm_cognitive_account.openai.custom_subdomain_name}.openai.azure.com/"
     "OPENAI_EMBEDDING_DEPLOYMENT"      = var.openai_embedding_deployment
