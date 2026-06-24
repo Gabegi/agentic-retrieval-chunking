@@ -48,12 +48,30 @@ jobs:
           echo "KNOWLEDGE_SOURCE_NAME=$(terraform output -raw knowledge_source_name)"   >> $GITHUB_ENV
           echo "KNOWLEDGE_BASE_NAME=$(terraform output -raw knowledge_base_name)"       >> $GITHUB_ENV
 
+      - name: Open storage firewall for runner
+        run: |
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          echo "RUNNER_IP=$RUNNER_IP" >> $GITHUB_ENV
+          az storage account network-rule add \
+            --account-name staccountchunkingrag \
+            --resource-group rg-agentic-rag-chunking \
+            --ip-address "$RUNNER_IP"
+          sleep 15
+
       - name: Run RAG evaluation
         run: |
           dotnet test src/RagApp.Evaluation.Tests/RagApp.Evaluation.Tests.csproj \
             -c Release \
             --logger "trx;LogFileName=eval-results.trx" \
             --logger "console;verbosity=normal"
+
+      - name: Close storage firewall
+        if: always()
+        run: |
+          az storage account network-rule remove \
+            --account-name staccountchunkingrag \
+            --resource-group rg-agentic-rag-chunking \
+            --ip-address "$RUNNER_IP"
 
       - name: Upload TRX results
         uses: actions/upload-artifact@v4
