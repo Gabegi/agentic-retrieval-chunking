@@ -24,19 +24,31 @@ jobs:
         with:
           dotnet-version: "8.0"
 
-      - name: Run RAG evaluation
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+
+      - name: Load config from Terraform outputs
+        working-directory: ./infra
         env:
-          SEARCH_ENDPOINT:             ${{ vars.SEARCH_ENDPOINT }}
-          OPENAI_ENDPOINT:             ${{ vars.OPENAI_ENDPOINT }}
-          OPENAI_EMBEDDING_DEPLOYMENT: ${{ vars.OPENAI_EMBEDDING_DEPLOYMENT }}
-          OPENAI_GPT_DEPLOYMENT:       ${{ vars.OPENAI_GPT_DEPLOYMENT }}
-          OPENAI_GPT_MODEL_NAME:       ${{ vars.OPENAI_GPT_MODEL_NAME }}
-          OPENAI_EVAL_DEPLOYMENT:      ${{ vars.OPENAI_EVAL_DEPLOYMENT }}
-          SEARCH_INDEX_NAME:           ${{ vars.SEARCH_INDEX_NAME }}
-          STORAGE_ACCOUNT_URL:         ${{ vars.STORAGE_ACCOUNT_URL }}
-          STORAGE_CONTAINER:           ${{ vars.STORAGE_CONTAINER }}
-          KNOWLEDGE_SOURCE_NAME:       ${{ vars.KNOWLEDGE_SOURCE_NAME }}
-          KNOWLEDGE_BASE_NAME:         ${{ vars.KNOWLEDGE_BASE_NAME }}
+          ARM_USE_MSI: true
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          terraform init
+          echo "SEARCH_ENDPOINT=$(terraform output -raw search_endpoint)"               >> $GITHUB_ENV
+          echo "OPENAI_ENDPOINT=$(terraform output -raw openai_endpoint)"               >> $GITHUB_ENV
+          echo "OPENAI_EMBEDDING_DEPLOYMENT=$(terraform output -raw openai_embedding_deployment)" >> $GITHUB_ENV
+          echo "OPENAI_GPT_DEPLOYMENT=$(terraform output -raw openai_gpt_deployment)"   >> $GITHUB_ENV
+          echo "OPENAI_GPT_MODEL_NAME=$(terraform output -raw openai_gpt_model_name)"   >> $GITHUB_ENV
+          echo "OPENAI_EVAL_DEPLOYMENT=$(terraform output -raw openai_eval_deployment)" >> $GITHUB_ENV
+          echo "SEARCH_INDEX_NAME=$(terraform output -raw search_index_name)"           >> $GITHUB_ENV
+          echo "STORAGE_ACCOUNT_URL=$(terraform output -raw storage_account_url)"       >> $GITHUB_ENV
+          echo "STORAGE_CONTAINER=$(terraform output -raw storage_container_csv)"       >> $GITHUB_ENV
+          echo "KNOWLEDGE_SOURCE_NAME=$(terraform output -raw knowledge_source_name)"   >> $GITHUB_ENV
+          echo "KNOWLEDGE_BASE_NAME=$(terraform output -raw knowledge_base_name)"       >> $GITHUB_ENV
+
+      - name: Run RAG evaluation
         run: |
           dotnet test src/RagApp.Evaluation.Tests/RagApp.Evaluation.Tests.csproj \
             -c Release \
