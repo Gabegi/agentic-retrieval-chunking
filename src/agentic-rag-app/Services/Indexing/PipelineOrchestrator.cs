@@ -15,6 +15,7 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
 {
     private readonly BlobContainerClient           _container;
     private readonly IExtractionService[]          _services;
+    private readonly IChunkingService              _chunkingService;
     private readonly IEmbeddingService             _embeddingService;
     private readonly IIndexService                 _indexService;
     private readonly AzureOpenAIClient             _openAi;
@@ -26,6 +27,7 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
     public PipelineOrchestrator(
         BlobServiceClient               blobServiceClient,
         IEnumerable<IExtractionService> services,
+        IChunkingService                chunkingService,
         IEmbeddingService               embeddingService,
         IIndexService                   indexService,
         AzureOpenAIClient               openAi,
@@ -35,6 +37,7 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
         _container        = blobServiceClient.GetBlobContainerClient(
             string.IsNullOrEmpty(config.StorageContainer) ? "protocols" : config.StorageContainer);
         _services         = services.ToArray();
+        _chunkingService  = chunkingService;
         _embeddingService = embeddingService;
         _indexService     = indexService;
         _openAi           = openAi;
@@ -91,6 +94,71 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
                 blobName, ex.GetType().Name, ex.Message, ex.StackTrace);
             throw;
         }
+    }
+
+    // ── CSV pipeline: extract → join → clean → validate → chunk → embed → index ─
+    public async Task ProcessCsvAsync(string pagesCsvPath, string indexCsvPath, CancellationToken ct = default)
+    {
+        using var activity = Instrumentation.ActivitySource.StartActivity("ProcessCsv", ActivityKind.Internal);
+
+        if (!_indexEnsured)
+        {
+            await _indexService.EnsureIndexAsync();
+            _indexEnsured = true;
+        }
+
+        var pagesResult = CsvExtractor.ExtractPages(pagesCsvPath);
+        var indexResult = CsvExtractor.ExtractIndex(indexCsvPath);
+        var joinResult  = CsvJoiner.Join(pagesResult.Records, indexResult.Records);
+        var cleanResult = DataCleaner.Clean(joinResult.Joined);
+        var report      = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult);
+
+        _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
+            report.Passed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
+
+        foreach (var issue in report.Issues)
+            _logger.Log(issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
+                "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
+
+        if (!report.Passed)
+        {
+            _logger.LogError("CSV validation failed — aborting. Check reconciliation problems above.");
+            return;
+        }
+
+        var documents        = new List<ProtocolDocument>();
+        int globalChunkIndex = 0;
+
+        foreach (var record in cleanResult.Records)
+        {
+            var chunks = _chunkingService.Chunk(record.PageContent);
+            foreach (var chunk in chunks)
+            {
+                var content = chunk.Heading != null ? $"{chunk.Heading}\n\n{chunk.Content}" : chunk.Content;
+                documents.Add(new ProtocolDocument
+                {
+                    Id              = ChunkingUtils.SafeKey($"{record.DocumentId}::{record.PageIndex}", globalChunkIndex),
+                    SourceFile      = record.DocumentId,
+                    RichtlijnName   = record.Title,
+                    PublicationDate = record.LastModified.ToString("yyyy-MM-dd"),
+                    Version         = record.Version,
+                    Content         = content,
+                    Heading         = chunk.Heading,
+                    PageNumber      = record.PageIndex,
+                    ChunkIndex      = globalChunkIndex++,
+                });
+            }
+        }
+
+        activity?.SetTag("chunks", documents.Count);
+        _logger.LogInformation("CSV → {Chunks} chunks from {Records} pages ({Strategy})",
+            documents.Count, cleanResult.Records.Count, _chunkingService.Name);
+
+        var embedded = await _embeddingService.EmbedDocumentsAsync(documents, ct);
+        await _embeddingService.UploadDocumentsAsync(embedded, ct);
+
+        Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
+        _logger.LogInformation("CSV pipeline complete — {Count} documents indexed", documents.Count);
     }
 
     // ── Bulk run (backfill / local use) ───────────────────────────────────
