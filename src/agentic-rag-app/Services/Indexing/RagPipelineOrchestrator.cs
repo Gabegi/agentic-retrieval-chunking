@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
+using ProtocolsIndexer.Observability;
 using ProtocolsIndexer.Utils;
 
 namespace ProtocolsIndexer.Services;
@@ -14,8 +15,6 @@ public class RagPipelineOrchestrator : IRagPipelineOrchestrator
     private readonly IEmbeddingService                           _embeddingService;
     private readonly IIndexService                               _indexService;
     private readonly ILogger<RagPipelineOrchestrator>            _logger;
-
-    private volatile bool _indexEnsured;
 
     public RagPipelineOrchestrator(
         IEnumerable<IExtractionOrchestrator> extractors,
@@ -37,11 +36,7 @@ public class RagPipelineOrchestrator : IRagPipelineOrchestrator
             throw new ArgumentException(
                 $"No extractor registered for source '{source}'. Available: {string.Join(", ", _extractors.Keys)}");
 
-        if (!_indexEnsured)
-        {
-            await _indexService.EnsureIndexAsync();
-            _indexEnsured = true;
-        }
+        await _indexService.EnsureIndexAsync();
 
         _logger.LogInformation("Extracting from source '{Source}'", source);
         return await extractor.ExtractAsync(ct);
@@ -76,6 +71,9 @@ public class RagPipelineOrchestrator : IRagPipelineOrchestrator
             }
         }
 
+        Instrumentation.ChunksExtracted.Record(result.Count,
+            new KeyValuePair<string, object?>("strategy", _chunkingService.Name));
+
         _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks ({Strategy})",
             docs.Count, result.Count, _chunkingService.Name);
         return result;
@@ -85,6 +83,8 @@ public class RagPipelineOrchestrator : IRagPipelineOrchestrator
     {
         var embedded = await _embeddingService.EmbedDocumentsAsync(docs, ct);
         await _embeddingService.UploadDocumentsAsync(embedded, ct);
+
+        Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
         _logger.LogInformation("Embedded and uploaded {Count} documents", docs.Count);
     }
 }
