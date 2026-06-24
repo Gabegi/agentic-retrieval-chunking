@@ -68,7 +68,7 @@ public class PdfPigExtractionService : IExtractionService
                     {
                         Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
                         SourceFile      = blobName,
-                        RichtlijnName   = meta.RichtlijnName,
+                        Title   = meta.Title,
                         PublicationDate = meta.PublicationDate,
                         Version         = meta.Version,
                         Content         = fullContent,
@@ -152,7 +152,7 @@ public class PdfPigExtractionService : IExtractionService
                     {
                         Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
                         SourceFile      = blobName,
-                        RichtlijnName   = meta.RichtlijnName,
+                        Title   = meta.Title,
                         PublicationDate = meta.PublicationDate,
                         Version         = meta.Version,
                         Content         = chunk,

@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace ProtocolsIndexer.Utils;
 
-public record DocumentMetadata(string RichtlijnName, string? PublicationDate, string? Version);
+public record DocumentMetadata(string Title, string? PublicationDate, string? Version);
 
 public static class LciMetadataParser
 {
@@ -17,7 +17,7 @@ public static class LciMetadataParser
 
     public static DocumentMetadata Parse(string text, string blobName)
     {
-        var richtlijnName = blobName.Split('/')[0]
+        var title = blobName.Split('/')[0]
             .Replace("lci_", "", StringComparison.OrdinalIgnoreCase)
             .Replace("-", " ");
 
@@ -37,8 +37,8 @@ public static class LciMetadataParser
         if (versionMatch.Success) version = versionMatch.Groups[1].Value;
 
         var titleMatch = TitleRegex.Match(text);
-        if (titleMatch.Success) richtlijnName = titleMatch.Groups[1].Value.Trim();
+        if (titleMatch.Success) title = titleMatch.Groups[1].Value.Trim();
 
-        return new DocumentMetadata(richtlijnName, date, version);
+        return new DocumentMetadata(title, date, version);
     }
 }

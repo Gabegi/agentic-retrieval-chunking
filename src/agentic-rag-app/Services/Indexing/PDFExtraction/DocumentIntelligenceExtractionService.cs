@@ -56,7 +56,7 @@ public class DocumentIntelligenceExtractionService : IExtractionService
                     {
                         Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
                         SourceFile      = current.SourceFile,
-                        RichtlijnName   = current.RichtlijnName,
+                        Title   = current.Title,
                         PublicationDate = current.PublicationDate,
                         Version         = current.Version,
                         PageNumber      = current.PageNumber,
@@ -72,7 +72,7 @@ public class DocumentIntelligenceExtractionService : IExtractionService
             {
                 Id              = "",
                 SourceFile      = blobName,
-                RichtlijnName   = meta.RichtlijnName,
+                Title   = meta.Title,
                 PublicationDate = meta.PublicationDate,
                 Version         = meta.Version,
                 PageNumber      = pageNum,
