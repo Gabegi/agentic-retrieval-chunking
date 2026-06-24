@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Observability;
+using ProtocolsIndexer.Utils;
 
 namespace ProtocolsIndexer.Services;
 
