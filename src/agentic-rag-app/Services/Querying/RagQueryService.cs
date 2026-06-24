@@ -23,7 +23,10 @@ public class RagQueryService : IRagQueryService
         // Azure AI On Your Data requires ChatCompletionOptions.AddDataSource, which is
         // Azure-specific and not exposed by IChatClient. GetService<ChatClient>() retrieves
         // the underlying deployment-scoped client registered in DI.
-        var chatClient = _chatClient.GetService<ChatClient>()!;
+        var chatClient = _chatClient.GetService<ChatClient>()
+            ?? throw new InvalidOperationException(
+                "RagQueryService requires an AzureOpenAIClient-backed IChatClient. " +
+                "Ensure the chat client is registered via AzureOpenAIClient.GetChatClient().");
 
 #pragma warning disable AOAI001
         var options = new ChatCompletionOptions();

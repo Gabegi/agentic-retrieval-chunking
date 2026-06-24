@@ -64,9 +64,9 @@ public class IndexingFunction
 
     // Step 1 — run the source-specific extractor, returns ExtractionDocuments
     [Function("ExtractActivity")]
-    public async Task<List<ExtractionDocument>> ExtractActivity([ActivityTrigger] string source)
+    public async Task<List<ExtractionDocument>> ExtractActivity([ActivityTrigger] string source, FunctionContext context)
     {
-        var docs = await _orchestrator.ExtractAsync(source);
+        var docs = await _orchestrator.ExtractAsync(source, context.CancellationToken);
         _logger.LogInformation("Extracted {Count} documents from '{Source}'", docs.Count, source);
         return [.. docs];
     }
