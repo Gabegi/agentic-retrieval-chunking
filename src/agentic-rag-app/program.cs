@@ -87,6 +87,7 @@ var host = new HostBuilder()
                     metrics.AddAzureMonitorMetricExporter(o => o.ConnectionString = appInsightsConnectionString);
             });
 
+        services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
         services.AddSingleton<IRagQueryService, RagQueryService>();
 
         // Chunking
