@@ -1,117 +1,78 @@
-using System.Diagnostics;
 using System.Net;
-using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Observability;
+using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Services;
 
 namespace ProtocolsIndexer;
 
+// Generic indexing entrypoint. Source-agnostic: pass ?source=csv (or pdf, etc.)
+// to select the registered extractor. The pipeline steps are the same for all sources.
 public class IndexingFunction
 {
-    private readonly IPipelineOrchestrator         _orchestrator;
-    private readonly IKnowledgeService             _knowledgeService;
-    private readonly IRequestTelemetry             _telemetry;
-    private readonly BlobContainerClient           _container;
-    private readonly ILogger<IndexingFunction>     _logger;
+    private readonly IRagPipelineOrchestrator  _orchestrator;
+    private readonly IKnowledgeService         _knowledgeService;
+    private readonly ILogger<IndexingFunction> _logger;
 
     public IndexingFunction(
-        IPipelineOrchestrator          orchestrator,
-        IKnowledgeService              knowledgeService,
-        IRequestTelemetry              telemetry,
-        BlobContainerClient            container,
-        ILogger<IndexingFunction>      logger)
+        IRagPipelineOrchestrator  orchestrator,
+        IKnowledgeService         knowledgeService,
+        ILogger<IndexingFunction> logger)
     {
         _orchestrator     = orchestrator;
         _knowledgeService = knowledgeService;
-        _telemetry        = telemetry;
-        _container        = container;
         _logger           = logger;
     }
 
-    // Fires automatically when a PDF lands in the container
-    [Function("ProtocolIndexer")]
-    public async Task RunBlobTrigger(
-        [BlobTrigger("%STORAGE_CONTAINER%/{name}", Connection = "ProtocolsStorage")] byte[] content,
-        string name,
-        FunctionContext context)
+    // POST /api/index?source=csv — starts a Durable orchestration for the given source
+    [Function("StartIndexing")]
+    public async Task<HttpResponseData> Start(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
+        [DurableClient] DurableTaskClient client)
     {
-        if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
-        _logger.LogInformation("Blob trigger: {Name}", name);
-        _telemetry.Initialize();
-        await _orchestrator.ProcessBlobAsync(name, content, context.CancellationToken);
-    }
-
-    // Manual trigger: POST /api/process/{blobName}
-    [Function("ProcessBlobManual")]
-    public async Task<HttpResponseData> RunManual(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "process/{*blobName}")] HttpRequestData req,
-        string blobName,
-        FunctionContext context)
-    {
-        _logger.LogInformation("Manual trigger: {Name}", blobName);
-        _telemetry.Initialize();
-        var sw = Stopwatch.StartNew();
-
-        using var ms = new MemoryStream();
-        await _container.GetBlobClient(blobName).DownloadToAsync(ms, context.CancellationToken);
-        await _orchestrator.ProcessBlobAsync(blobName, ms.ToArray(), context.CancellationToken);
-
-        sw.Stop();
-        var tel = _telemetry.GetSummary(sw.ElapsedMilliseconds);
-        _logger.LogInformation("Telemetry [{Blob}]: {LatencyMs}ms, in={In} tokens, out={Out} tokens",
-            blobName, tel.LatencyMs, tel.InputTokens, tel.OutputTokens);
-
-        var response = req.CreateResponse(HttpStatusCode.OK);
-        await response.WriteAsJsonAsync(new
+        var source = req.Query["source"];
+        if (string.IsNullOrWhiteSpace(source))
         {
-            message = $"Processed {blobName}",
-            telemetry = new { latency_ms = tel.LatencyMs, input_tokens = tel.InputTokens, output_tokens = tel.OutputTokens }
-        });
-        return response;
-    }
-
-    // Reindex all: POST /api/reindex?limit=5 (default 5; pass limit=0 for all)
-    [Function("ReindexAll")]
-    public async Task<HttpResponseData> RunReindexAll(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "reindex")] HttpRequestData req,
-        FunctionContext context)
-    {
-        var limitStr = req.Query["limit"];
-        var limit    = int.TryParse(limitStr, out var n) ? n : 5;
-        if (limit == 0) limit = int.MaxValue;
-
-        _logger.LogInformation("ReindexAll triggered (limit={Limit})", limit == int.MaxValue ? "all" : limit.ToString());
-        _telemetry.Initialize();
-        var sw = Stopwatch.StartNew();
-
-        var processed = 0;
-        await foreach (var blob in _container.GetBlobsAsync(cancellationToken: context.CancellationToken))
-        {
-            if (!blob.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
-            if (processed >= limit) break;
-
-            using var ms = new MemoryStream();
-            await _container.GetBlobClient(blob.Name).DownloadToAsync(ms, context.CancellationToken);
-            await _orchestrator.ProcessBlobAsync(blob.Name, ms.ToArray(), context.CancellationToken);
-            processed++;
+            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+            await bad.WriteStringAsync("'source' query parameter is required (e.g. ?source=csv)");
+            return bad;
         }
 
-        sw.Stop();
-        var tel = _telemetry.GetSummary(sw.ElapsedMilliseconds);
-        _logger.LogInformation("Telemetry [reindex {Count} blobs]: {LatencyMs}ms, in={In} tokens, out={Out} tokens",
-            processed, tel.LatencyMs, tel.InputTokens, tel.OutputTokens);
-
-        var response = req.CreateResponse(HttpStatusCode.OK);
-        await response.WriteAsJsonAsync(new
-        {
-            message = $"Reindexed {processed} blobs",
-            telemetry = new { latency_ms = tel.LatencyMs, input_tokens = tel.InputTokens, output_tokens = tel.OutputTokens }
-        });
-        return response;
+        var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("IndexingOrchestrator", source);
+        _logger.LogInformation("Indexing started — source '{Source}', instance {InstanceId}", source, instanceId);
+        return client.CreateCheckStatusResponse(req, instanceId);
     }
+
+    [Function("IndexingOrchestrator")]
+    public async Task RunOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    {
+        var source = context.GetInput<string>()!;
+        var docs   = await context.CallActivityAsync<List<ExtractionDocument>>("ExtractActivity", source);
+        var chunks = await context.CallActivityAsync<List<ProtocolDocument>>("ChunkActivity", docs);
+        await context.CallActivityAsync("EmbedAndUploadActivity", chunks);
+    }
+
+    // Step 1 — run the source-specific extractor, returns ExtractionDocuments
+    [Function("ExtractActivity")]
+    public async Task<List<ExtractionDocument>> ExtractActivity([ActivityTrigger] string source)
+    {
+        var docs = await _orchestrator.ExtractAsync(source);
+        _logger.LogInformation("Extracted {Count} documents from '{Source}'", docs.Count, source);
+        return [.. docs];
+    }
+
+    // Step 2 — chunk ExtractionDocuments into ProtocolDocuments (generic, source-agnostic)
+    [Function("ChunkActivity")]
+    public List<ProtocolDocument> ChunkActivity([ActivityTrigger] List<ExtractionDocument> docs)
+        => [.. _orchestrator.Chunk(docs)];
+
+    // Step 3 — embed vectors and upload to Azure AI Search
+    [Function("EmbedAndUploadActivity")]
+    public async Task EmbedAndUploadActivity([ActivityTrigger] List<ProtocolDocument> docs)
+        => await _orchestrator.EmbedAndUploadAsync(docs);
 
     // POST /api/setup-knowledge-base — run once after the index is populated
     [Function("SetupKnowledgeBase")]
