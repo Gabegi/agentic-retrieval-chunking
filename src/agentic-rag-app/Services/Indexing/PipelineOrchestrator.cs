@@ -1,105 +1,41 @@
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using Azure.AI.OpenAI;
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
 using ProtocolsIndexer.Utils;
 
 namespace ProtocolsIndexer.Services;
 
-public partial class PipelineOrchestrator : IPipelineOrchestrator
+// Source-agnostic RAG pipeline: resolves the right extractor by source key,
+// then chunks, embeds, and uploads. Adding a new source means registering
+// a new IExtractionOrchestrator — no changes here.
+public class RagPipelineOrchestrator : IRagPipelineOrchestrator
 {
-    private readonly BlobContainerClient           _container;
-    private readonly IExtractionService[]          _services;
-    private readonly IChunkingService              _chunkingService;
-    private readonly IEmbeddingService             _embeddingService;
-    private readonly IIndexService                 _indexService;
-    private readonly AzureOpenAIClient             _openAi;
-    private readonly IndexerConfig                 _config;
-    private readonly ILogger<PipelineOrchestrator> _logger;
+    private readonly Dictionary<string, IExtractionOrchestrator> _extractors;
+    private readonly IChunkingService                            _chunkingService;
+    private readonly IEmbeddingService                           _embeddingService;
+    private readonly IIndexService                               _indexService;
+    private readonly ILogger<RagPipelineOrchestrator>            _logger;
 
     private volatile bool _indexEnsured;
 
-    public PipelineOrchestrator(
-        BlobServiceClient               blobServiceClient,
-        IEnumerable<IExtractionService> services,
-        IChunkingService                chunkingService,
-        IEmbeddingService               embeddingService,
-        IIndexService                   indexService,
-        AzureOpenAIClient               openAi,
-        IndexerConfig                   config,
-        ILogger<PipelineOrchestrator>   logger)
+    public RagPipelineOrchestrator(
+        IEnumerable<IExtractionOrchestrator> extractors,
+        IChunkingService                     chunkingService,
+        IEmbeddingService                    embeddingService,
+        IIndexService                        indexService,
+        ILogger<RagPipelineOrchestrator>     logger)
     {
-        _container        = blobServiceClient.GetBlobContainerClient(
-            string.IsNullOrEmpty(config.StorageContainer) ? "protocols" : config.StorageContainer);
-        _services         = services.ToArray();
+        _extractors       = extractors.ToDictionary(e => e.Source, StringComparer.OrdinalIgnoreCase);
         _chunkingService  = chunkingService;
         _embeddingService = embeddingService;
         _indexService     = indexService;
-        _openAi           = openAi;
-        _config           = config;
         _logger           = logger;
     }
 
-    // ── Per-blob pipeline: extract → embed → index ────────────────────────
-    public async Task ProcessBlobAsync(string blobName, byte[] bytes, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(string source, CancellationToken ct = default)
     {
-        using var activity = Instrumentation.ActivitySource.StartActivity("ProcessBlob", ActivityKind.Internal);
-        activity?.SetTag("blob.name", blobName);
-
-        try
-        {
-            if (!_indexEnsured)
-            {
-                await _indexService.EnsureIndexAsync();
-                _indexEnsured = true;
-            }
-
-            using var extractActivity = Instrumentation.ActivitySource.StartActivity("Extract", ActivityKind.Internal);
-            var run = await _services[0].ExtractAsync(blobName, bytes, ct);
-            extractActivity?.SetTag("chunks", run.ChunkCount);
-            extractActivity?.SetTag("fallback", run.UsedFallback);
-
-            if (run.Error != null)
-            {
-                activity?.SetStatus(ActivityStatusCode.Error, run.Error);
-                Instrumentation.BlobsProcessed.Add(1,
-                    new KeyValuePair<string, object?>("status", "extraction_failed"));
-                _logger.LogError("Extraction failed for {Blob}: {Error}", blobName, run.Error);
-                return;
-            }
-
-            Instrumentation.ChunksExtracted.Record(run.ChunkCount,
-                new KeyValuePair<string, object?>("service", run.ServiceName),
-                new KeyValuePair<string, object?>("fallback", run.UsedFallback));
-            _logger.LogInformation("{Blob} → {Chunks} chunks extracted", blobName, run.ChunkCount);
-
-            var embedded = await _embeddingService.EmbedDocumentsAsync(run.Chunks, ct);
-            await _embeddingService.UploadDocumentsAsync(embedded, ct);
-
-            Instrumentation.BlobsProcessed.Add(1,
-                new KeyValuePair<string, object?>("status", "success"));
-            _logger.LogInformation("{Blob} indexed", blobName);
-        }
-        catch (Exception ex)
-        {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            Instrumentation.BlobsProcessed.Add(1,
-                new KeyValuePair<string, object?>("status", "error"));
-            _logger.LogError("Pipeline failed for {Blob} — {Type}: {Message}\n{Stack}",
-                blobName, ex.GetType().Name, ex.Message, ex.StackTrace);
-            throw;
-        }
-    }
-
-    // ── CSV pipeline: extract → join → clean → validate → chunk → embed → index ─
-    public async Task ProcessCsvAsync(string pagesCsvPath, string indexCsvPath, CancellationToken ct = default)
-    {
-        using var activity = Instrumentation.ActivitySource.StartActivity("ProcessCsv", ActivityKind.Internal);
+        if (!_extractors.TryGetValue(source, out var extractor))
+            throw new ArgumentException(
+                $"No extractor registered for source '{source}'. Available: {string.Join(", ", _extractors.Keys)}");
 
         if (!_indexEnsured)
         {
@@ -107,78 +43,48 @@ public partial class PipelineOrchestrator : IPipelineOrchestrator
             _indexEnsured = true;
         }
 
-        var pagesResult = CsvExtractor.ExtractPages(pagesCsvPath);
-        var indexResult = CsvExtractor.ExtractIndex(indexCsvPath);
-        var joinResult  = CsvJoiner.Join(pagesResult.Records, indexResult.Records);
-        var cleanResult = DataCleaner.Clean(joinResult.Joined);
-        var report      = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult);
+        _logger.LogInformation("Extracting from source '{Source}'", source);
+        return await extractor.ExtractAsync(ct);
+    }
 
-        _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
-            report.Passed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
-
-        foreach (var issue in report.Issues)
-            _logger.Log(issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
-                "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
-
-        if (!report.Passed)
-        {
-            _logger.LogError("CSV validation failed — aborting. Check reconciliation problems above.");
-            return;
-        }
-
-        var documents        = new List<ProtocolDocument>();
+    public IReadOnlyList<ProtocolDocument> Chunk(IReadOnlyList<ExtractionDocument> docs)
+    {
+        var result           = new List<ProtocolDocument>();
         int globalChunkIndex = 0;
 
-        foreach (var record in cleanResult.Records)
+        foreach (var doc in docs.OrderBy(d => d.SourceId).ThenBy(d => d.Ordinal))
         {
-            var chunks = _chunkingService.Chunk(record.PageContent);
+            var chunks = _chunkingService.Chunk(doc.Content);
             foreach (var chunk in chunks)
             {
-                var content = chunk.Heading != null ? $"{chunk.Heading}\n\n{chunk.Content}" : chunk.Content;
-                documents.Add(new ProtocolDocument
+                var content = chunk.Heading != null
+                    ? $"{chunk.Heading}\n\n{chunk.Content}"
+                    : chunk.Content;
+
+                result.Add(new ProtocolDocument
                 {
-                    Id              = ChunkingUtils.SafeKey($"{record.DocumentId}::{record.PageIndex}", globalChunkIndex),
-                    SourceFile      = record.DocumentId,
-                    RichtlijnName   = record.Title,
-                    PublicationDate = record.LastModified.ToString("yyyy-MM-dd"),
-                    Version         = record.Version,
+                    Id              = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", globalChunkIndex),
+                    SourceFile      = doc.SourceId,
+                    RichtlijnName   = doc.Metadata.GetValueOrDefault("title"),
+                    PublicationDate = doc.Metadata.GetValueOrDefault("publication_date"),
+                    Version         = doc.Metadata.GetValueOrDefault("version"),
                     Content         = content,
                     Heading         = chunk.Heading,
-                    PageNumber      = record.PageIndex,
+                    PageNumber      = doc.Ordinal,
                     ChunkIndex      = globalChunkIndex++,
                 });
             }
         }
 
-        activity?.SetTag("chunks", documents.Count);
-        _logger.LogInformation("CSV → {Chunks} chunks from {Records} pages ({Strategy})",
-            documents.Count, cleanResult.Records.Count, _chunkingService.Name);
+        _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks ({Strategy})",
+            docs.Count, result.Count, _chunkingService.Name);
+        return result;
+    }
 
-        var embedded = await _embeddingService.EmbedDocumentsAsync(documents, ct);
+    public async Task EmbedAndUploadAsync(IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default)
+    {
+        var embedded = await _embeddingService.EmbedDocumentsAsync(docs, ct);
         await _embeddingService.UploadDocumentsAsync(embedded, ct);
-
-        Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
-        _logger.LogInformation("CSV pipeline complete — {Count} documents indexed", documents.Count);
-    }
-
-    // ── Bulk run (backfill / local use) ───────────────────────────────────
-    public async Task RunAsync(CancellationToken ct = default)
-    {
-        _logger.LogInformation("Bulk run using {Service}", _services[0].Name);
-        await foreach (var (item, bytes) in StreamBlobsAsync(ct))
-            await ProcessBlobAsync(item.Name, bytes, ct);
-    }
-
-    // ── Streaming blob download ───────────────────────────────────────────
-    private async IAsyncEnumerable<(BlobItem Item, byte[] Bytes)> StreamBlobsAsync(
-        [EnumeratorCancellation] CancellationToken ct)
-    {
-        await foreach (var item in _container.GetBlobsAsync(cancellationToken: ct))
-        {
-            if (!item.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
-            using var ms = new MemoryStream();
-            await _container.GetBlobClient(item.Name).DownloadToAsync(ms, ct);
-            yield return (item, ms.ToArray());
-        }
+        _logger.LogInformation("Embedded and uploaded {Count} documents", docs.Count);
     }
 }
