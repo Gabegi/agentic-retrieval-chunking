@@ -66,6 +66,9 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"              = "dotnet-isolated"
     "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.func_indexer.connection_string
+    # Durable Functions managed-identity auth — no connection string needed
+    "AzureWebJobsStorage__accountName" = azurerm_storage_account.func_indexer.name
+    "AzureWebJobsStorage__credential"  = "managedidentity"
     "ProtocolsStorage__blobServiceUri" = azurerm_storage_account.documents.primary_blob_endpoint
     "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.documents.primary_blob_endpoint
     "STORAGE_CONTAINER"                = azurerm_storage_container.protocols.name
