@@ -10,6 +10,13 @@ resource "azurerm_storage_account" "documents" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
 
+  # Block all public internet access; the function app reaches it via
+  # managed identity (an Azure-trusted service, bypassed by the rule below).
+  network_rules {
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+  }
+
   tags = {
     project     = "agentic-rag-chunking"
     environment = "dev"
