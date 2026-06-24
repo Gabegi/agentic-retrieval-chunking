@@ -1,9 +1,10 @@
+using ProtocolsIndexer.Models;
+
 namespace ProtocolsIndexer.Services;
 
-public interface IPipelineOrchestrator
+public interface IRagPipelineOrchestrator
 {
-    Task ProcessBlobAsync(string blobName, byte[] bytes, CancellationToken ct = default);
-    Task ProcessCsvAsync(string pagesCsvPath, string indexCsvPath, CancellationToken ct = default);
-    Task RunAsync(CancellationToken ct = default);
-    Task CompareAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(string source, CancellationToken ct = default);
+    IReadOnlyList<ProtocolDocument> Chunk(IReadOnlyList<ExtractionDocument> docs);
+    Task EmbedAndUploadAsync(IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default);
 }
