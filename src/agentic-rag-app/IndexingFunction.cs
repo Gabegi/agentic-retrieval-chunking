@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text.Json;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Specialized;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.DurableTask;
