@@ -12,6 +12,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Observability;
 using ProtocolsIndexer.Services;
@@ -97,14 +98,20 @@ var host = new HostBuilder()
         services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
         services.AddSingleton<IRagQueryService, RagQueryService>();
 
+        // Chunking
         services.AddSingleton<IChunkingStrategy, ChunkingStrategy1>();
         services.AddSingleton<IChunkingService, ChunkingService>();
 
-        services.AddSingleton<IExtractionService, PdfPigExtractionService>();
+        // Extractors — add new IExtractionOrchestrator implementations here to support new sources
+        services.AddSingleton<IExtractionOrchestrator>(sp => new CsvExtractionOrchestrator(
+            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documentscsv"),
+            sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
+
+        // RAG pipeline
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IIndexService, IndexService>();
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
-        services.AddSingleton<IPipelineOrchestrator, PipelineOrchestrator>();
+        services.AddSingleton<IRagPipelineOrchestrator, RagPipelineOrchestrator>();
     })
     .Build();
 
