@@ -11,6 +11,13 @@ namespace ProtocolsIndexer;
 
 // Generic indexing entrypoint. Source-agnostic: pass ?source=csv (or pdf, etc.)
 // to select the registered extractor. The pipeline steps are the same for all sources.
+//
+// How source routing works:
+// • ?source=csv  → resolves CsvExtractionOrchestrator (Source = "csv")
+// • ?source=pdf  → resolves PdfExtractionOrchestrator (Source = "pdf") once implemented
+// The source value is just a routing key — the extractor itself knows where to find its data
+// (e.g. CsvExtractionOrchestrator hardcodes the "documentscsv" container and blob names).
+// To add a new source: implement IExtractionOrchestrator, set Source, register in program.cs.
 public class IndexingFunction
 {
     private readonly IRagPipelineOrchestrator  _orchestrator;
