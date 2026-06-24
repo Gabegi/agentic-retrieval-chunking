@@ -78,8 +78,8 @@ public class IndexingFunction
 
     // Step 3 — embed vectors and upload to Azure AI Search
     [Function("EmbedAndUploadActivity")]
-    public async Task EmbedAndUploadActivity([ActivityTrigger] List<ProtocolDocument> docs)
-        => await _orchestrator.EmbedAndUploadAsync(docs);
+    public async Task EmbedAndUploadActivity([ActivityTrigger] List<ProtocolDocument> docs, FunctionContext context)
+        => await _orchestrator.EmbedAndUploadAsync(docs, context.CancellationToken);
 
     // POST /api/setup-knowledge-base — run once after the index is populated
     [Function("SetupKnowledgeBase")]
