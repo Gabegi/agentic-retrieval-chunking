@@ -4,6 +4,8 @@ namespace ProtocolsIndexer.Services;
 
 public class ChunkingService : IChunkingService
 {
+    // Strategy is injected — swap implementations in program.cs.
+    // All available strategies are in Services/Indexing/Chunking/.
     private readonly IChunkingStrategy _strategy;
 
     public string Name => _strategy.Name;
