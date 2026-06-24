@@ -9,14 +9,14 @@ public static class CsvExtractor
 {
     private static readonly CsvConfiguration Config = new(CultureInfo.InvariantCulture)
     {
-        Delimiter        = ",",
-        HasHeaderRecord  = true,
+        Delimiter         = ",",
+        HasHeaderRecord   = true,
         MissingFieldFound = null,
     };
 
-    private static CsvReader OpenCsv(string path)
+    private static CsvReader OpenCsv(Stream stream)
     {
-        var csv = new CsvReader(new StreamReader(path), Config);
+        var csv = new CsvReader(new StreamReader(stream), Config);
         csv.Read();
         csv.ReadHeader();
         return csv;
@@ -38,10 +38,10 @@ public static class CsvExtractor
         return value;
     }
 
-    public static ExtractionResult<PageRecord> ExtractPages(string path)
+    public static ExtractionResult<PageRecord> ExtractPages(Stream stream)
     {
         var result = new ExtractionResult<PageRecord>();
-        using var csv = OpenCsv(path);
+        using var csv = OpenCsv(stream);
         int rowNumber = 1;
 
         while (csv.Read())
@@ -74,10 +74,10 @@ public static class CsvExtractor
         return result;
     }
 
-    public static ExtractionResult<IndexRecord> ExtractIndex(string path)
+    public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream)
     {
         var result = new ExtractionResult<IndexRecord>();
-        using var csv = OpenCsv(path);
+        using var csv = OpenCsv(stream);
         int rowNumber = 1;
 
         while (csv.Read())
