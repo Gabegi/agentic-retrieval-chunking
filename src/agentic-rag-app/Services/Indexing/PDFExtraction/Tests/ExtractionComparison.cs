@@ -1,16 +1,39 @@
 using Azure.AI.OpenAI;
+using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 using OpenAI.Chat;
+using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-public partial class PipelineOrchestrator
+// Standalone comparison runner — not part of the main pipeline.
+// Used during development to compare different PDF extraction services side-by-side.
+public class ExtractionComparisonRunner
 {
+    private readonly IExtractionService[]                _services;
+    private readonly BlobContainerClient                 _container;
+    private readonly AzureOpenAIClient                   _openAi;
+    private readonly IndexerConfig                       _config;
+    private readonly ILogger<ExtractionComparisonRunner> _logger;
+
     private const string OutputDir = "comparison-output";
 
-    // ── Compare mode ─────────────────────────────────────────────────────
+    public ExtractionComparisonRunner(
+        IEnumerable<IExtractionService>      services,
+        BlobContainerClient                  container,
+        AzureOpenAIClient                    openAi,
+        IndexerConfig                        config,
+        ILogger<ExtractionComparisonRunner>  logger)
+    {
+        _services  = services.ToArray();
+        _container = container;
+        _openAi    = openAi;
+        _config    = config;
+        _logger    = logger;
+    }
+
     public async Task CompareAsync(CancellationToken ct = default)
     {
         bool evalCoherence = Environment.GetCommandLineArgs().Contains("--eval-coherence");
@@ -72,7 +95,6 @@ public partial class PipelineOrchestrator
         PrintTotals(count, totals);
     }
 
-    // ── LLM coherence scorer — samples up to 5 non-trivial chunks per run ─
     private async Task ScoreLlmCoherenceAsync(ExtractionRun run, CancellationToken ct)
     {
         if (run.Error != null || run.ChunkCount == 0) return;
@@ -119,7 +141,6 @@ public partial class PipelineOrchestrator
             run.AvgLlmCoherence = valid.Average();
     }
 
-    // ── Console output ────────────────────────────────────────────────────
     private static void PrintRow(string blobName, ExtractionRun[] runs)
     {
         Console.WriteLine($"\n📄 {blobName}");
@@ -177,7 +198,6 @@ public partial class PipelineOrchestrator
         Console.WriteLine($"\n✅ Done\n📁 Chunks written to ./{OutputDir}/");
     }
 
-    // ── Chunk file output ─────────────────────────────────────────────────
     private static void WriteChunks(string blobName, ExtractionRun[] runs)
     {
         var slug = blobName.Replace('/', '_').Replace(".pdf", "");
@@ -206,7 +226,6 @@ public partial class PipelineOrchestrator
         }
     }
 
-    // ── Totals accumulator ────────────────────────────────────────────────
     private sealed class Totals
     {
         public int     Chunks            { get; set; }
