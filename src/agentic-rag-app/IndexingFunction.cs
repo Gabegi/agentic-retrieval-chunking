@@ -136,5 +136,5 @@ public class IndexingFunction
 }
 
 // Input records for Durable activity functions — must be serializable by System.Text.Json.
-internal record ExtractRequest(string Source, string OutputBlob);
-internal record ChunkRequest(string InputBlob, string OutputBlob);
+public record ExtractRequest(string Source, string OutputBlob);
+public record ChunkRequest(string InputBlob, string OutputBlob);
