@@ -97,6 +97,13 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
   }
 }
 
+# Temporary blob storage for large Durable payloads (extracted docs + chunks between activities)
+resource "azurerm_storage_container" "indexing_pipeline" {
+  name                  = "indexing-pipeline"
+  storage_account_id    = azurerm_storage_account.func_indexer.id
+  container_access_type = "private"
+}
+
 # ── Role assignments ──────────────────────────────────────────────────────────
 
 resource "azurerm_role_assignment" "func_indexer_storage_owner" {
