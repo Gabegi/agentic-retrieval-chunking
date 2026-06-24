@@ -18,6 +18,46 @@ output "storage_container" {
   description = "STORAGE_CONTAINER for InvoiceIndexer"
 }
 
+output "storage_container_csv" {
+  value       = azurerm_storage_container.documents_csv.name
+  description = "STORAGE_CONTAINER for eval result writes"
+}
+
+output "openai_embedding_deployment" {
+  value       = var.openai_embedding_deployment
+  description = "OPENAI_EMBEDDING_DEPLOYMENT"
+}
+
+output "openai_gpt_deployment" {
+  value       = var.openai_gpt_deployment
+  description = "OPENAI_GPT_DEPLOYMENT"
+}
+
+output "openai_gpt_model_name" {
+  value       = var.openai_gpt_model_name
+  description = "OPENAI_GPT_MODEL_NAME"
+}
+
+output "openai_eval_deployment" {
+  value       = var.openai_eval_deployment
+  description = "OPENAI_EVAL_DEPLOYMENT"
+}
+
+output "search_index_name" {
+  value       = var.search_index_name
+  description = "SEARCH_INDEX_NAME"
+}
+
+output "knowledge_source_name" {
+  value       = var.knowledge_source_name
+  description = "KNOWLEDGE_SOURCE_NAME"
+}
+
+output "knowledge_base_name" {
+  value       = var.knowledge_base_name
+  description = "KNOWLEDGE_BASE_NAME"
+}
+
 output "resource_group_name" {
   value       = azurerm_resource_group.main.name
   description = "Name of the main resource group"
