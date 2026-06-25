@@ -69,13 +69,12 @@ public class DocumentIntelligenceExtractionService : IExtractionService
 
             ProtocolDocument BaseDoc(int pageNum) => new()
             {
-                Id              = "",
-                SourceFile      = blobName,
-                Title   = meta.Title,
-                PublicationDate = meta.PublicationDate,
-                Version         = meta.Version,
-                PageNumber      = pageNum,
-                Content         = ""
+                Id         = "",
+                DocumentId = blobName,
+                Title      = meta.Title,
+                Version    = meta.Version,
+                PageNumber = pageNum,
+                Content    = ""
             };
 
             static float TopY(IReadOnlyList<BoundingRegion>? regions) =>
