@@ -7,5 +7,5 @@ namespace ProtocolsIndexer.Services;
 public interface IExtractionOrchestrator
 {
     string Source { get; }  // e.g. "csv", "pdf"
-    Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<ExtractionDocument>> ExtractDocumentsAsync(CancellationToken ct = default);
 }
