@@ -3,10 +3,14 @@
     "",
     "\\.github",
     "\\.github\\workflows",
+    "\\infra",
     "\\src",
     "\\src\\agentic-rag-app",
+    "\\src\\agentic-rag-app\\Services",
+    "\\src\\agentic-rag-app\\Services\\Indexing",
+    "\\src\\agentic-rag-app\\Services\\Indexing\\Chunking",
     "\\src\\RagApp.Evaluation.Tests"
   ],
-  "SelectedNode": "\\src\\agentic-rag-app\\Services",
+  "SelectedNode": "\\infra\\function_app.tf",
   "PreviewInSolutionExplorer": false
 }

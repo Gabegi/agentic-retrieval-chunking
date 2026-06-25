@@ -15,6 +15,9 @@ resource "azurerm_storage_account" "documents" {
   network_rules {
     default_action = "Deny"
     bypass         = ["AzureServices"]
+    # Allow the function app's outbound IPs so the managed identity can reach this account
+    # even when the trusted-services bypass doesn't apply cleanly in this plan tier.
+    ip_rules = toset(split(",", azurerm_windows_function_app.protocols_indexer.possible_outbound_ip_addresses))
   }
 
   tags = {

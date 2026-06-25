@@ -65,3 +65,7 @@ comparison-output/
 *.vsidx
 *.sqlite
 /src/.vs
+/.vs
+/.vs
+/.vs
+/.vs
