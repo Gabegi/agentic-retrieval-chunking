@@ -7,6 +7,9 @@ public class ProtocolDocument
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
 
+    [JsonPropertyName("document_id")]
+    public string DocumentId { get; set; } = "";
+
     [JsonPropertyName("source_file")]
     public string SourceFile { get; set; } = "";
 
