@@ -13,8 +13,17 @@ public class ProtocolDocument
     [JsonPropertyName("title")]
     public string? Title { get; set; }
 
-    [JsonPropertyName("publication_date")]
-    public string? PublicationDate { get; set; }
+    [JsonPropertyName("department")]
+    public string? Department { get; set; }
+
+    [JsonPropertyName("quick_code")]
+    public string? QuickCode { get; set; }
+
+    [JsonPropertyName("last_modified_date")]
+    public DateTimeOffset? LastModifiedDate { get; set; }
+
+    [JsonPropertyName("check_date")]
+    public DateTimeOffset? CheckDate { get; set; }
 
     [JsonPropertyName("version")]
     public string? Version { get; set; }
