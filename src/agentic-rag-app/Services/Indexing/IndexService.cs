@@ -40,41 +40,6 @@ public class IndexService : IIndexService
         _logger.LogInformation("Index '{Name}' created", _config.SearchIndexName);
     }
 
-    // Configures HNSW vector search with an Azure OpenAI vectorizer for automatic query embedding at search time.
-    private VectorSearch BuildVectorSearch()
-    {
-        var vectorSearch = new VectorSearch();
-        vectorSearch.Algorithms.Add(new HnswAlgorithmConfiguration("hnsw-config"));
-        vectorSearch.Profiles.Add(new VectorSearchProfile("vector-profile", "hnsw-config")
-        {
-            VectorizerName = "openai-vectorizer"
-        });
-        vectorSearch.Vectorizers.Add(new AzureOpenAIVectorizer("openai-vectorizer")
-        {
-            Parameters = new AzureOpenAIVectorizerParameters
-            {
-                ResourceUri    = new Uri(_config.OpenAiEndpoint.TrimEnd('/')),
-                DeploymentName = _config.OpenAiEmbeddingDeployment,
-                ModelName      = "text-embedding-3-large"
-            }
-        });
-        return vectorSearch;
-    }
-
-    // Configures semantic ranking: title in TitleField (not KeywordsFields), content as primary, heading as keyword.
-    private static SemanticSearch BuildSemanticSearch()
-    {
-        var semanticSearch = new SemanticSearch();
-        semanticSearch.Configurations.Add(new SemanticConfiguration("semantic-config", new SemanticPrioritizedFields
-        {
-            TitleField     = new SemanticField("title"),
-            ContentFields  = { new SemanticField("content") },
-            KeywordsFields = { new SemanticField("heading") }
-        }));
-        semanticSearch.DefaultConfigurationName = "semantic-config";
-        return semanticSearch;
-    }
-
     // Assembles the full index schema: fields, vector search config, and semantic search config.
     private SearchIndex BuildIndexDefinition(VectorSearch vectorSearch, SemanticSearch semanticSearch) =>
         new SearchIndex(_config.SearchIndexName)
@@ -114,4 +79,41 @@ public class IndexService : IIndexService
                 new VectorSearchField("content_vector", 3072, "vector-profile")           { IsHidden = true, IsStored = false }
             }
         };
+
+    // Configures HNSW vector search with an Azure OpenAI vectorizer for automatic query embedding at search time.
+    private VectorSearch BuildVectorSearch()
+    {
+        var vectorSearch = new VectorSearch();
+        vectorSearch.Algorithms.Add(new HnswAlgorithmConfiguration("hnsw-config"));
+        vectorSearch.Profiles.Add(new VectorSearchProfile("vector-profile", "hnsw-config")
+        {
+            VectorizerName = "openai-vectorizer"
+        });
+        vectorSearch.Vectorizers.Add(new AzureOpenAIVectorizer("openai-vectorizer")
+        {
+            Parameters = new AzureOpenAIVectorizerParameters
+            {
+                ResourceUri    = new Uri(_config.OpenAiEndpoint.TrimEnd('/')),
+                DeploymentName = _config.OpenAiEmbeddingDeployment,
+                ModelName      = "text-embedding-3-large"
+            }
+        });
+        return vectorSearch;
+    }
+
+    // Configures semantic ranking: title in TitleField (not KeywordsFields), content as primary, heading as keyword.
+    private static SemanticSearch BuildSemanticSearch()
+    {
+        var semanticSearch = new SemanticSearch();
+        semanticSearch.Configurations.Add(new SemanticConfiguration("semantic-config", new SemanticPrioritizedFields
+        {
+            TitleField     = new SemanticField("title"),
+            ContentFields  = { new SemanticField("content") },
+            KeywordsFields = { new SemanticField("heading") }
+        }));
+        semanticSearch.DefaultConfigurationName = "semantic-config";
+        return semanticSearch;
+    }
+
+    
 }
