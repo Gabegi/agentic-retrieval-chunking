@@ -60,7 +60,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
                 result.Add(new ProtocolDocument
                 {
                     Id               = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", globalChunkIndex),
-                    SourceFile       = doc.SourceId,
+                    DocumentId       = doc.SourceId,
                     Title            = doc.Metadata.GetValueOrDefault("title"),
                     Department       = doc.Metadata.GetValueOrDefault("folder_path"),
                     QuickCode        = doc.Metadata.GetValueOrDefault("quick_code"),

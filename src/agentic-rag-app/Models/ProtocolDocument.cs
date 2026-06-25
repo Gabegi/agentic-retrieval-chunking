@@ -10,9 +10,6 @@ public class ProtocolDocument
     [JsonPropertyName("document_id")]
     public string DocumentId { get; set; } = "";
 
-    [JsonPropertyName("source_file")]
-    public string SourceFile { get; set; } = "";
-
     [JsonPropertyName("title")]
     public string? Title { get; set; }
 
