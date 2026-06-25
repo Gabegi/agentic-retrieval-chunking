@@ -97,7 +97,6 @@ public class IndexService : IIndexService
                 // Used by IndexCRUDService to query and batch-delete all chunks for a given document.
                 new SimpleField("document_id",        SearchFieldDataType.String)         { IsFilterable = true },
                 new SearchableField("title")                                               { IsFilterable = true, IsFacetable = true },
-                new SimpleField("source_file",        SearchFieldDataType.String)         { IsFilterable = true },
                 new SearchableField("content")                                             { AnalyzerName = "nl.microsoft" },
                 new SearchableField("heading")                                             { IsFilterable = true, IsFacetable = true, AnalyzerName = "nl.microsoft" },
                 // From FOLDER_MINI_FULL_PATH — bounded set of department/category values (HR, Kwaliteit, Facilitaire zaken, ...).
