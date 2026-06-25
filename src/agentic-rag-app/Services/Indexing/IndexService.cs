@@ -79,9 +79,13 @@ public class IndexService : IIndexService
     private SearchIndex BuildIndexDefinition(VectorSearch vectorSearch, SemanticSearch semanticSearch) =>
         new SearchIndex(_config.SearchIndexName)
         {
-            Description = "Contains Dutch medical protocols (richtlijnen) with full text content. " +
-                          "Use this index to find clinical guidelines, treatment protocols, and medical recommendations " +
-                          "for specific conditions or diseases.",
+            Description = "Internal knowledge base for Cordaan (Dutch elderly and disability care " +
+              "organization). Contains the full text of organizational documents: care and " +
+              "quality protocols, work instructions, job descriptions (functiebeschrijvingen), " +
+              "HR policies, facility and safety plans, financial procedures, privacy/security " +
+              "policies, and software manuals (e.g. ONS/ECD, CIS). Use this index for questions " +
+              "about Cordaan's internal policies, procedures, role responsibilities, and " +
+              "care-related instructions.",
             VectorSearch   = vectorSearch,
             SemanticSearch = semanticSearch,
             Fields =

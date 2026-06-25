@@ -43,6 +43,9 @@ public class IndexingFunction
     }
 
     // POST /api/index?source=csv — starts a Durable orchestration for the given source
+ 46 +    // No request body needed. The ?source param selects the registered extractor
+ 47 +    // (currently only "csv"). The source files (pages.csv, index.csv) are read
+ 48 +    // directly from the "documentscsv" blob container by the extractor.
     [Function("StartIndexing")]
     public async Task<HttpResponseData> Start(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
@@ -51,9 +54,8 @@ public class IndexingFunction
         var source = req.Query["source"];
         if (string.IsNullOrWhiteSpace(source))
         {
-            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
-            await bad.WriteStringAsync("'source' query parameter is required (e.g. ?source=csv)");
-            return bad;
+            var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+            return await badRequest.WriteStringAsync("'source' query parameter is required (e.g. ?source=csv)");
         }
 
         var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("IndexingOrchestrator", source);
@@ -65,7 +67,10 @@ public class IndexingFunction
     public async Task RunOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
         var source     = context.GetInput<string>()!;
-        var docsBlob   = $"{context.InstanceId}/extracted.json";
+        // Durable Functions pass activity inputs/outputs through Azure Table Storage, which has a 64KB row size limit
+        // Stores extaction inputs/outputs to blob to circumvent row size limit
+        //  Only the blob path string (e.g. "abc123/extracted.json")travels through Table Storage.
+        var docsBlob   = $"{context.InstanceId}/extracted.json"; 
         var chunksBlob = $"{context.InstanceId}/chunks.json";
 
         await context.CallActivityAsync("ExtractActivity",        new ExtractRequest(source, docsBlob));
