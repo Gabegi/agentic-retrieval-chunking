@@ -25,7 +25,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         _logger    = logger;
     }
 
-    public async Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<ExtractionDocument>> ExtractDocumentsAsync(CancellationToken ct = default)
     {
         using var pagesStream = new MemoryStream();
         using var indexStream = new MemoryStream();
