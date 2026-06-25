@@ -113,7 +113,7 @@ var host = new HostBuilder()
         // RAG pipeline
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IIndexService, IndexService>();
-        services.AddSingleton<IIndexCRUDService, IndexCRUDService>();
+        services.AddSingleton<IIndexDocumentService, IndexDocumentService>();
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
         services.AddSingleton<IIndexingPipelineOrchestrator, IndexingPipelineOrchestrator>();
     })
