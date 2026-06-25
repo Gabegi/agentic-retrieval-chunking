@@ -45,18 +45,9 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
-      - name: Destroy all resources except RG and storage account
+      - name: Destroy all resources
         run: |
-          mapfile -t resources < <(terraform state list | grep -v -E '^data\.|^azurerm_resource_group\.main$|^azurerm_storage_account\.documents$|^azurerm_storage_container\.documents')
-          if [ ${#resources[@]} -eq 0 ]; then
-            echo "Nothing to destroy."
-            exit 0
-          fi
-          targets=()
-          for r in "${resources[@]}"; do
-            targets+=("-target=$r")
-          done
-          terraform destroy -auto-approve "${targets[@]}" -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          terraform destroy -auto-approve -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
         working-directory: ./infra
         env:
           ARM_USE_MSI: true
