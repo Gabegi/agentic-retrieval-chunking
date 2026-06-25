@@ -10,12 +10,12 @@ namespace ProtocolsIndexer.Services;
 
 // Handles document-level CRUD operations against the Azure AI Search index.
 // IndexService owns schema lifecycle; this class owns the document data inside it.
-public class IndexCRUDService : IIndexCRUDService
+public class IndexDocumentService : IIndexDocumentService
 {
     private readonly SearchClient                _searchClient;
-    private readonly ILogger<IndexCRUDService>  _logger;
+    private readonly ILogger<IndexDocumentService>  _logger;
 
-    public IndexCRUDService(IndexerConfig config, TokenCredential credential, ILogger<IndexCRUDService> logger)
+    public IndexDocumentService(IndexerConfig config, TokenCredential credential, ILogger<IndexDocumentService> logger)
     {
         _searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
         _logger       = logger;

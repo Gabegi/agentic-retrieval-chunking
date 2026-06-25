@@ -2,7 +2,7 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-public interface IIndexCRUDService
+public interface IIndexDocumentService
 {
     // Returns the last_modified_date for every document currently in the index, keyed by document_id.
     // Used by the pipeline to detect unchanged documents (skip) and removed documents (delete).
