@@ -54,15 +54,14 @@ public class DocumentIntelligenceExtractionService : IExtractionService
                     var fullContent = current.Heading != null ? $"{current.Heading}\n\n{part}" : part;
                     run.Chunks.Add(new ProtocolDocument
                     {
-                        Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
-                        SourceFile      = current.SourceFile,
-                        Title   = current.Title,
-                        PublicationDate = current.PublicationDate,
-                        Version         = current.Version,
-                        PageNumber      = current.PageNumber,
-                        Heading         = current.Heading,
-                        Content         = fullContent,
-                        ChunkIndex      = chunkIndex++
+                        Id         = ChunkingUtils.SafeKey(blobName, chunkIndex),
+                        DocumentId = current.DocumentId,
+                        Title      = current.Title,
+                        Version    = current.Version,
+                        PageNumber = current.PageNumber,
+                        Heading    = current.Heading,
+                        Content    = fullContent,
+                        ChunkIndex = chunkIndex++
                     });
                 }
                 current = null;
