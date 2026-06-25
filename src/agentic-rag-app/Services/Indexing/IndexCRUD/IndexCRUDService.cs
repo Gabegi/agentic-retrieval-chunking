@@ -21,6 +21,31 @@ public class IndexCRUDService : IIndexCRUDService
         _logger       = logger;
     }
 
+    // Uploads embedded documents to the index in batches of 1000 (push API limit).
+    public async Task UpsertDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default)
+    {
+        var docList   = documents.ToList();
+        var succeeded = 0;
+        var failed    = 0;
+
+        foreach (var batch in docList.Chunk(1000))
+        {
+            var response = await _searchClient.UploadDocumentsAsync(batch, cancellationToken: ct);
+            foreach (var result in response.Value.Results)
+            {
+                if (!result.Succeeded)
+                {
+                    _logger.LogWarning("Failed to upsert {Key}: {Error}", result.Key, result.ErrorMessage);
+                    Instrumentation.UploadFailures.Add(1);
+                    failed++;
+                }
+                else succeeded++;
+            }
+        }
+
+        _logger.LogInformation("Upsert complete — {Succeeded} succeeded, {Failed} failed", succeeded, failed);
+    }
+
     // Pages through the entire index selecting only document_id + last_modified_date.
     // Deduplication is implicit: all chunks for the same document share the same values,
     // so TryAdd keeps the first occurrence and ignores the rest.
