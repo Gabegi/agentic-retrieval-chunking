@@ -5,5 +5,5 @@ namespace ProtocolsIndexer.Services;
 public interface IChunkingService
 {
     string Name { get; }
-    IReadOnlyList<TextChunk> Chunk(string content);
+    IReadOnlyList<TextChunk> ChunkAsync(string content);
 }

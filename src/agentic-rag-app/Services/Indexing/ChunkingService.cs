@@ -12,7 +12,7 @@ public class ChunkingService : IChunkingService
 
     public ChunkingService(IChunkingStrategy strategy) => _strategy = strategy;
 
-    public IReadOnlyList<TextChunk> Chunk(string content)
+    public IReadOnlyList<TextChunk> ChunkAsync(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
             return [];
