@@ -149,13 +149,12 @@ public class PdfPigExtractionService : IExtractionService
 
                     run.Chunks.Add(new ProtocolDocument
                     {
-                        Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
-                        SourceFile      = blobName,
-                        Title   = meta.Title,
-                        PublicationDate = meta.PublicationDate,
-                        Version         = meta.Version,
-                        Content         = chunk,
-                        ChunkIndex      = chunkIndex++
+                        Id         = ChunkingUtils.SafeKey(blobName, chunkIndex),
+                        DocumentId = blobName,
+                        Title      = meta.Title,
+                        Version    = meta.Version,
+                        Content    = chunk,
+                        ChunkIndex = chunkIndex++
                     });
                 }
             }
