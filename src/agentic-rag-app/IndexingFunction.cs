@@ -25,13 +25,13 @@ namespace ProtocolsIndexer;
 // travels through Durable Table Storage, avoiding the 64KB row-size limit.
 public class IndexingFunction
 {
-    private readonly IRagPipelineOrchestrator  _orchestrator;
+    private readonly IIndexingPipelineOrchestrator _orchestrator;
     private readonly IKnowledgeService         _knowledgeService;
     private readonly BlobContainerClient       _pipelineContainer;
     private readonly ILogger<IndexingFunction> _logger;
 
     public IndexingFunction(
-        IRagPipelineOrchestrator  orchestrator,
+        IIndexingPipelineOrchestrator orchestrator,
         IKnowledgeService         knowledgeService,
         [FromKeyedServices("pipeline-temp")] BlobContainerClient pipelineContainer,
         ILogger<IndexingFunction> logger)
