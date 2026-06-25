@@ -42,10 +42,10 @@ public class IndexingFunction
         _logger            = logger;
     }
 
-    // POST /api/index?source=csv — starts a Durable orchestration for the given source
- 46 +    // No request body needed. The ?source param selects the registered extractor
- 47 +    // (currently only "csv"). The source files (pages.csv, index.csv) are read
- 48 +    // directly from the "documentscsv" blob container by the extractor.
+    // POST /api/index?source=csv
+    // No request body needed. The ?source param selects the registered extractor
+    // (currently only "csv"). The source files (pages.csv, index.csv) are read
+    // directly from the "documentscsv" blob container by the extractor.
     [Function("StartIndexing")]
     public async Task<HttpResponseData> Start(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
