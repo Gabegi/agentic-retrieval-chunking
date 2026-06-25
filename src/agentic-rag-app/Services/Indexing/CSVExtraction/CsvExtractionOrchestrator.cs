@@ -14,8 +14,8 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
 
     public string Source => "csv";
 
-    private const string PagesBlobName = "pages.csv";
-    private const string IndexBlobName = "index.csv";
+    private const string PagesBlobName = "zenya_pages.csv";
+    private const string IndexBlobName = "zenya_index.csv";
 
     public CsvExtractionOrchestrator(
         BlobContainerClient                container,
