@@ -51,13 +51,7 @@ public class IndexingFunction
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
         [DurableClient] DurableTaskClient client)
     {
-        var source = req.Query["source"];
-        if (string.IsNullOrWhiteSpace(source))
-        {
-            var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-            await badRequest.WriteStringAsync("'source' query parameter is required (e.g. ?source=csv)");
-            return badRequest;
-        }
+        var source = req.Query["source"] ?? "csv";
 
         var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("IndexingOrchestrator", source);
         _logger.LogInformation("Indexing started — source '{Source}', instance {InstanceId}", source, instanceId);
