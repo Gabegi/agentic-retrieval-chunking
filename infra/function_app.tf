@@ -8,15 +8,19 @@ resource "azurerm_storage_account" "func_indexer" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
 
-  network_rules {
-    default_action = "Deny"
-    bypass         = ["AzureServices"]
-  }
-
   tags = {
     project     = "agentic-rag-chunking"
     environment = "dev"
   }
+}
+
+# Network rules are applied after the function app is created to break the circular dependency:
+# func_indexer storage → function app (storage_account_name) → outbound IPs → storage network rules.
+resource "azurerm_storage_account_network_rules" "func_indexer" {
+  storage_account_id = azurerm_storage_account.func_indexer.id
+  default_action     = "Deny"
+  bypass             = ["AzureServices"]
+  ip_rules           = toset(split(",", azurerm_windows_function_app.protocols_indexer.possible_outbound_ip_addresses))
 }
 
 resource "azurerm_application_insights" "func_indexer" {
