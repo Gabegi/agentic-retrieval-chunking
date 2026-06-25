@@ -32,6 +32,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
 
     public async Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(string source, CancellationToken ct = default)
     {
+        // Resolve extractor by the ?source= param (e.g. "csv"). New sources only need a new IExtractionOrchestrator registered in program.cs.
         if (!_extractors.TryGetValue(source, out var extractor))
             throw new ArgumentException(
                 $"No extractor registered for source '{source}'. Available: {string.Join(", ", _extractors.Keys)}");
