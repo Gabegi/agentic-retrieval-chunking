@@ -61,13 +61,14 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
                 Content:  r.PageContent,
                 Metadata: new Dictionary<string, string>
                 {
-                    ["title"]            = r.Title,
-                    ["version"]          = r.Version,
-                    ["publication_date"] = r.LastModified.ToString("yyyy-MM-dd"),
-                    ["quick_code"]       = r.QuickCode,
-                    ["folder_path"]      = r.FolderPath,
-                    ["document_type"]    = r.DocumentTypeName,
-                    ["summary"]          = r.Summary,
+                    ["title"]              = r.Title,
+                    ["version"]            = r.Version,
+                    ["last_modified_date"] = r.LastModified.ToString("yyyy-MM-dd"),
+                    ["check_date"]         = r.CheckDate?.ToString("o") ?? "",
+                    ["quick_code"]         = r.QuickCode,
+                    ["folder_path"]        = r.FolderPath,
+                    ["document_type"]      = r.DocumentTypeName,
+                    ["summary"]            = r.Summary,
                 }))
             .ToList();
     }

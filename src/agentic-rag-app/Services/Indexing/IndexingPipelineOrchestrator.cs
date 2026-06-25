@@ -59,15 +59,18 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
 
                 result.Add(new ProtocolDocument
                 {
-                    Id              = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", globalChunkIndex),
-                    SourceFile      = doc.SourceId,
-                    Title           = doc.Metadata.GetValueOrDefault("title"),
-                    PublicationDate = doc.Metadata.GetValueOrDefault("publication_date"),
-                    Version         = doc.Metadata.GetValueOrDefault("version"),
-                    Content         = content,
-                    Heading         = chunk.Heading,
-                    PageNumber      = doc.Ordinal,
-                    ChunkIndex      = globalChunkIndex++,
+                    Id               = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", globalChunkIndex),
+                    SourceFile       = doc.SourceId,
+                    Title            = doc.Metadata.GetValueOrDefault("title"),
+                    Department       = doc.Metadata.GetValueOrDefault("folder_path"),
+                    QuickCode        = doc.Metadata.GetValueOrDefault("quick_code"),
+                    LastModifiedDate = ParseDate(doc.Metadata.GetValueOrDefault("last_modified_date")),
+                    CheckDate        = ParseDate(doc.Metadata.GetValueOrDefault("check_date")),
+                    Version          = doc.Metadata.GetValueOrDefault("version"),
+                    Content          = content,
+                    Heading          = chunk.Heading,
+                    PageNumber       = doc.Ordinal,
+                    ChunkIndex       = globalChunkIndex++,
                 });
             }
         }
@@ -79,6 +82,9 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
             docs.Count, result.Count, _chunkingService.Name);
         return result;
     }
+
+    private static DateTimeOffset? ParseDate(string? value) =>
+        DateTimeOffset.TryParse(value, out var result) ? result : null;
 
     public async Task EmbedAndUploadAsync(IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default)
     {
