@@ -1,3 +1,5 @@
+using ProtocolsIndexer.Models;
+
 namespace ProtocolsIndexer.Services;
 
 public interface IIndexCRUDService

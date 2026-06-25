@@ -55,7 +55,8 @@ public class IndexingFunction
         if (string.IsNullOrWhiteSpace(source))
         {
             var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
-            return await badRequest.WriteStringAsync("'source' query parameter is required (e.g. ?source=csv)");
+            await badRequest.WriteStringAsync("'source' query parameter is required (e.g. ?source=csv)");
+            return badRequest;
         }
 
         var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("IndexingOrchestrator", source);

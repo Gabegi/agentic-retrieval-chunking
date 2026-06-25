@@ -53,7 +53,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
 
         foreach (var doc in docs.OrderBy(d => d.SourceId).ThenBy(d => d.Ordinal))
         {
-            var chunks = _chunkingService.Chunk(doc.Content);
+            var chunks = _chunkingService.ChunkAsync(doc.Content);
             foreach (var chunk in chunks)
             {
                 var content = chunk.Heading != null
