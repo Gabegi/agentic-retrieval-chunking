@@ -5,7 +5,7 @@ using ProtocolsIndexer.Utils;
 
 namespace ProtocolsIndexer.Services;
 
-// Source-agnostic RAG pipeline: resolves the right extractor by source key,
+// Source-agnostic indexing pipeline: resolves the right extractor by source key,
 // then chunks, embeds, and uploads. Adding a new source means registering
 // a new IExtractionOrchestrator — no changes here.
 public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
