@@ -3,6 +3,8 @@ using Azure.Search.Documents.Models;
 using Azure.Core;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Configuration;
+using ProtocolsIndexer.Models;
+using ProtocolsIndexer.Observability;
 
 namespace ProtocolsIndexer.Services;
 
