@@ -2,7 +2,6 @@ using System.ClientModel;
 using System.Collections.Concurrent;
 using Azure;
 using Azure.Core;
-using Azure.Search.Documents;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Configuration;
