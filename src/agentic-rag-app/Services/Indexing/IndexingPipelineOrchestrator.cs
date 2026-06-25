@@ -22,14 +22,14 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         IChunkingService                     chunkingService,
         IEmbeddingService                    embeddingService,
         IIndexService                        indexService,
-        IIndexDocumentService                    indexCrudService,
+        IIndexDocumentService                    indexDocumentService,
         ILogger<IndexingPipelineOrchestrator> logger)
     {
         _extractors       = extractors.ToDictionary(e => e.Source, StringComparer.OrdinalIgnoreCase);
         _chunkingService  = chunkingService;
         _embeddingService = embeddingService;
         _indexService     = indexService;
-        _indexDocumentService = indexCrudService;
+        _indexDocumentService = indexDocumentService;
         _logger           = logger;
     }
 
