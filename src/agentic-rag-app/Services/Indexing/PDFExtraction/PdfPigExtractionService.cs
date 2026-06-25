@@ -66,15 +66,14 @@ public class PdfPigExtractionService : IExtractionService
                     var fullContent = currentHeading != null ? $"{currentHeading}\n\n{part}" : part;
                     run.Chunks.Add(new ProtocolDocument
                     {
-                        Id              = ChunkingUtils.SafeKey(blobName, chunkIndex),
-                        SourceFile      = blobName,
-                        Title   = meta.Title,
-                        PublicationDate = meta.PublicationDate,
-                        Version         = meta.Version,
-                        Content         = fullContent,
-                        Heading         = currentHeading,
-                        PageNumber      = currentPage,
-                        ChunkIndex      = chunkIndex++
+                        Id         = ChunkingUtils.SafeKey(blobName, chunkIndex),
+                        DocumentId = blobName,
+                        Title      = meta.Title,
+                        Version    = meta.Version,
+                        Content    = fullContent,
+                        Heading    = currentHeading,
+                        PageNumber = currentPage,
+                        ChunkIndex = chunkIndex++
                     });
                 }
                 buffer.Clear();
