@@ -93,6 +93,9 @@ public class IndexService : IIndexService
                 // NOTE: populated as a composite key at write time, e.g. {documentId}_p{pageNumber}_c{chunkIndex}.
                 // DOCUMENT_ID alone is not unique per chunk — using it raw would make later chunks overwrite earlier ones.
                 new SimpleField("id",                 SearchFieldDataType.String)         { IsKey = true, IsFilterable = true },
+                // Raw DOCUMENT_ID (one value shared by all chunks of the same document).
+                // Used by IndexCRUDService to query and batch-delete all chunks for a given document.
+                new SimpleField("document_id",        SearchFieldDataType.String)         { IsFilterable = true },
                 new SearchableField("title")                                               { IsFilterable = true, IsFacetable = true },
                 new SimpleField("source_file",        SearchFieldDataType.String)         { IsFilterable = true },
                 new SearchableField("content")                                             { AnalyzerName = "nl.microsoft" },
