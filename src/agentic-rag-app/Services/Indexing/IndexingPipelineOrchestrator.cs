@@ -43,7 +43,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         await _indexService.EnsureIndexAsync();
 
         _logger.LogInformation("Extracting from source '{Source}'", source);
-        return await extractor.ExtractAsync(ct);
+        return await extractor.ExtractDocumentsAsync(ct);
     }
 
     public IReadOnlyList<ProtocolDocument> Chunk(IReadOnlyList<ExtractionDocument> docs)
