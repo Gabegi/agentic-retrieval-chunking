@@ -7,6 +7,9 @@ using ProtocolsIndexer.Configuration;
 
 namespace ProtocolsIndexer.Services;
 
+// Manages the Azure AI Search index lifecycle: creates the index on first run (skips if already present),
+// and defines the full schema — fields, HNSW vector search, and semantic ranking configuration.
+// To force a schema update on an existing index, call the dedicated setup-index HTTP endpoint.
 public class IndexService : IIndexService
 {
     private readonly SearchIndexClient _indexClient;
@@ -58,14 +61,15 @@ public class IndexService : IIndexService
         return vectorSearch;
     }
 
-    // Configures semantic ranking using content as the primary field and title/heading as keywords.
+    // Configures semantic ranking: title in TitleField (not KeywordsFields), content as primary, heading as keyword.
     private static SemanticSearch BuildSemanticSearch()
     {
         var semanticSearch = new SemanticSearch();
         semanticSearch.Configurations.Add(new SemanticConfiguration("semantic-config", new SemanticPrioritizedFields
         {
+            TitleField     = new SemanticField("title"),
             ContentFields  = { new SemanticField("content") },
-            KeywordsFields = { new SemanticField("title"), new SemanticField("heading") }
+            KeywordsFields = { new SemanticField("heading") }
         }));
         semanticSearch.DefaultConfigurationName = "semantic-config";
         return semanticSearch;
@@ -82,16 +86,26 @@ public class IndexService : IIndexService
             SemanticSearch = semanticSearch,
             Fields =
             {
-                new SimpleField("id",               SearchFieldDataType.String) { IsKey = true, IsFilterable = true },
-                new SearchableField("title")                                    { IsFilterable = true, IsFacetable = true },
-                new SimpleField("source_file",      SearchFieldDataType.String) { IsFilterable = true },
-                new SearchableField("content")                                  { AnalyzerName = "nl.microsoft" },
-                new SearchableField("heading")                                  { IsFilterable = true, IsFacetable = true, AnalyzerName = "nl.microsoft" },
-                new SimpleField("publication_date", SearchFieldDataType.String) { IsFilterable = true },
-                new SimpleField("version",          SearchFieldDataType.String) { IsFilterable = true },
-                new SimpleField("page_number",      SearchFieldDataType.Int32),
-                new SimpleField("chunk_index",      SearchFieldDataType.Int32),
-                new VectorSearchField("content_vector", 3072, "vector-profile") { IsHidden = true, IsStored = false }
+                // NOTE: populated as a composite key at write time, e.g. {documentId}_p{pageNumber}_c{chunkIndex}.
+                // DOCUMENT_ID alone is not unique per chunk — using it raw would make later chunks overwrite earlier ones.
+                new SimpleField("id",                 SearchFieldDataType.String)         { IsKey = true, IsFilterable = true },
+                new SearchableField("title")                                               { IsFilterable = true, IsFacetable = true },
+                new SimpleField("source_file",        SearchFieldDataType.String)         { IsFilterable = true },
+                new SearchableField("content")                                             { AnalyzerName = "nl.microsoft" },
+                new SearchableField("heading")                                             { IsFilterable = true, IsFacetable = true, AnalyzerName = "nl.microsoft" },
+                // From FOLDER_MINI_FULL_PATH — bounded set of department/category values (HR, Kwaliteit, Facilitaire zaken, ...).
+                new SearchableField("department")                                          { IsFilterable = true, IsFacetable = true },
+                // From QUICK_CODE — Cordaan's internal document code; useful for exact-match lookups and citing source docs.
+                new SimpleField("quick_code",         SearchFieldDataType.String)         { IsFilterable = true },
+                // From LAST_MODIFIED_DATETIME. Renamed from publication_date (no true pub date exists) and retyped to enable date filtering/sorting.
+                new SimpleField("last_modified_date", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                // From CHECK_DATE — the next review/expiry date. Lets the RAG layer flag or exclude stale protocols.
+                new SimpleField("check_date",         SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                // Populate as VERSION.REVISION (e.g. "7.0") — REVISION was previously dropped entirely.
+                new SimpleField("version",            SearchFieldDataType.String)         { IsFilterable = true },
+                new SimpleField("page_number",        SearchFieldDataType.Int32),
+                new SimpleField("chunk_index",        SearchFieldDataType.Int32),
+                new VectorSearchField("content_vector", 3072, "vector-profile")           { IsHidden = true, IsStored = false }
             }
         };
 }
