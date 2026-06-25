@@ -14,6 +14,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
     private readonly IChunkingService                            _chunkingService;
     private readonly IEmbeddingService                           _embeddingService;
     private readonly IIndexService                               _indexService;
+    private readonly IIndexCRUDService                           _indexCrudService;
     private readonly ILogger<IndexingPipelineOrchestrator>       _logger;
 
     public IndexingPipelineOrchestrator(
@@ -21,12 +22,14 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         IChunkingService                     chunkingService,
         IEmbeddingService                    embeddingService,
         IIndexService                        indexService,
+        IIndexCRUDService                    indexCrudService,
         ILogger<IndexingPipelineOrchestrator> logger)
     {
         _extractors       = extractors.ToDictionary(e => e.Source, StringComparer.OrdinalIgnoreCase);
         _chunkingService  = chunkingService;
         _embeddingService = embeddingService;
         _indexService     = indexService;
+        _indexCrudService = indexCrudService;
         _logger           = logger;
     }
 
