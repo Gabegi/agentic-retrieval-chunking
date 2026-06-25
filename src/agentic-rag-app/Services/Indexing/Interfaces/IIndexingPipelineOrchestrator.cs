@@ -2,7 +2,7 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-public interface IRagPipelineOrchestrator
+public interface IIndexingPipelineOrchestrator
 {
     Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(string source, CancellationToken ct = default);
     IReadOnlyList<ProtocolDocument> Chunk(IReadOnlyList<ExtractionDocument> docs);

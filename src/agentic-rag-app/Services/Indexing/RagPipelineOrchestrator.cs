@@ -8,20 +8,20 @@ namespace ProtocolsIndexer.Services;
 // Source-agnostic RAG pipeline: resolves the right extractor by source key,
 // then chunks, embeds, and uploads. Adding a new source means registering
 // a new IExtractionOrchestrator — no changes here.
-public class RagPipelineOrchestrator : IRagPipelineOrchestrator
+public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
 {
     private readonly Dictionary<string, IExtractionOrchestrator> _extractors;
     private readonly IChunkingService                            _chunkingService;
     private readonly IEmbeddingService                           _embeddingService;
     private readonly IIndexService                               _indexService;
-    private readonly ILogger<RagPipelineOrchestrator>            _logger;
+    private readonly ILogger<IndexingPipelineOrchestrator>       _logger;
 
-    public RagPipelineOrchestrator(
+    public IndexingPipelineOrchestrator(
         IEnumerable<IExtractionOrchestrator> extractors,
         IChunkingService                     chunkingService,
         IEmbeddingService                    embeddingService,
         IIndexService                        indexService,
-        ILogger<RagPipelineOrchestrator>     logger)
+        ILogger<IndexingPipelineOrchestrator> logger)
     {
         _extractors       = extractors.ToDictionary(e => e.Source, StringComparer.OrdinalIgnoreCase);
         _chunkingService  = chunkingService;
