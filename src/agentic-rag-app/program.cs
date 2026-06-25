@@ -48,7 +48,7 @@ var host = new HostBuilder()
         // rather than through Durable Table Storage (64KB row-size limit).
         services.AddKeyedSingleton<BlobContainerClient>("pipeline-temp", (_, _) =>
         {
-            var accountName = ctx.Configuration["AzureWebJobsStorage__accountName"]!;
+            var accountName = ctx.Configuration["AzureWebJobsStorage:accountName"]!;
             return new BlobServiceClient(
                 new Uri($"https://{accountName}.blob.core.windows.net"),
                 credential)
