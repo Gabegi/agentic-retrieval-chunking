@@ -95,35 +95,4 @@ public class EmbeddingService : IEmbeddingService
         _ => false
     };
 
-    public async Task UploadDocumentsAsync(
-        IEnumerable<ProtocolDocument> documents,
-        CancellationToken ct = default)
-    {
-        var docList = documents.ToList();
-        _logger.LogInformation("Uploading {Count} documents to index", docList.Count);
-
-        var succeeded = 0;
-        var failed    = 0;
-
-        foreach (var batch in docList.Chunk(1000))
-        {
-            var response = await _searchClient.UploadDocumentsAsync(batch, cancellationToken: ct);
-
-            foreach (var result in response.Value.Results)
-            {
-                if (!result.Succeeded)
-                {
-                    _logger.LogWarning("Failed to upload {Key}: {Error}", result.Key, result.ErrorMessage);
-                    Instrumentation.UploadFailures.Add(1);
-                    failed++;
-                }
-                else
-                {
-                    succeeded++;
-                }
-            }
-        }
-
-        _logger.LogInformation("Upload complete — {Succeeded} succeeded, {Failed} failed", succeeded, failed);
-    }
 }
