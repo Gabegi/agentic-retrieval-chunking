@@ -38,15 +38,6 @@ resource "azurerm_storage_container" "documents_csv" {
   }
 }
 
-# Applied after the function app is created to break the cycle:
-# documents storage → function app (app_settings) → outbound IPs → storage network rules.
-resource "azurerm_storage_account_network_rules" "documents" {
-  storage_account_id = azurerm_storage_account.documents.id
-  default_action     = "Deny"
-  bypass             = ["AzureServices"]
-  ip_rules           = toset(split(",", azurerm_windows_function_app.protocols_indexer.possible_outbound_ip_addresses))
-}
-
 resource "azurerm_role_assignment" "sp_blob_contributor" {
   scope                = azurerm_storage_account.documents.id
   role_definition_name = "Storage Blob Data Contributor"

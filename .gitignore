@@ -71,3 +71,6 @@ comparison-output/
 /.vs
 /.vs
 /.vs/agentic-retrieval-chunking.slnx
+.vs/agentic-retrieval-chunking.slnx/v18/DocumentLayout.backup.json
+.vs/agentic-retrieval-chunking.slnx/v18/.wsuo
+/.vs
