@@ -11,8 +11,8 @@ using RagApp.Evaluation.Tests.Models;
 namespace RagApp.Evaluation.Tests.Evaluation;
 
 /// <summary>
-/// Calls the RAG app for a given TestQuery, scores the response with 4 evaluators
-/// (run in parallel), and returns the result as an EvalRow. Does no I/O beyond the
+/// Calls the RAG app for a given TestQuery, scores the response with 6 evaluators
+/// (run sequentially), and returns the result as an EvalRow. Does no I/O beyond the
 /// ragCall itself — persistence is EvalResultWriter's job.
 ///
 /// We deliberately evaluate the OUTCOME (final answer) only. The agentic evaluators
@@ -35,9 +35,7 @@ public sealed class RagEvaluator
 
     public RagEvaluator(IChatClient judgeClient)
     {
-        // Cap output tokens so Azure's TPM estimate is prompt+500 instead of prompt+model-default (~4096).
-        // Scoring evaluators emit a score + brief explanation; they never need more than ~300 tokens.
-        _judgeConfig = new ChatConfiguration(judgeClient, new ChatOptions { MaxOutputTokens = 500 });
+        _judgeConfig = new ChatConfiguration(judgeClient);
     }
 
     public async Task<EvalRow> RunAsync(

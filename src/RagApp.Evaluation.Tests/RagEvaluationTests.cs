@@ -49,7 +49,13 @@ public class RagEvaluationTests
             .GetBlobContainerClient(config.StorageContainer);
 
         IChatClient ragChatClient = openAi.GetChatClient(config.OpenAiGptDeployment).AsIChatClient();
-        IChatClient judgeClient = openAi.GetChatClient(Env("OPENAI_EVAL_DEPLOYMENT")).AsIChatClient();
+        // Cap output tokens so Azure's TPM estimate is prompt+500 instead of prompt+model-default (~4096).
+        // Scoring evaluators emit a score + brief explanation; they never need more than ~300 tokens.
+        IChatClient judgeClient = openAi.GetChatClient(Env("OPENAI_EVAL_DEPLOYMENT"))
+            .AsIChatClient()
+            .AsBuilder()
+            .ConfigureOptions(o => o.MaxOutputTokens ??= 500)
+            .Build();
 
         var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
         _ragService = new RagQueryService(ragChatClient, searchClient, config);
