@@ -86,15 +86,14 @@ public sealed class RagEvaluator
             new F1EvaluatorContext(testQuery.ExpectedAnswer)
         };
 
-        // Run all 6 evaluators in parallel.
-        var groundednessTask = _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask();
-        var relevanceTask    = _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask();
-        var coherenceTask    = _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask();
-        var equivalenceTask  = _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask();
-        var retrievalTask    = _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask();
-        var f1Task           = _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct).AsTask();
-
-        await Task.WhenAll(groundednessTask, relevanceTask, coherenceTask, equivalenceTask, retrievalTask, f1Task);
+        // Run evaluators sequentially — the judge deployment (gpt-4o, capacity=10) has tight
+        // RPM limits; parallel fan-out across 6 evaluators × back-to-back tests hits 429s.
+        var groundednessResult = await _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct);
+        var relevanceResult    = await _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
+        var coherenceResult    = await _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
+        var equivalenceResult  = await _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct);
+        var retrievalResult    = await _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct);
+        var f1Result           = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);
 
         return new EvalRow(
             ScenarioName:    testQuery.Name,
@@ -111,12 +110,12 @@ public sealed class RagEvaluator
             InputTokens:     result.InputTokens,
             OutputTokens:    result.OutputTokens,
             CostUsd:         costUsd,
-            Groundedness: groundednessTask.Result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName)?.Value ?? 0,
-            Relevance:    relevanceTask.Result.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
-            Coherence:    coherenceTask.Result.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
-            Equivalence:  equivalenceTask.Result.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
-            Retrieval:    retrievalTask.Result.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,
-            F1:           f1Task.Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0,
+            Groundedness: groundednessResult.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName)?.Value ?? 0,
+            Relevance:    relevanceResult.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
+            Coherence:    coherenceResult.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
+            Equivalence:  equivalenceResult.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
+            Retrieval:    retrievalResult.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,
+            F1:           f1Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0,
             Timestamp:    DateTimeOffset.UtcNow);
     }
 }

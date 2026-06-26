@@ -18,7 +18,7 @@ variable "openai_gpt_deployment" {
 variable "openai_gpt_model_name" {
   description = "Model name for the Azure OpenAI GPT deployment"
   type        = string
-  default     = "gpt-4.1-mini"
+  default     = "gpt-4.1"
 }
 
 variable "openai_extraction_deployment" {
