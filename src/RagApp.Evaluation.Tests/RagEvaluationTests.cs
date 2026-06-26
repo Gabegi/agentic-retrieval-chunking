@@ -96,7 +96,9 @@ public class RagEvaluationTests
     }
 
     private static List<TestQuery> LoadFile(string path) =>
-        JsonSerializer.Deserialize<TestQuery[]>(File.ReadAllText(path))?.ToList() ?? [];
+        JsonSerializer.Deserialize<TestQuery[]>(File.ReadAllText(path))
+            ?.Where(q => !string.IsNullOrWhiteSpace(q.Query))
+            .ToList() ?? [];
 
     private static readonly Dictionary<string, string> Defaults = new()
     {
