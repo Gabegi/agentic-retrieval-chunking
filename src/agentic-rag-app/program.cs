@@ -1,6 +1,7 @@
 using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
+using Azure.Search.Documents;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.AI;
