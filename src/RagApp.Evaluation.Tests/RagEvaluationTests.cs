@@ -98,7 +98,23 @@ public class RagEvaluationTests
     private static List<TestQuery> LoadFile(string path) =>
         JsonSerializer.Deserialize<TestQuery[]>(File.ReadAllText(path))?.ToList() ?? [];
 
+    private static readonly Dictionary<string, string> Defaults = new()
+    {
+        ["SEARCH_ENDPOINT"]              = "https://srch-rag-chunking-dev.search.windows.net",
+        ["OPENAI_ENDPOINT"]              = "https://oai-chuking-agentic-rag.openai.azure.com/",
+        ["OPENAI_EMBEDDING_DEPLOYMENT"]  = "text-embedding-3-large",
+        ["OPENAI_GPT_DEPLOYMENT"]        = "querying",
+        ["OPENAI_GPT_MODEL_NAME"]        = "gpt-4.1",
+        ["OPENAI_EVAL_DEPLOYMENT"]       = "gpt-5-eval",
+        ["SEARCH_INDEX_NAME"]            = "protocols",
+        ["STORAGE_ACCOUNT_URL"]          = "https://staccountchunkingrag.blob.core.windows.net",
+        ["STORAGE_CONTAINER"]            = "test-results",
+        ["KNOWLEDGE_SOURCE_NAME"]        = "protocols-knowledge-source",
+        ["KNOWLEDGE_BASE_NAME"]          = "protocols-knowledge-base",
+    };
+
     private static string Env(string name) =>
         Environment.GetEnvironmentVariable(name)
-        ?? throw new InvalidOperationException($"Missing required env var: {name}");
+        ?? (Defaults.TryGetValue(name, out var val) ? val
+            : throw new InvalidOperationException($"Missing required env var: {name}"));
 }
