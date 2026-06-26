@@ -30,8 +30,9 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         using var pagesStream = new MemoryStream();
         using var indexStream = new MemoryStream();
 
-        await _container.GetBlobClient(PagesBlobName).DownloadToAsync(pagesStream, ct);
-        await _container.GetBlobClient(IndexBlobName).DownloadToAsync(indexStream, ct);
+        await Task.WhenAll(
+            _container.GetBlobClient(PagesBlobName).DownloadToAsync(pagesStream, ct),
+            _container.GetBlobClient(IndexBlobName).DownloadToAsync(indexStream, ct));
 
         pagesStream.Position = 0;
         indexStream.Position = 0;

@@ -36,7 +36,7 @@ public class EmbeddingService : IEmbeddingService
         var embedded = new ConcurrentBag<ProtocolDocument>();
 
         await Parallel.ForEachAsync(docList,
-            new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = ct },
+            new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct },
             async (document, token) =>
             {
                 var text = document.EmbeddingText;
