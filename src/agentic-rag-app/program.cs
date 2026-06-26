@@ -100,6 +100,8 @@ var host = new HostBuilder()
             });
 
         services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
+        services.AddSingleton(_ =>
+            new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential));
         services.AddSingleton<IRagQueryService, RagQueryService>();
 
         // Chunking
