@@ -77,7 +77,7 @@ resource "azurerm_cognitive_deployment" "evaluation" {
 
   sku {
     name     = "Standard"
-    capacity = 10
+    capacity = 30
   }
 }
 
