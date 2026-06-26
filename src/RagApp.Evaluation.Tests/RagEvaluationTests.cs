@@ -56,7 +56,7 @@ public class RagEvaluationTests
             .AsIChatClient()
             .AsBuilder()
             .ConfigureOptions(o => o.MaxOutputTokens ??= 500)
-            .Use(async (messages, options, innerClient, ct) =>
+            .Use(async (IList<ChatMessage> messages, ChatOptions? options, IChatClient innerClient, CancellationToken ct) =>
             {
                 var response = await innerClient.GetResponseAsync(messages, options, ct);
                 Console.WriteLine($"[judge] total={response.Usage?.TotalTokenCount} " +

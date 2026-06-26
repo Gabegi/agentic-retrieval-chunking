@@ -38,22 +38,23 @@ public class RagQueryService : IRagQueryService
                 {
                     new VectorizableTextQuery(question)
                     {
-                        KNearestNeighborsCount = 5,
+                        KNearestNeighborsCount = 10,
                         Fields = { "content_vector" }
                     }
                 }
             },
             Select = { "title", "content", "heading", "department", "quick_code" },
-            Size   = 5,
+            Size   = 10,
         };
 
         var searchResponse = await _searchClient.SearchAsync<SearchDocument>(question, opts, ct);
         var chunks = new List<string>();
         await foreach (var result in searchResponse.Value.GetResultsAsync())
         {
-            var title   = result.Document.GetString("title") ?? "";
+            // Title is already prepended to content at index time; use content directly.
             var content = result.Document.GetString("content") ?? "";
-            chunks.Add(string.IsNullOrEmpty(title) ? content : $"[{title}]\n{content}");
+            if (!string.IsNullOrWhiteSpace(content))
+                chunks.Add(content);
         }
         var retrievedContext = string.Join("\n\n---\n\n", chunks);
 

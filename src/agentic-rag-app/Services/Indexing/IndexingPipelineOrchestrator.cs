@@ -33,7 +33,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         _logger           = logger;
     }
 
-    public async Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(string source, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(string source, bool forceReindex = false, CancellationToken ct = default)
     {
         // Resolve extractor by the ?source= param (e.g. "csv"). New sources only need a new IExtractionOrchestrator registered in program.cs.
         if (!_extractors.TryGetValue(source, out var extractor))
@@ -45,7 +45,9 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         _logger.LogInformation("Extracting from source '{Source}'", source);
         var docs = await extractor.ExtractDocumentsAsync(ct);
 
-        var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
+        var indexedDates = forceReindex
+            ? new Dictionary<string, DateTimeOffset>()
+            : await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
 
         var toProcess = new List<ExtractionDocument>();
         var toDelete  = new List<string>();
@@ -86,12 +88,17 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
 
         foreach (var doc in docs.OrderBy(d => d.SourceId).ThenBy(d => d.Ordinal))
         {
+            var title  = doc.Metadata.GetValueOrDefault("title") ?? "";
             var chunks = _chunkingService.ChunkAsync(doc.Content);
             foreach (var chunk in chunks)
             {
-                var content = chunk.Heading != null
+                // Prepend the document title so every chunk — including short continuation pages
+                // that contain no query-term overlap on their own — benefits from the parent
+                // document's identity in both BM25 and vector scoring.
+                var body = chunk.Heading != null
                     ? $"{chunk.Heading}\n\n{chunk.Content}"
                     : chunk.Content;
+                var content = string.IsNullOrEmpty(title) ? body : $"{title}\n\n{body}";
 
                 result.Add(new ProtocolDocument
                 {
