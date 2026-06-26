@@ -11,7 +11,7 @@ using RagApp.Evaluation.Tests.Models;
 namespace RagApp.Evaluation.Tests.Evaluation;
 
 /// <summary>
-/// Calls the RAG app for a given TestQuery, scores the response with 6 evaluators
+/// Calls the RAG app for a given TestQuery, scores the response with 5 evaluators
 /// (run sequentially), and returns the result as an EvalRow. Does no I/O beyond the
 /// ragCall itself — persistence is EvalResultWriter's job.
 ///
@@ -30,7 +30,6 @@ public sealed class RagEvaluator
     private readonly CoherenceEvaluator   _coherence    = new();
     private readonly EquivalenceEvaluator _equivalence  = new();
     private readonly RetrievalEvaluator   _retrieval    = new();
-    private readonly F1Evaluator          _f1           = new();
     private readonly ChatConfiguration    _judgeConfig;
 
     public RagEvaluator(IChatClient judgeClient)
@@ -82,11 +81,6 @@ public sealed class RagEvaluator
         {
             new RetrievalEvaluatorContext(result.RetrievedContext)
         };
-        var f1Ctx = new List<EvaluationContext>
-        {
-            new F1EvaluatorContext(testQuery.ExpectedAnswer)
-        };
-
         // Run evaluators sequentially with 2 s gaps; retry handles residual 429s via Retry-After headers.
         var groundednessResult = await JudgeAsync(() => _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask(), ct);
         await Task.Delay(2000, ct);
@@ -97,7 +91,6 @@ public sealed class RagEvaluator
         var equivalenceResult  = await JudgeAsync(() => _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask(), ct);
         await Task.Delay(2000, ct);
         var retrievalResult    = await JudgeAsync(() => _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask(), ct);
-        var f1Result           = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);
 
         return new EvalRow(
             ScenarioName:    testQuery.Name,
@@ -119,7 +112,6 @@ public sealed class RagEvaluator
             Coherence:    coherenceResult.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
             Equivalence:  equivalenceResult.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
             Retrieval:    retrievalResult.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,
-            F1:           f1Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0,
             Timestamp:    DateTimeOffset.UtcNow);
     }
 

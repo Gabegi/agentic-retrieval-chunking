@@ -51,10 +51,18 @@ public class RagEvaluationTests
         IChatClient ragChatClient = openAi.GetChatClient(config.OpenAiGptDeployment).AsIChatClient();
         // Cap output tokens so Azure's TPM estimate is prompt+500 instead of prompt+model-default (~4096).
         // Scoring evaluators emit a score + brief explanation; they never need more than ~300 tokens.
+        // TODO: remove the .Use(...) logging middleware once real token numbers are confirmed.
         IChatClient judgeClient = openAi.GetChatClient(Env("OPENAI_EVAL_DEPLOYMENT"))
             .AsIChatClient()
             .AsBuilder()
             .ConfigureOptions(o => o.MaxOutputTokens ??= 500)
+            .Use(async (messages, options, innerClient, ct) =>
+            {
+                var response = await innerClient.GetResponseAsync(messages, options, ct);
+                Console.WriteLine($"[judge] total={response.Usage?.TotalTokenCount} " +
+                                  $"in={response.Usage?.InputTokenCount} out={response.Usage?.OutputTokenCount}");
+                return response;
+            })
             .Build();
 
         var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
