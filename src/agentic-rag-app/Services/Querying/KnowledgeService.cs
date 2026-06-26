@@ -37,17 +37,18 @@ public class KnowledgeService : IKnowledgeService
                 {
                     new SearchIndexFieldReference("content"),
                     new SearchIndexFieldReference("title"),
-                    new SearchIndexFieldReference("summary"),
-                    new SearchIndexFieldReference("document_type"),
+                    new SearchIndexFieldReference("heading"),
+                    new SearchIndexFieldReference("department"),
                 },
                 // All structured fields returned so the model has full document context
                 SourceDataFields =
                 {
                     new SearchIndexFieldReference("id"),
-                    new SearchIndexFieldReference("source_file"),
+                    new SearchIndexFieldReference("document_id"),
                     new SearchIndexFieldReference("title"),
-                    new SearchIndexFieldReference("document_type"),
-                    new SearchIndexFieldReference("summary"),
+                    new SearchIndexFieldReference("heading"),
+                    new SearchIndexFieldReference("department"),
+                    new SearchIndexFieldReference("quick_code"),
                     new SearchIndexFieldReference("version"),
                     new SearchIndexFieldReference("content"),
                 }
