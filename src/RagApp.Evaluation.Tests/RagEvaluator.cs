@@ -87,16 +87,16 @@ public sealed class RagEvaluator
             new F1EvaluatorContext(testQuery.ExpectedAnswer)
         };
 
-        // Run evaluators sequentially with pacing — gpt-4o judge is at 10K TPM quota limit.
-        // 4-second gaps between calls keep throughput ≈ 7.5K TPM; retry handles any residual 429s.
+        // Run evaluators sequentially with pacing — tests are serialised at the caller level so
+        // 2-second gaps are sufficient; retry handles any residual 429s via Retry-After headers.
         var groundednessResult = await JudgeAsync(() => _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask(), ct);
-        await Task.Delay(4000, ct);
+        await Task.Delay(2000, ct);
         var relevanceResult    = await JudgeAsync(() => _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
-        await Task.Delay(4000, ct);
+        await Task.Delay(2000, ct);
         var coherenceResult    = await JudgeAsync(() => _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
-        await Task.Delay(4000, ct);
+        await Task.Delay(2000, ct);
         var equivalenceResult  = await JudgeAsync(() => _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask(), ct);
-        await Task.Delay(4000, ct);
+        await Task.Delay(2000, ct);
         var retrievalResult    = await JudgeAsync(() => _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask(), ct);
         var f1Result           = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);
 
@@ -124,7 +124,8 @@ public sealed class RagEvaluator
             Timestamp:    DateTimeOffset.UtcNow);
     }
 
-    // Retries a judge LLM call on 429 with exponential back-off (4 → 8 → 16 → 32 s).
+    // Retries a judge LLM call on 429 using retry-after-ms header when present,
+    // falling back to exponential back-off (4 → 8 → 16 → 32 s) with random jitter.
     private static async Task<EvaluationResult> JudgeAsync(
         Func<Task<EvaluationResult>> call, CancellationToken ct)
     {
@@ -137,8 +138,23 @@ public sealed class RagEvaluator
             }
             catch (ClientResultException ex) when (ex.Status == 429 && attempt < maxAttempts - 1)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt + 2)), ct); // 4, 8, 16, 32 s
+                var delay = ParseRetryAfter(ex) ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 2));
+                await Task.Delay(delay, ct);
             }
         }
+    }
+
+    private static TimeSpan? ParseRetryAfter(ClientResultException ex)
+    {
+        var raw = ex.GetRawResponse();
+        if (raw is null) return null;
+
+        if (raw.Headers.TryGetValue("retry-after-ms", out var ms) && double.TryParse(ms, out var msVal))
+            return TimeSpan.FromMilliseconds(msVal + 250);
+
+        if (raw.Headers.TryGetValue("Retry-After", out var sec) && double.TryParse(sec, out var secVal))
+            return TimeSpan.FromSeconds(secVal + 1);
+
+        return null;
     }
 }
