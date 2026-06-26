@@ -25,6 +25,18 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
+      # Step 1: apply the OpenAI resource first so its managed identity principal_id
+      # is written to state before dependent role assignments are planned.
+      - run: terraform apply -auto-approve -target=azurerm_cognitive_account.openai -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+        working-directory: ./infra
+        env:
+          ARM_USE_MSI: true
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_admin_object_id: ${{ secrets.ADMIN_OBJECT_ID }}
+          TF_VAR_developer_object_id: ${{ secrets.DEVELOPER_OBJECT_ID }}
+
+      # Step 2: full apply — role assignment now has the principal_id available
       - run: terraform apply -auto-approve -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
         working-directory: ./infra
         env:
