@@ -119,23 +119,34 @@ public sealed class RagEvaluator
             Timestamp:    DateTimeOffset.UtcNow);
     }
 
-    // Retries a judge LLM call on 429 using retry-after-ms header when present,
-    // falling back to exponential back-off (4 → 8 → 16 → 32 s) with random jitter.
+    // One judge call runs at a time across all concurrent tests; 2 s cooldown is held
+    // inside the gate so the next waiter cannot start until the quota window clears.
+    private static readonly SemaphoreSlim _judgeGate = new(1, 1);
+
     private static async Task<EvaluationResult> JudgeAsync(
         Func<Task<EvaluationResult>> call, CancellationToken ct)
     {
-        const int maxAttempts = 5;
-        for (int attempt = 0; ; attempt++)
+        await _judgeGate.WaitAsync(ct);
+        try
         {
-            try
+            const int maxAttempts = 5;
+            for (int attempt = 0; ; attempt++)
             {
-                return await call();
+                try
+                {
+                    return await call();
+                }
+                catch (ClientResultException ex) when (ex.Status == 429 && attempt < maxAttempts - 1)
+                {
+                    var delay = ParseRetryAfter(ex) ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 2));
+                    await Task.Delay(delay, ct);
+                }
             }
-            catch (ClientResultException ex) when (ex.Status == 429 && attempt < maxAttempts - 1)
-            {
-                var delay = ParseRetryAfter(ex) ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 2));
-                await Task.Delay(delay, ct);
-            }
+        }
+        finally
+        {
+            await Task.Delay(2000, ct);
+            _judgeGate.Release();
         }
     }
 
