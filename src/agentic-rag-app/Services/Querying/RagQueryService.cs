@@ -75,14 +75,14 @@ public class RagQueryService : IRagQueryService
         if (retrievedContext.Length > 0)
             systemPrompt += $"\n\nGeraadpleegde documenten:\n{retrievedContext}";
 
-        ChatMessage[] messages =
+        OpenAI.Chat.ChatMessage[] messages =
         [
             new SystemChatMessage(systemPrompt),
             new UserChatMessage(question),
         ];
 
         var sw         = Stopwatch.StartNew();
-        var completion = await chatClient.CompleteChatAsync(messages, ct: ct);
+        var completion = await chatClient.CompleteChatAsync(messages, cancellationToken: ct);
         sw.Stop();
 
         return new RagQueryResult(
