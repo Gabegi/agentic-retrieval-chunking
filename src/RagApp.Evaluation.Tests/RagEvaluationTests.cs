@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Azure.AI.OpenAI;
 using Azure.Identity;
+using Azure.Search.Documents;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.AI;
 using ProtocolsIndexer.Configuration;
