@@ -5,7 +5,8 @@
     "logLevel": {
       "default": "Information",
       "Host": "Warning",
-      "Function": "Information"
+      "Function": "Information",
+      "DurableTask.AzureStorage": "Warning"
     }
   },
   "extensions": {
