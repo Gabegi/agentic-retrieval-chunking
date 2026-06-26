@@ -119,4 +119,22 @@ public sealed class RagEvaluator
             F1:           f1Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0,
             Timestamp:    DateTimeOffset.UtcNow);
     }
+
+    // Retries a judge LLM call on 429 with exponential back-off (4 → 8 → 16 → 32 s).
+    private static async Task<EvaluationResult> JudgeAsync(
+        Func<Task<EvaluationResult>> call, CancellationToken ct)
+    {
+        const int maxAttempts = 5;
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await call();
+            }
+            catch (ClientResultException ex) when (ex.Status == 429 && attempt < maxAttempts - 1)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt + 2)), ct); // 4, 8, 16, 32 s
+            }
+        }
+    }
 }
