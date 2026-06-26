@@ -51,9 +51,10 @@ public class IndexingFunction
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
         [DurableClient] DurableTaskClient client)
     {
-        var source = req.Query["source"] ?? "csv";
+        var source       = req.Query["source"] ?? "csv";
+        var forceReindex = req.Query["force"] == "true";
 
-        var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("IndexingOrchestrator", source);
+        var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("IndexingOrchestrator", new IndexRequest(source, forceReindex));
         _logger.LogInformation("Indexing started — source '{Source}', instance {InstanceId}", source, instanceId);
         return client.CreateCheckStatusResponse(req, instanceId);
     }
@@ -61,14 +62,14 @@ public class IndexingFunction
     [Function("IndexingOrchestrator")]
     public async Task RunOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
-        var source     = context.GetInput<string>()!;
+        var input      = context.GetInput<IndexRequest>()!;
         // Durable Functions pass activity inputs/outputs through Azure Table Storage, which has a 64KB row size limit
         // Stores extaction inputs/outputs to blob to circumvent row size limit
         //  Only the blob path string (e.g. "abc123/extracted.json")travels through Table Storage.
-        var docsBlob   = $"{context.InstanceId}/extracted.json"; 
+        var docsBlob   = $"{context.InstanceId}/extracted.json";
         var chunksBlob = $"{context.InstanceId}/chunks.json";
 
-        await context.CallActivityAsync("ExtractActivity",        new ExtractRequest(source, docsBlob));
+        await context.CallActivityAsync("ExtractActivity",        new ExtractRequest(input.Source, input.ForceReindex, docsBlob));
         await context.CallActivityAsync("ChunkActivity",          new ChunkRequest(docsBlob, chunksBlob));
         await context.CallActivityAsync("EmbedAndUploadActivity", chunksBlob);
     }
@@ -79,7 +80,7 @@ public class IndexingFunction
     {
         try
         {
-            var docs = await _orchestrator.ExtractAsync(req.Source, context.CancellationToken);
+            var docs = await _orchestrator.ExtractAsync(req.Source, req.ForceReindex, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
             _logger.LogInformation("Extracted {Count} docs from '{Source}' → {Blob}", docs.Count, req.Source, req.OutputBlob);
         }
