@@ -35,7 +35,9 @@ public sealed class RagEvaluator
 
     public RagEvaluator(IChatClient judgeClient)
     {
-        _judgeConfig = new ChatConfiguration(judgeClient);
+        // Cap output tokens so Azure's TPM estimate is prompt+500 instead of prompt+model-default (~4096).
+        // Scoring evaluators emit a score + brief explanation; they never need more than ~300 tokens.
+        _judgeConfig = new ChatConfiguration(judgeClient, new ChatOptions { MaxOutputTokens = 500 });
     }
 
     public async Task<EvalRow> RunAsync(
@@ -87,11 +89,15 @@ public sealed class RagEvaluator
             new F1EvaluatorContext(testQuery.ExpectedAnswer)
         };
 
-        // Judge calls are serialised globally via _judgeGate (see JudgeAsync); no per-call delays needed here.
+        // Run evaluators sequentially with 2 s gaps; retry handles residual 429s via Retry-After headers.
         var groundednessResult = await JudgeAsync(() => _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask(), ct);
+        await Task.Delay(2000, ct);
         var relevanceResult    = await JudgeAsync(() => _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
+        await Task.Delay(2000, ct);
         var coherenceResult    = await JudgeAsync(() => _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
+        await Task.Delay(2000, ct);
         var equivalenceResult  = await JudgeAsync(() => _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask(), ct);
+        await Task.Delay(2000, ct);
         var retrievalResult    = await JudgeAsync(() => _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask(), ct);
         var f1Result           = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);
 
@@ -119,34 +125,23 @@ public sealed class RagEvaluator
             Timestamp:    DateTimeOffset.UtcNow);
     }
 
-    // One judge call runs at a time across all concurrent tests; 2 s cooldown is held
-    // inside the gate so the next waiter cannot start until the quota window clears.
-    private static readonly SemaphoreSlim _judgeGate = new(1, 1);
-
+    // Retries a judge LLM call on 429, honouring the retry-after-ms header when present,
+    // falling back to exponential back-off (4 → 8 → 16 → 32 s).
     private static async Task<EvaluationResult> JudgeAsync(
         Func<Task<EvaluationResult>> call, CancellationToken ct)
     {
-        await _judgeGate.WaitAsync(ct);
-        try
+        const int maxAttempts = 5;
+        for (int attempt = 0; ; attempt++)
         {
-            const int maxAttempts = 5;
-            for (int attempt = 0; ; attempt++)
+            try
             {
-                try
-                {
-                    return await call();
-                }
-                catch (ClientResultException ex) when (ex.Status == 429 && attempt < maxAttempts - 1)
-                {
-                    var delay = ParseRetryAfter(ex) ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 2));
-                    await Task.Delay(delay, ct);
-                }
+                return await call();
             }
-        }
-        finally
-        {
-            await Task.Delay(2000, ct);
-            _judgeGate.Release();
+            catch (ClientResultException ex) when (ex.Status == 429 && attempt < maxAttempts - 1)
+            {
+                var delay = ParseRetryAfter(ex) ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 2));
+                await Task.Delay(delay, ct);
+            }
         }
     }
 

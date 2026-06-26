@@ -49,13 +49,7 @@ public class RagEvaluationTests
             .GetBlobContainerClient(config.StorageContainer);
 
         IChatClient ragChatClient = openAi.GetChatClient(config.OpenAiGptDeployment).AsIChatClient();
-        // Cap judge output tokens so Azure's TPM estimate is prompt+500 instead of prompt+model-default.
-        // Scoring evaluators emit a score + brief explanation — they never need more than ~300 tokens.
-        IChatClient judgeClient = openAi.GetChatClient(Env("OPENAI_EVAL_DEPLOYMENT"))
-            .AsIChatClient()
-            .AsBuilder()
-            .ConfigureOptions(o => o.MaxOutputTokens = 500)
-            .Build();
+        IChatClient judgeClient = openAi.GetChatClient(Env("OPENAI_EVAL_DEPLOYMENT")).AsIChatClient();
 
         var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
         _ragService = new RagQueryService(ragChatClient, searchClient, config);
@@ -81,10 +75,6 @@ public class RagEvaluationTests
             $"RAG call failed for '{testQuery.Name}': {row.Error}");
         Assert.IsTrue(row.Groundedness >= MinGroundedness,
             $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
-
-        // Cooldown between tests — prevents the last judge call of one test
-        // bursting into the RAG call + first judge call of the next with no gap.
-        await Task.Delay(3000);
     }
 
     // Merges all test sets into one list:
