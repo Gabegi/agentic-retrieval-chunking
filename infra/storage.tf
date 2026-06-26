@@ -48,7 +48,3 @@ resource "azurerm_role_assignment" "developer_document_intelligence" {
   principal_id         = var.developer_object_id
 }
 
-output "sp_object_id" {
-  value       = data.azurerm_client_config.current.object_id
-  description = "Object ID used for the Storage Blob Data Contributor role assignment"
-}
