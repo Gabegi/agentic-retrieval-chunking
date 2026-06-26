@@ -2,7 +2,6 @@ using System.ClientModel;
 using System.Diagnostics;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
-using Microsoft.Extensions.AI.Evaluation.NLP;
 using Microsoft.Extensions.AI.Evaluation.Quality;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Services;
