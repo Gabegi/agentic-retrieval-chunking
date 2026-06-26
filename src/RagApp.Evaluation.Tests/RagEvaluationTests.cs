@@ -51,7 +51,8 @@ public class RagEvaluationTests
         IChatClient ragChatClient = openAi.GetChatClient(config.OpenAiGptDeployment).AsIChatClient();
         IChatClient judgeClient = openAi.GetChatClient(Env("OPENAI_EVAL_DEPLOYMENT")).AsIChatClient();
 
-        _ragService = new RagQueryService(ragChatClient, config);
+        var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
+        _ragService = new RagQueryService(ragChatClient, searchClient, config);
         _evaluator = new RagEvaluator(judgeClient);
         _writer = new EvalResultWriter(container, executionId: $"{DateTime.UtcNow:yyyyMMddTHHmmss}");
 
