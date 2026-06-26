@@ -121,7 +121,8 @@ public class IndexingFunction
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidOperationException($"EmbedAndUploadActivity failed: {ex.Message}", ex);
+            _logger.LogError(ex, "EmbedAndUploadActivity failed for '{ChunksBlob}'", chunksBlobName);
+            throw new InvalidOperationException($"EmbedAndUploadActivity failed: {ex.Message}");
         }
     }
 
