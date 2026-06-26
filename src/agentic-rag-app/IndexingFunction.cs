@@ -104,7 +104,8 @@ public class IndexingFunction
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new InvalidOperationException($"ChunkActivity failed: {ex.Message}", ex);
+            _logger.LogError(ex, "ChunkActivity failed for '{InputBlob}'", req.InputBlob);
+            throw new InvalidOperationException($"ChunkActivity failed: {ex.Message}");
         }
     }
 
