@@ -43,7 +43,40 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         await _indexService.EnsureIndexAsync();
 
         _logger.LogInformation("Extracting from source '{Source}'", source);
-        return await extractor.ExtractDocumentsAsync(ct);
+        var docs = await extractor.ExtractDocumentsAsync(ct);
+
+        var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
+
+        var toProcess = new List<ExtractionDocument>();
+        var toDelete  = new List<string>();
+
+        foreach (var doc in docs)
+        {
+            if (!indexedDates.TryGetValue(doc.SourceId, out var indexedDate))
+            {
+                toProcess.Add(doc);
+                continue;
+            }
+
+            var modifiedStr = doc.Metadata.GetValueOrDefault("last_modified_date");
+            if (DateTimeOffset.TryParse(modifiedStr, out var modifiedDate) && modifiedDate <= indexedDate)
+                continue; // unchanged — skip
+
+            // Document changed: delete stale chunks, then re-index
+            toDelete.Add(doc.SourceId);
+            toProcess.Add(doc);
+        }
+
+        if (toDelete.Count > 0)
+        {
+            _logger.LogInformation("Deleting stale chunks for {Count} changed documents", toDelete.Count);
+            await _indexDocumentService.DeleteDocumentsAsync(toDelete, ct);
+        }
+
+        _logger.LogInformation("Skipping {Skipped} unchanged, processing {Count} new/changed documents",
+            docs.Count - toProcess.Count, toProcess.Count);
+
+        return toProcess;
     }
 
     public IReadOnlyList<ProtocolDocument> Chunk(IReadOnlyList<ExtractionDocument> docs)
