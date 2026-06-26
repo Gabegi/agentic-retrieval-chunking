@@ -42,7 +42,6 @@ public class RagQueryService : IRagQueryService
             {
                 ContentFieldNames = { "content" },
                 TitleFieldName    = "title",
-                FilePathFieldName = "source_file",
                 VectorFieldNames  = { "content_vector" },
             },
         });
