@@ -6,6 +6,10 @@ resource "azurerm_cognitive_account" "openai" {
   sku_name              = "S0"
   custom_subdomain_name = "oai-chuking-agentic-rag"
 
+  identity {
+    type = "SystemAssigned"
+  }
+
   tags = {
     project     = "agentic-rag-chunking"
     environment = "dev"
