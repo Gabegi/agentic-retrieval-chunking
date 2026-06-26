@@ -20,6 +20,11 @@ output "storage_container" {
 
 output "storage_container_csv" {
   value       = azurerm_storage_container.documents_csv.name
+  description = "STORAGE_CONTAINER for CSV source documents"
+}
+
+output "storage_container_test_results" {
+  value       = azurerm_storage_container.test_results.name
   description = "STORAGE_CONTAINER for eval result writes"
 }
 

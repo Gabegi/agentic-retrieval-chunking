@@ -22,11 +22,6 @@ resource "azurerm_storage_container" "documents" {
   container_access_type = "private"
 }
 
-resource "azurerm_storage_container" "protocols" {
-  name                  = "protocols"
-  storage_account_id    = azurerm_storage_account.documents.id
-  container_access_type = "private"
-}
 
 resource "azurerm_storage_container" "documents_csv" {
   name                  = "documentscsv"

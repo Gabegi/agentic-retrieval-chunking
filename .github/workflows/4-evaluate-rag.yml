@@ -44,7 +44,7 @@ jobs:
           echo "OPENAI_EVAL_DEPLOYMENT=$(terraform output -raw openai_eval_deployment)" >> $GITHUB_ENV
           echo "SEARCH_INDEX_NAME=$(terraform output -raw search_index_name)"           >> $GITHUB_ENV
           echo "STORAGE_ACCOUNT_URL=$(terraform output -raw storage_account_url)"       >> $GITHUB_ENV
-          echo "STORAGE_CONTAINER=$(terraform output -raw storage_container_csv)"       >> $GITHUB_ENV
+          echo "STORAGE_CONTAINER=$(terraform output -raw storage_container_test_results)" >> $GITHUB_ENV
           echo "KNOWLEDGE_SOURCE_NAME=$(terraform output -raw knowledge_source_name)"   >> $GITHUB_ENV
           echo "KNOWLEDGE_BASE_NAME=$(terraform output -raw knowledge_base_name)"       >> $GITHUB_ENV
 
