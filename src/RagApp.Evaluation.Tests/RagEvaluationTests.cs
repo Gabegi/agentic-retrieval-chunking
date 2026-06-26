@@ -75,6 +75,10 @@ public class RagEvaluationTests
             $"RAG call failed for '{testQuery.Name}': {row.Error}");
         Assert.IsTrue(row.Groundedness >= MinGroundedness,
             $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
+
+        // Cooldown between tests — prevents the last judge call of one test
+        // bursting into the RAG call + first judge call of the next with no gap.
+        await Task.Delay(3000);
     }
 
     // Merges all test sets into one list:

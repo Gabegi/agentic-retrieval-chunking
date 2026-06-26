@@ -87,16 +87,11 @@ public sealed class RagEvaluator
             new F1EvaluatorContext(testQuery.ExpectedAnswer)
         };
 
-        // Run evaluators sequentially with pacing — tests are serialised at the caller level so
-        // 2-second gaps are sufficient; retry handles any residual 429s via Retry-After headers.
+        // Judge calls are serialised globally via _judgeGate (see JudgeAsync); no per-call delays needed here.
         var groundednessResult = await JudgeAsync(() => _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask(), ct);
-        await Task.Delay(2000, ct);
         var relevanceResult    = await JudgeAsync(() => _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
-        await Task.Delay(2000, ct);
         var coherenceResult    = await JudgeAsync(() => _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
-        await Task.Delay(2000, ct);
         var equivalenceResult  = await JudgeAsync(() => _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask(), ct);
-        await Task.Delay(2000, ct);
         var retrievalResult    = await JudgeAsync(() => _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask(), ct);
         var f1Result           = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);
 
