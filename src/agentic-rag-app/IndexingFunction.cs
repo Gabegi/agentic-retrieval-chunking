@@ -77,29 +77,51 @@ public class IndexingFunction
     [Function("ExtractActivity")]
     public async Task ExtractActivity([ActivityTrigger] ExtractRequest req, FunctionContext context)
     {
-        var docs = await _orchestrator.ExtractAsync(req.Source, context.CancellationToken);
-        await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
-        _logger.LogInformation("Extracted {Count} docs from '{Source}' → {Blob}", docs.Count, req.Source, req.OutputBlob);
+        try
+        {
+            var docs = await _orchestrator.ExtractAsync(req.Source, context.CancellationToken);
+            await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
+            _logger.LogInformation("Extracted {Count} docs from '{Source}' → {Blob}", docs.Count, req.Source, req.OutputBlob);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "ExtractActivity failed for '{Source}'", req.Source);
+            throw new InvalidOperationException($"ExtractActivity failed: {ex.Message}");
+        }
     }
 
     // Step 2 — read ExtractionDocuments, chunk, serialise ProtocolDocuments to blob; delete input blob
     [Function("ChunkActivity")]
     public async Task ChunkActivity([ActivityTrigger] ChunkRequest req, FunctionContext context)
     {
-        var docs   = await ReadBlobAsync<List<ExtractionDocument>>(req.InputBlob, context.CancellationToken);
-        var chunks = _orchestrator.Chunk(docs);
-        await DeleteBlobAsync(req.InputBlob, context.CancellationToken);
-        await WriteBlobAsync(req.OutputBlob, chunks, context.CancellationToken);
-        _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks → {Blob}", docs.Count, chunks.Count, req.OutputBlob);
+        try
+        {
+            var docs   = await ReadBlobAsync<List<ExtractionDocument>>(req.InputBlob, context.CancellationToken);
+            var chunks = _orchestrator.Chunk(docs);
+            await DeleteBlobAsync(req.InputBlob, context.CancellationToken);
+            await WriteBlobAsync(req.OutputBlob, chunks, context.CancellationToken);
+            _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks → {Blob}", docs.Count, chunks.Count, req.OutputBlob);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new InvalidOperationException($"ChunkActivity failed: {ex.Message}", ex);
+        }
     }
 
     // Step 3 — read ProtocolDocuments, embed and upload to Azure AI Search; delete input blob
     [Function("EmbedAndUploadActivity")]
     public async Task EmbedAndUploadActivity([ActivityTrigger] string chunksBlobName, FunctionContext context)
     {
-        var chunks = await ReadBlobAsync<List<ProtocolDocument>>(chunksBlobName, context.CancellationToken);
-        await _orchestrator.EmbedAndUploadAsync(chunks, context.CancellationToken);
-        await DeleteBlobAsync(chunksBlobName, context.CancellationToken);
+        try
+        {
+            var chunks = await ReadBlobAsync<List<ProtocolDocument>>(chunksBlobName, context.CancellationToken);
+            await _orchestrator.EmbedAndUploadAsync(chunks, context.CancellationToken);
+            await DeleteBlobAsync(chunksBlobName, context.CancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new InvalidOperationException($"EmbedAndUploadActivity failed: {ex.Message}", ex);
+        }
     }
 
     // POST /api/setup-knowledge-base — run once after the index is populated
