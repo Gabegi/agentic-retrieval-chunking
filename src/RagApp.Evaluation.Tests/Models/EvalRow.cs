@@ -28,7 +28,8 @@ public record EvalRow(
     double          Relevance,          // 1-5  LLM — response relevant to the question?
     double          Coherence,          // 1-5  LLM — response coherent and well-formed?
     double          Equivalence,        // 1-5  LLM — same meaning as expected answer?
-    double          Retrieval,          // 1-5  LLM — was the right context fetched?
+    // double       Retrieval,          // 1-5  LLM — was the right context fetched?  (re-enable with Retrieval)
+    // double       F1,                 // 0-1  NLP — token overlap vs expected answer (re-enable with F1)
 
      DateTimeOffset Timestamp)
 {
@@ -49,6 +50,8 @@ public record EvalRow(
         OutputTokens: 0,
         CostUsd: 0,
         Groundedness: 0, Relevance: 0, Coherence: 0,
-        Equivalence: 0, Retrieval: 0,
+        Equivalence: 0,
+        // Retrieval: 0,  // re-enable with Retrieval
+        // F1: 0,         // re-enable with F1
         Timestamp: DateTimeOffset.UtcNow);
 }
