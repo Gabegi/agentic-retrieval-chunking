@@ -65,3 +65,10 @@ resource "azurerm_role_assignment" "admin_search_index_contributor" {
   role_definition_name = "Search Index Data Contributor"
   principal_id         = var.admin_object_id
 }
+
+# Allow Azure OpenAI to read the search index for On Your Data / chat completions with data source
+resource "azurerm_role_assignment" "openai_search_index_reader" {
+  scope                = azurerm_search_service.main.id
+  role_definition_name = "Search Index Data Reader"
+  principal_id         = azurerm_cognitive_account.openai.identity[0].principal_id
+}
