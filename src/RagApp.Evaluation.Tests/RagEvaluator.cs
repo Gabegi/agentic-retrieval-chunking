@@ -87,13 +87,13 @@ public sealed class RagEvaluator
             new F1EvaluatorContext(testQuery.ExpectedAnswer)
         };
 
-        // Run evaluators sequentially — the judge deployment (gpt-4o, capacity=10) has tight
-        // RPM limits; parallel fan-out across 6 evaluators × back-to-back tests hits 429s.
-        var groundednessResult = await _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct);
-        var relevanceResult    = await _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
-        var coherenceResult    = await _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct);
-        var equivalenceResult  = await _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct);
-        var retrievalResult    = await _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct);
+        // Run evaluators sequentially with 429 retry — the judge deployment is capacity-limited
+        // and parallel fan-out hits rate limits immediately.
+        var groundednessResult = await JudgeAsync(() => _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask(), ct);
+        var relevanceResult    = await JudgeAsync(() => _relevance.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
+        var coherenceResult    = await JudgeAsync(() => _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
+        var equivalenceResult  = await JudgeAsync(() => _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask(), ct);
+        var retrievalResult    = await JudgeAsync(() => _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask(), ct);
         var f1Result           = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);
 
         return new EvalRow(
