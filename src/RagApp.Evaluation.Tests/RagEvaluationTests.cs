@@ -83,6 +83,9 @@ public class RagEvaluationTests
             $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
     }
 
+    [TestCleanup]
+    public Task Throttle() => Task.Delay(TimeSpan.FromSeconds(5));
+
     [TestMethod]
     [TestCategory("golden")]
     [DynamicData(nameof(GoldenQueries))]
