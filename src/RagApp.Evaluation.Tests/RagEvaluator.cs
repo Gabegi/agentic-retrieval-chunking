@@ -2,8 +2,9 @@ using System.ClientModel;
 using System.Diagnostics;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
+using Microsoft.Extensions.AI.Evaluation.NLP;
 using Microsoft.Extensions.AI.Evaluation.Quality;
-// using Microsoft.Extensions.AI.Evaluation.NLP;  // re-enable with F1
+using Microsoft.Extensions.AI.Evaluation.NLP;  // re-enable with F1
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Services;
 using RagApp.Evaluation.Tests.Models;
@@ -29,8 +30,8 @@ public sealed class RagEvaluator
     private readonly RelevanceEvaluator   _relevance    = new();
     private readonly CoherenceEvaluator   _coherence    = new();
     private readonly EquivalenceEvaluator _equivalence  = new();
-    // private readonly RetrievalEvaluator   _retrieval    = new();  // re-enable with Retrieval
-    // private readonly F1Evaluator          _f1           = new();  // re-enable with F1
+    private readonly RetrievalEvaluator   _retrieval    = new();  // re-enable with Retrieval
+    private readonly F1Evaluator          _f1           = new();  // re-enable with F1
     private readonly ChatConfiguration    _judgeConfig;
 
     public RagEvaluator(IChatClient judgeClient)
@@ -78,14 +79,14 @@ public sealed class RagEvaluator
         {
             new EquivalenceEvaluatorContext(testQuery.ExpectedAnswer)
         };
-        // var retrievalCtx = new List<EvaluationContext>   // re-enable with Retrieval
-        // {
-        //     new RetrievalEvaluatorContext(result.RetrievedContext)
-        // };
-        // var f1Ctx = new List<EvaluationContext>           // re-enable with F1
-        // {
-        //     new F1EvaluatorContext(testQuery.ExpectedAnswer)
-        // };
+        var retrievalCtx = new List<EvaluationContext>   // re-enable with Retrieval
+        {
+            new RetrievalEvaluatorContext(result.RetrievedContext)
+        };
+        var f1Ctx = new List<EvaluationContext>           // re-enable with F1
+        {
+            new F1EvaluatorContext(testQuery.ExpectedAnswer)
+        };
 
         // Run evaluators sequentially with 2 s gaps; retry handles residual 429s via Retry-After headers.
         var groundednessResult = await JudgeAsync(() => _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask(), ct);
@@ -95,9 +96,9 @@ public sealed class RagEvaluator
         var coherenceResult    = await JudgeAsync(() => _coherence.EvaluateAsync(messages, chatResponse, _judgeConfig, additionalContext: null, ct).AsTask(), ct);
         await Task.Delay(2000, ct);
         var equivalenceResult  = await JudgeAsync(() => _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask(), ct);
-        // await Task.Delay(2000, ct);                                                                                                                           // re-enable with Retrieval
-        // var retrievalResult = await JudgeAsync(() => _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask(), ct);          // re-enable with Retrieval
-        // var f1Result        = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);                                                               // re-enable with F1
+        await Task.Delay(2000, ct);                                                                                                                           // re-enable with Retrieval
+        var retrievalResult = await JudgeAsync(() => _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask(), ct);          // re-enable with Retrieval
+        var f1Result        = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);                                                               // re-enable with F1
 
         return new EvalRow(
             ScenarioName:    testQuery.Name,
@@ -118,8 +119,8 @@ public sealed class RagEvaluator
             Relevance:    relevanceResult.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
             Coherence:    coherenceResult.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
             Equivalence:  equivalenceResult.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
-            // Retrieval: retrievalResult.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,  // re-enable with Retrieval
-            // F1:        f1Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0,                       // re-enable with F1
+            Retrieval: retrievalResult.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,  
+            F1:        f1Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0,                       
             Timestamp:    DateTimeOffset.UtcNow);
     }
 
