@@ -91,6 +91,33 @@ public class RagEvaluationTests
             $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
     }
 
+    [TestMethod]
+    [TestCategory("golden")]
+    [DynamicData(nameof(GoldenQueries))]
+    public async Task EvaluateGoldenQuery(TestQuery testQuery)
+    {
+        var row = await _evaluator.RunAsync(testQuery, q => _ragService.AskAsync(q));
+        await _writer.WriteAsync(row);
+
+        Console.WriteLine(
+            $"[{row.ScenarioName}] G={row.Groundedness:F1} R={row.Relevance:F1} C={row.Coherence:F1} Eq={row.Equivalence:F1}  " +
+            $"{row.LatencyMs}ms  ${row.CostUsd:F4}  in={row.InputTokens} out={row.OutputTokens}  ok={row.Succeeded}");
+
+        Assert.IsTrue(row.Succeeded,
+            $"RAG call failed for '{testQuery.Name}': {row.Error}");
+        Assert.IsTrue(row.Groundedness >= MinGroundedness,
+            $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
+    }
+
+    public static IEnumerable<object[]> GoldenQueries
+    {
+        get
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "testdata", "golden-questions.json");
+            return LoadFile(path).Select(q => new object[] { q });
+        }
+    }
+
     // Merges all test sets into one list:
     //   original-test-queries.json  — hand-curated, always required
     //   test-queries.json           — secondary curated set, always required

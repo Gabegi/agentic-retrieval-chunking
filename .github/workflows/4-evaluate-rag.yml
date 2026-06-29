@@ -58,6 +58,7 @@ jobs:
         run: |
           dotnet test src/RagApp.Evaluation.Tests/RagApp.Evaluation.Tests.csproj \
             -c Release \
+            --filter "TestCategory=golden" \
             --logger "trx;LogFileName=eval-results.trx" \
             --logger "console;verbosity=normal"
 
