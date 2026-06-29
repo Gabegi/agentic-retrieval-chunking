@@ -71,33 +71,20 @@ var host = new HostBuilder()
               .AsIChatClient())
             .UseOpenTelemetry();
 
-        var appInsightsConnectionString = ctx.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-        var isDev = string.IsNullOrEmpty(appInsightsConnectionString);
+        var appInsightsConnectionString = ctx.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]!;
 
         services.AddOpenTelemetry()
             .ConfigureResource(r => r.AddService(
                 serviceName:    "protocols-indexer",
                 serviceVersion: "1.0.0"))
-            .WithTracing(tracing =>
-            {
-                tracing
-                    .AddSource("Microsoft.Extensions.AI")
-                    .AddSource(Instrumentation.ActivitySourceName);
-                if (isDev)
-                    tracing.AddConsoleExporter();
-                else
-                    tracing.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsightsConnectionString);
-            })
-            .WithMetrics(metrics =>
-            {
-                metrics
-                    .AddMeter("Microsoft.Extensions.AI")
-                    .AddMeter(Instrumentation.MeterName);
-                if (isDev)
-                    metrics.AddConsoleExporter();
-                else
-                    metrics.AddAzureMonitorMetricExporter(o => o.ConnectionString = appInsightsConnectionString);
-            });
+            .WithTracing(tracing => tracing
+                .AddSource("Microsoft.Extensions.AI")
+                .AddSource(Instrumentation.ActivitySourceName)
+                .AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsightsConnectionString))
+            .WithMetrics(metrics => metrics
+                .AddMeter("Microsoft.Extensions.AI")
+                .AddMeter(Instrumentation.MeterName)
+                .AddAzureMonitorMetricExporter(o => o.ConnectionString = appInsightsConnectionString));
 
         services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
         services.AddSingleton(_ =>
