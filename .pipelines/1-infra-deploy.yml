@@ -144,9 +144,10 @@ stages:
                   inputs:
                     azureSubscription: '$(serviceConnection)'
                     scriptType: bash
+                    scriptLocation: inlineScript
                     addSpnToEnvironment: true
                     workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-                    script: |
+                    inlineScript: |
                       export ARM_CLIENT_ID=$servicePrincipalId
                       export ARM_CLIENT_SECRET=$servicePrincipalKey
                       export ARM_TENANT_ID=$tenantId
@@ -162,9 +163,10 @@ stages:
                   inputs:
                     azureSubscription: '$(serviceConnection)'
                     scriptType: bash
+                    scriptLocation: inlineScript
                     addSpnToEnvironment: true
                     workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-                    script: |
+                    inlineScript: |
                       export ARM_CLIENT_ID=$servicePrincipalId
                       export ARM_CLIENT_SECRET=$servicePrincipalKey
                       export ARM_TENANT_ID=$tenantId
