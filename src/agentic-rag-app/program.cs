@@ -65,13 +65,13 @@ var host = new HostBuilder()
             sp.GetRequiredService<AzureOpenAIClient>()
               .GetEmbeddingClient(config.OpenAiEmbeddingDeployment)
               .AsIEmbeddingGenerator())
-            .UseOpenTelemetry(sourceName: "Microsoft.Extensions.AI", configure: c => c.EnableSensitiveData = true);
+            .UseOpenTelemetry(sourceName: "Microsoft.Extensions.AI");
 
         services.AddChatClient(sp =>
             sp.GetRequiredService<AzureOpenAIClient>()
               .GetChatClient(config.OpenAiGptDeployment)
               .AsIChatClient())
-            .UseOpenTelemetry(sourceName: "Microsoft.Extensions.AI", configure: c => c.EnableSensitiveData = true);
+            .UseOpenTelemetry(sourceName: "Microsoft.Extensions.AI");
 
         var appInsightsConnectionString = ctx.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]!;
 
@@ -96,7 +96,6 @@ var host = new HostBuilder()
         else
             services.AddSingleton<IRunReportWriter, NullRunReportWriter>();
 
-        services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
         services.AddSingleton(_ =>
             new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential));
         services.AddSingleton<IRagQueryService, RagQueryService>();
