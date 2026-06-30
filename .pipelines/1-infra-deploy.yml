@@ -21,6 +21,8 @@ variables:
         value: 'cor-cap-app-prd'
       - name: tfvarsFile
         value: 'envs/prod.tfvars'
+      - name: backendRgName
+        value: 'cor-cap-cicd-prd-we-001'
       - name: backendKey
         value: 'prod.terraform.tfstate'
       - name: backendStorageAccount
@@ -34,6 +36,8 @@ variables:
         value: 'cor-cap-app-dev'
       - name: tfvarsFile
         value: 'envs/dev.tfvars'
+      - name: backendRgName
+        value: 'cor-cap-cicd-dev-we-001'
       - name: backendKey
         value: 'dev.terraform.tfstate'
       - name: backendStorageAccount
