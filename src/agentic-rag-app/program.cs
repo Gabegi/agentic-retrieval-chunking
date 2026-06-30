@@ -91,7 +91,7 @@ var host = new HostBuilder()
 
         services.AddSingleton<IRunReportWriter>(sp =>
             new RunReportWriter(
-                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("run-reports"),
+                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("telemetry-reports"),
                 sp.GetRequiredService<IHostEnvironment>()));
 
         services.AddSingleton(_ =>
