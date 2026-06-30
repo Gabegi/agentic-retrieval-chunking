@@ -65,7 +65,7 @@ stages:
               azureSubscription: '$(serviceConnection)'
               scriptType: bash
               addSpnToEnvironment: true
-              workingDirectory: '$(Build.SourcesDirectory)/infra'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
               script: |
                 export ARM_CLIENT_ID=$servicePrincipalId
                 export ARM_CLIENT_SECRET=$servicePrincipalKey
@@ -83,7 +83,7 @@ stages:
               azureSubscription: '$(serviceConnection)'
               scriptType: bash
               addSpnToEnvironment: true
-              workingDirectory: '$(Build.SourcesDirectory)/infra'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
               script: |
                 export ARM_CLIENT_ID=$servicePrincipalId
                 export ARM_CLIENT_SECRET=$servicePrincipalKey
@@ -97,7 +97,7 @@ stages:
               azureSubscription: '$(serviceConnection)'
               scriptType: bash
               addSpnToEnvironment: true
-              workingDirectory: '$(Build.SourcesDirectory)/infra'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
               script: |
                 export ARM_CLIENT_ID=$servicePrincipalId
                 export ARM_CLIENT_SECRET=$servicePrincipalKey
@@ -143,7 +143,7 @@ stages:
                     azureSubscription: '$(serviceConnection)'
                     scriptType: bash
                     addSpnToEnvironment: true
-                    workingDirectory: '$(Build.SourcesDirectory)/infra'
+                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
                     script: |
                       export ARM_CLIENT_ID=$servicePrincipalId
                       export ARM_CLIENT_SECRET=$servicePrincipalKey
@@ -161,7 +161,7 @@ stages:
                     azureSubscription: '$(serviceConnection)'
                     scriptType: bash
                     addSpnToEnvironment: true
-                    workingDirectory: '$(Build.SourcesDirectory)/infra'
+                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
                     script: |
                       export ARM_CLIENT_ID=$servicePrincipalId
                       export ARM_CLIENT_SECRET=$servicePrincipalKey
