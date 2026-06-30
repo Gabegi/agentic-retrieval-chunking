@@ -64,7 +64,6 @@ public class EmbeddingService : IEmbeddingService
             try
             {
                 var result = await _embeddingGenerator.GenerateAsync([text], cancellationToken: ct);
-                _telemetry.AddTokens(result.Usage?.InputTokenCount ?? 0, result.Usage?.OutputTokenCount ?? 0);
                 return result[0].Vector.ToArray();
             }
             catch (Exception ex) when (!ct.IsCancellationRequested && IsThrottled(ex))
