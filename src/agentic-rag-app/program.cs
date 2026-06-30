@@ -4,6 +4,7 @@ using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.OpenTelemetry;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Azure.Monitor.OpenTelemetry.Exporter;
@@ -15,6 +16,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Observability;
+using ProtocolsIndexer.Observability.Reports;
 using ProtocolsIndexer.Services;
 
 var host = new HostBuilder()
