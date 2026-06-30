@@ -131,10 +131,17 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
 
     public async Task EmbedAndUploadAsync(IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default)
     {
-        var embedded = await _embeddingService.EmbedDocumentsAsync(docs, ct);
-        await _indexDocumentService.UpsertDocumentsAsync(embedded, ct);
-
-        Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
-        _logger.LogInformation("Embedded and uploaded {Count} documents", docs.Count);
+        try
+        {
+            var embedded = await _embeddingService.EmbedDocumentsAsync(docs, ct);
+            await _indexDocumentService.UpsertDocumentsAsync(embedded, ct);
+            Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
+            _logger.LogInformation("Embedded and uploaded {Count} documents", docs.Count);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Instrumentation.UploadFailures.Add(1);
+            throw;
+        }
     }
 }
