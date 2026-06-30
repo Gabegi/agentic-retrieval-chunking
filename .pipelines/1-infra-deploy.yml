@@ -23,6 +23,10 @@ variables:
         value: 'envs/prod.tfvars'
       - name: backendKey
         value: 'prod.terraform.tfstate'
+      - name: backendStorageAccount
+        value: 'corsttfcapprdwe'
+      - name: backendContainer
+        value: 'terraform-state'
   - ${{ else }}:
       - name: envName
         value: 'dev'
@@ -32,6 +36,10 @@ variables:
         value: 'envs/dev.tfvars'
       - name: backendKey
         value: 'dev.terraform.tfstate'
+      - name: backendStorageAccount
+        value: 'corsttfcapdevwe'
+      - name: backendContainer
+        value: 'terraform-state'
 
 stages:
 
@@ -52,8 +60,8 @@ stages:
               command: 'init'
               backendServiceArm: '$(serviceConnection)'
               backendAzureRmResourceGroupName: 'rg-tfstate'
-              backendAzureRmStorageAccountName: 'tfstateXXXX'
-              backendAzureRmContainerName: 'tfstate'
+              backendAzureRmStorageAccountName: '$(backendStorageAccount)'
+              backendAzureRmContainerName: '$(backendContainer)'
               backendAzureRmKey: '$(backendKey)'
 
           - task: TerraformTaskV4@4
