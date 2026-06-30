@@ -43,18 +43,23 @@ public class QueryingFunction
 
         if (_reportWriter.IsEnabled)
             await _reportWriter.WriteQueryReportAsync(new QueryRunReport(
-                RunId:            Guid.NewGuid().ToString("N"),
-                Timestamp:        timestamp,
-                Question:         body.Question,
-                Answer:           result.Answer,
-                RetrievedContext: result.RetrievedContext,
-                ChunksRetrieved:  result.ChunksRetrieved,
-                Model:            result.Model,
-                FinishReason:     result.FinishReason,
-                LatencyMs:        result.LatencyMs,
-                InputTokens:      result.InputTokens,
-                OutputTokens:     result.OutputTokens,
-                TotalTokens:      result.TotalTokens),
+                RunId:              Guid.NewGuid().ToString("N"),
+                Timestamp:          timestamp,
+                Question:           body.Question,
+                Answer:             result.Answer,
+                RetrievedContext:   result.RetrievedContext,
+                SystemInstructions: result.SystemInstructions,
+                ChunksRetrieved:    result.ChunksRetrieved,
+                OperationName:      result.OperationName,
+                ProviderName:       result.ProviderName,
+                ServerAddress:      result.ServerAddress,
+                ServerPort:         result.ServerPort,
+                Model:              result.Model,
+                FinishReason:       result.FinishReason,
+                LatencyMs:          result.LatencyMs,
+                InputTokens:        result.InputTokens,
+                OutputTokens:       result.OutputTokens,
+                TotalTokens:        result.TotalTokens),
                 context.CancellationToken);
 
         var response = req.CreateResponse(HttpStatusCode.OK);
