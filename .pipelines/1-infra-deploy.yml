@@ -83,7 +83,7 @@ stages:
                 export ARM_USE_CLI=false
                 export AZURE_CONFIG_DIR=$(mktemp -d)
                 terraform init \
-                  -backend-config="resource_group_name=rg-tfstate" \
+                  -backend-config="resource_group_name=$(backendRgName)" \
                   -backend-config="storage_account_name=$(backendStorageAccount)" \
                   -backend-config="container_name=$(backendContainer)" \
                   -backend-config="key=$(backendKey)" \
@@ -170,7 +170,7 @@ stages:
                       export ARM_USE_CLI=false
                       export AZURE_CONFIG_DIR=$(mktemp -d)
                       terraform init \
-                        -backend-config="resource_group_name=rg-tfstate" \
+                        -backend-config="resource_group_name=$(backendRgName)" \
                         -backend-config="storage_account_name=$(backendStorageAccount)" \
                         -backend-config="container_name=$(backendContainer)" \
                         -backend-config="key=$(backendKey)" \
