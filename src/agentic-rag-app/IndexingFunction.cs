@@ -66,16 +66,42 @@ public class IndexingFunction
     [Function("IndexingOrchestrator")]
     public async Task RunOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
+        var startedAt  = context.CurrentUtcDateTime;
         var input      = context.GetInput<IndexRequest>()!;
-        // Durable Functions pass activity inputs/outputs through Azure Table Storage, which has a 64KB row size limit
-        // Stores extaction inputs/outputs to blob to circumvent row size limit
-        //  Only the blob path string (e.g. "abc123/extracted.json")travels through Table Storage.
+        // Durable Functions pass activity inputs/outputs through Azure Table Storage, which has a 64KB row size limit.
+        // Only the blob path string (e.g. "abc123/extracted.json") travels through Table Storage.
         var docsBlob   = $"{context.InstanceId}/extracted.json";
         var chunksBlob = $"{context.InstanceId}/chunks.json";
 
-        await context.CallActivityAsync("ExtractActivity",        new ExtractRequest(input.Source, input.ForceReindex, docsBlob));
-        await context.CallActivityAsync("ChunkActivity",          new ChunkRequest(docsBlob, chunksBlob));
-        await context.CallActivityAsync("EmbedAndUploadActivity", chunksBlob);
+        int    docsExtracted = 0, chunksProduced = 0, docsUploaded = 0;
+        bool   success = false;
+        string? error  = null;
+
+        try
+        {
+            docsExtracted  = await context.CallActivityAsync<int>("ExtractActivity",        new ExtractRequest(input.Source, input.ForceReindex, docsBlob));
+            chunksProduced = await context.CallActivityAsync<int>("ChunkActivity",          new ChunkRequest(docsBlob, chunksBlob));
+            docsUploaded   = await context.CallActivityAsync<int>("EmbedAndUploadActivity", chunksBlob);
+            success        = true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+
+        await context.CallActivityAsync("SaveIndexReportActivity", new IndexRunReport(
+            InstanceId:     context.InstanceId,
+            StartedAt:      startedAt,
+            Source:         input.Source,
+            ForceReindex:   input.ForceReindex,
+            DocsExtracted:  docsExtracted,
+            ChunksProduced: chunksProduced,
+            DocsUploaded:   docsUploaded,
+            Success:        success,
+            ErrorMessage:   error));
+
+        if (!success)
+            throw new InvalidOperationException(error ?? "Indexing pipeline failed");
     }
 
     // Step 1 — run the source-specific extractor; serialise ExtractionDocuments to blob
