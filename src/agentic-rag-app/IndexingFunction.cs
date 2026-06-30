@@ -106,13 +106,14 @@ public class IndexingFunction
 
     // Step 1 — run the source-specific extractor; serialise ExtractionDocuments to blob
     [Function("ExtractActivity")]
-    public async Task ExtractActivity([ActivityTrigger] ExtractRequest req, FunctionContext context)
+    public async Task<int> ExtractActivity([ActivityTrigger] ExtractRequest req, FunctionContext context)
     {
         try
         {
             var docs = await _orchestrator.ExtractAsync(req.Source, req.ForceReindex, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
             _logger.LogInformation("Extracted {Count} docs from '{Source}' → {Blob}", docs.Count, req.Source, req.OutputBlob);
+            return docs.Count;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -123,7 +124,7 @@ public class IndexingFunction
 
     // Step 2 — read ExtractionDocuments, chunk, serialise ProtocolDocuments to blob; delete input blob
     [Function("ChunkActivity")]
-    public async Task ChunkActivity([ActivityTrigger] ChunkRequest req, FunctionContext context)
+    public async Task<int> ChunkActivity([ActivityTrigger] ChunkRequest req, FunctionContext context)
     {
         try
         {
@@ -132,6 +133,7 @@ public class IndexingFunction
             await DeleteBlobAsync(req.InputBlob, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, chunks, context.CancellationToken);
             _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks → {Blob}", docs.Count, chunks.Count, req.OutputBlob);
+            return chunks.Count;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -142,19 +144,29 @@ public class IndexingFunction
 
     // Step 3 — read ProtocolDocuments, embed and upload to Azure AI Search; delete input blob
     [Function("EmbedAndUploadActivity")]
-    public async Task EmbedAndUploadActivity([ActivityTrigger] string chunksBlobName, FunctionContext context)
+    public async Task<int> EmbedAndUploadActivity([ActivityTrigger] string chunksBlobName, FunctionContext context)
     {
         try
         {
             var chunks = await ReadBlobAsync<List<ProtocolDocument>>(chunksBlobName, context.CancellationToken);
             await _orchestrator.EmbedAndUploadAsync(chunks, context.CancellationToken);
             await DeleteBlobAsync(chunksBlobName, context.CancellationToken);
+            return chunks.Count;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "EmbedAndUploadActivity failed for '{ChunksBlob}'", chunksBlobName);
             throw new InvalidOperationException($"EmbedAndUploadActivity failed: {ex.Message}");
         }
+    }
+
+    [Function("SaveIndexReportActivity")]
+    public async Task SaveIndexReportActivity([ActivityTrigger] IndexRunReport report, FunctionContext context)
+    {
+        await _reportWriter.WriteIndexReportAsync(report, context.CancellationToken);
+        _logger.LogInformation(
+            "Index run report saved — instance={InstanceId}, docs={Docs}, chunks={Chunks}, success={Success}",
+            report.InstanceId, report.DocsExtracted, report.ChunksProduced, report.Success);
     }
 
     // POST /api/setup-knowledge-base — run once after the index is populated
