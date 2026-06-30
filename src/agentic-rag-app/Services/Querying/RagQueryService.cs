@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.AI;
-using OpenAI.Chat;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
 
@@ -23,9 +22,7 @@ public class RagQueryService : IRagQueryService
 
     public async Task<RagQueryResult> AskAsync(string question, CancellationToken ct = default)
     {
-        // Step 1: hybrid search — BM25 + vector (search service vectorizes the query via its built-in
-        // OpenAI vectorizer), re-ranked with the semantic ranker.
-        var opts = new SearchOptions
+        var searchOpts = new SearchOptions
         {
             QueryType    = SearchQueryType.Semantic,
             SemanticSearch = new SemanticSearchOptions
@@ -47,21 +44,15 @@ public class RagQueryService : IRagQueryService
             Size   = 10,
         };
 
-        var searchResponse = await _searchClient.SearchAsync<SearchDocument>(question, opts, ct);
+        var searchResponse = await _searchClient.SearchAsync<SearchDocument>(question, searchOpts, ct);
         var chunks = new List<string>();
         await foreach (var result in searchResponse.Value.GetResultsAsync())
         {
-            // Title is already prepended to content at index time; use content directly.
             var content = result.Document.GetString("content") ?? "";
             if (!string.IsNullOrWhiteSpace(content))
                 chunks.Add(content);
         }
         var retrievedContext = string.Join("\n\n---\n\n", chunks);
-
-        // Step 2: answer synthesis
-        var chatClient = _chatClient.GetService<ChatClient>()
-            ?? throw new InvalidOperationException(
-                "RagQueryService requires an AzureOpenAIClient-backed IChatClient.");
 
         var systemPrompt =
             "Je bent een kennisassistent voor Cordaan, een Nederlandse organisatie voor " +
@@ -76,20 +67,35 @@ public class RagQueryService : IRagQueryService
         if (retrievedContext.Length > 0)
             systemPrompt += $"\n\nGeraadpleegde documenten:\n{retrievedContext}";
 
-        OpenAI.Chat.ChatMessage[] messages =
-        [
-            new SystemChatMessage(systemPrompt),
-            new UserChatMessage(question),
-        ];
+        var chatMessages = new List<ChatMessage>
+        {
+            new(ChatRole.System, systemPrompt),
+            new(ChatRole.User, question),
+        };
+
+        var options = new ChatOptions
+        {
+            Temperature      = 0.0f,
+            MaxOutputTokens  = 2000,
+            TopP             = null,
+            TopK             = null,
+            FrequencyPenalty = 0.0f,
+            PresencePenalty  = 0.0f,
+            Seed             = 42L,
+            ResponseFormat   = ChatResponseFormat.Text,
+            StopSequences    = null,
+            Tools            = null,
+            ToolMode         = null,
+            ConversationId   = Guid.NewGuid().ToString("N"),
+        };
 
         var endpoint = new Uri(_config.OpenAiEndpoint);
-
-        var sw         = Stopwatch.StartNew();
-        var completion = await chatClient.CompleteChatAsync(messages, cancellationToken: ct);
+        var sw       = Stopwatch.StartNew();
+        var response = await _chatClient.CompleteAsync(chatMessages, options, ct);
         sw.Stop();
 
         return new RagQueryResult(
-            Answer:            completion.Value.Content[0].Text,
+            Answer:            response.Message.Text ?? "",
             RetrievedContext:  retrievedContext,
             SystemInstructions: systemPrompt,
             ChunksRetrieved:   chunks.Count,
@@ -97,11 +103,21 @@ public class RagQueryService : IRagQueryService
             ProviderName:      "openai",
             ServerAddress:     endpoint.Host,
             ServerPort:        endpoint.Port,
-            Model:             completion.Value.Model,
-            FinishReason:      completion.Value.FinishReason.ToString(),
+            ConversationId:    options.ConversationId!,
+            Model:             response.ModelId ?? _config.OpenAiGptDeployment,
+            FinishReason:      response.FinishReason?.ToString() ?? "unknown",
             LatencyMs:         sw.ElapsedMilliseconds,
-            InputTokens:       completion.Value.Usage.InputTokenCount,
-            OutputTokens:      completion.Value.Usage.OutputTokenCount,
-            TotalTokens:       completion.Value.Usage.TotalTokenCount);
+            InputTokens:       response.Usage?.InputTokenCount ?? 0,
+            OutputTokens:      response.Usage?.OutputTokenCount ?? 0,
+            TotalTokens:       response.Usage?.TotalTokenCount ?? 0,
+            Temperature:       options.Temperature,
+            MaxOutputTokens:   options.MaxOutputTokens,
+            TopP:              options.TopP,
+            TopK:              options.TopK,
+            FrequencyPenalty:  options.FrequencyPenalty,
+            PresencePenalty:   options.PresencePenalty,
+            Seed:              options.Seed,
+            ResponseFormat:    options.ResponseFormat?.ToString(),
+            StopSequences:     options.StopSequences is { Count: > 0 } s ? [.. s] : null);
     }
 }

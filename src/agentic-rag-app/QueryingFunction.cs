@@ -43,7 +43,7 @@ public class QueryingFunction
 
         if (_reportWriter.IsEnabled)
             await _reportWriter.WriteQueryReportAsync(new QueryRunReport(
-                RunId:              Guid.NewGuid().ToString("N"),
+                RunId:              result.ConversationId,
                 Timestamp:          timestamp,
                 Question:           body.Question,
                 Answer:             result.Answer,
@@ -54,12 +54,22 @@ public class QueryingFunction
                 ProviderName:       result.ProviderName,
                 ServerAddress:      result.ServerAddress,
                 ServerPort:         result.ServerPort,
+                ConversationId:     result.ConversationId,
                 Model:              result.Model,
                 FinishReason:       result.FinishReason,
                 LatencyMs:          result.LatencyMs,
                 InputTokens:        result.InputTokens,
                 OutputTokens:       result.OutputTokens,
-                TotalTokens:        result.TotalTokens),
+                TotalTokens:        result.TotalTokens,
+                Temperature:        result.Temperature,
+                MaxOutputTokens:    result.MaxOutputTokens,
+                TopP:               result.TopP,
+                TopK:               result.TopK,
+                FrequencyPenalty:   result.FrequencyPenalty,
+                PresencePenalty:    result.PresencePenalty,
+                Seed:               result.Seed,
+                ResponseFormat:     result.ResponseFormat,
+                StopSequences:      result.StopSequences),
                 context.CancellationToken);
 
         var response = req.CreateResponse(HttpStatusCode.OK);
