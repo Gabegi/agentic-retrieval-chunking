@@ -73,6 +73,8 @@ stages:
                 export ARM_TENANT_ID=$tenantId
                 export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
                 export ARM_USE_CLI=false
+                az logout
+                az account clear
                 terraform init \
                   -backend-config="resource_group_name=rg-tfstate" \
                   -backend-config="storage_account_name=$(backendStorageAccount)" \
