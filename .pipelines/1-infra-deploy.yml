@@ -82,7 +82,8 @@ stages:
                   -backend-config="client_id=$servicePrincipalId" \
                   -backend-config="client_secret=$servicePrincipalKey" \
                   -backend-config="tenant_id=$tenantId" \
-                  -backend-config="subscription_id=$ARM_SUBSCRIPTION_ID"
+                  -backend-config="subscription_id=$ARM_SUBSCRIPTION_ID" \
+                  -backend-config="use_cli=false"
 
           - task: AzureCLI@2
             displayName: 'Validate'
