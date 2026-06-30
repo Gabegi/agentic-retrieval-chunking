@@ -111,9 +111,7 @@ stages:
             artifact: tfplan
 
   # Only runs on push to development/production, not on PRs.
-  # Create 'dev' and 'prod' environments in Pipelines > Environments in the ADO UI.
-  # Add an Approval check on 'prod' to gate production deployments.
-
+  # 'prod' environment requires an Approval check in Pipelines > Environments.
   - stage: Apply
     displayName: 'Apply ($(envName))'
     dependsOn: Plan
