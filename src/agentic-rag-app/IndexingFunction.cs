@@ -8,6 +8,7 @@ using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
+using ProtocolsIndexer.Observability.Reports;
 using ProtocolsIndexer.Services;
 
 namespace ProtocolsIndexer;
@@ -26,19 +27,22 @@ namespace ProtocolsIndexer;
 public class IndexingFunction
 {
     private readonly IIndexingPipelineOrchestrator _orchestrator;
-    private readonly IKnowledgeService         _knowledgeService;
-    private readonly BlobContainerClient       _pipelineContainer;
-    private readonly ILogger<IndexingFunction> _logger;
+    private readonly IKnowledgeService             _knowledgeService;
+    private readonly BlobContainerClient           _pipelineContainer;
+    private readonly IRunReportWriter              _reportWriter;
+    private readonly ILogger<IndexingFunction>     _logger;
 
     public IndexingFunction(
         IIndexingPipelineOrchestrator orchestrator,
-        IKnowledgeService         knowledgeService,
+        IKnowledgeService             knowledgeService,
         [FromKeyedServices("pipeline-temp")] BlobContainerClient pipelineContainer,
-        ILogger<IndexingFunction> logger)
+        IRunReportWriter              reportWriter,
+        ILogger<IndexingFunction>     logger)
     {
         _orchestrator      = orchestrator;
         _knowledgeService  = knowledgeService;
         _pipelineContainer = pipelineContainer;
+        _reportWriter      = reportWriter;
         _logger            = logger;
     }
 
