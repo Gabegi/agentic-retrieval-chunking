@@ -82,19 +82,26 @@ public class RagQueryService : IRagQueryService
             new UserChatMessage(question),
         ];
 
+        var endpoint = new Uri(_config.OpenAiEndpoint);
+
         var sw         = Stopwatch.StartNew();
         var completion = await chatClient.CompleteChatAsync(messages, cancellationToken: ct);
         sw.Stop();
 
         return new RagQueryResult(
-            Answer:           completion.Value.Content[0].Text,
-            RetrievedContext: retrievedContext,
-            ChunksRetrieved:  chunks.Count,
-            Model:            completion.Value.Model,
-            FinishReason:     completion.Value.FinishReason.ToString(),
-            LatencyMs:        sw.ElapsedMilliseconds,
-            InputTokens:      completion.Value.Usage.InputTokenCount,
-            OutputTokens:     completion.Value.Usage.OutputTokenCount,
-            TotalTokens:      completion.Value.Usage.TotalTokenCount);
+            Answer:            completion.Value.Content[0].Text,
+            RetrievedContext:  retrievedContext,
+            SystemInstructions: systemPrompt,
+            ChunksRetrieved:   chunks.Count,
+            OperationName:     "chat",
+            ProviderName:      "openai",
+            ServerAddress:     endpoint.Host,
+            ServerPort:        endpoint.Port,
+            Model:             completion.Value.Model,
+            FinishReason:      completion.Value.FinishReason.ToString(),
+            LatencyMs:         sw.ElapsedMilliseconds,
+            InputTokens:       completion.Value.Usage.InputTokenCount,
+            OutputTokens:      completion.Value.Usage.OutputTokenCount,
+            TotalTokens:       completion.Value.Usage.TotalTokenCount);
     }
 }
