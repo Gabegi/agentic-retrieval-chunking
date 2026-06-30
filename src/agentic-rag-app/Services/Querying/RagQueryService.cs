@@ -91,7 +91,7 @@ public class RagQueryService : IRagQueryService
             RetrievedContext: retrievedContext,
             ChunksRetrieved:  chunks.Count,
             Model:            completion.Value.Model,
-            FinishReason:     completion.Value.FinishReason?.ToString() ?? "unknown",
+            FinishReason:     completion.Value.FinishReason.ToString(),
             LatencyMs:        sw.ElapsedMilliseconds,
             InputTokens:      completion.Value.Usage.InputTokenCount,
             OutputTokens:     completion.Value.Usage.OutputTokenCount,
