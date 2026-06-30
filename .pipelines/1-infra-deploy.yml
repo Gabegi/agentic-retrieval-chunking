@@ -73,7 +73,7 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
               inlineScript: |
                 STORAGE_KEY=$(az storage account keys list \
-                  --resource-group rg-tfstate \
+                  --resource-group $(backendRgName) \
                   --account-name $(backendStorageAccount) \
                   --query '[0].value' -o tsv)
                 export ARM_CLIENT_ID=$servicePrincipalId
