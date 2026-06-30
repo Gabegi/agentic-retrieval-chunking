@@ -91,7 +91,7 @@ public class RagQueryService : IRagQueryService
 
         var endpoint = new Uri(_config.OpenAiEndpoint);
         var sw       = Stopwatch.StartNew();
-        var response = await _chatClient.CompleteAsync(chatMessages, options, ct);
+        var response = await _chatClient.GetResponseAsync(chatMessages, options, ct);
         sw.Stop();
 
         return new RagQueryResult(
