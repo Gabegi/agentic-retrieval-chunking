@@ -8,19 +8,20 @@ public class RunReportWriter : IRunReportWriter
 {
     private static readonly JsonSerializerOptions s_opts = new() { WriteIndented = true };
     private readonly BlobContainerClient _container;
-    private readonly bool _enabled;
+
+    public bool IsEnabled { get; }
 
     public RunReportWriter(BlobContainerClient container, IHostEnvironment env)
     {
         _container = container;
-        _enabled   = env.IsDevelopment();
+        IsEnabled  = env.IsDevelopment();
     }
 
     public Task WriteQueryReportAsync(QueryRunReport report, CancellationToken ct = default) =>
-        _enabled ? WriteAsync($"queries/{report.Timestamp:yyyy/MM/dd}/{report.RunId}.json", report, ct) : Task.CompletedTask;
+        WriteAsync($"queries/{report.Timestamp:yyyy/MM/dd}/{report.RunId}.json", report, ct);
 
     public Task WriteIndexReportAsync(IndexRunReport report, CancellationToken ct = default) =>
-        _enabled ? WriteAsync($"indexing/{report.StartedAt:yyyy/MM/dd}/{report.InstanceId}.json", report, ct) : Task.CompletedTask;
+        WriteAsync($"indexing/{report.StartedAt:yyyy/MM/dd}/{report.InstanceId}.json", report, ct);
 
     private async Task WriteAsync<T>(string path, T data, CancellationToken ct)
     {

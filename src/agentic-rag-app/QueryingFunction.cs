@@ -41,16 +41,17 @@ public class QueryingFunction
             "Query telemetry: {LatencyMs}ms, in={In} tokens, out={Out} tokens",
             result.LatencyMs, result.InputTokens, result.OutputTokens);
 
-        await _reportWriter.WriteQueryReportAsync(new QueryRunReport(
-            RunId:           Guid.NewGuid().ToString("N"),
-            Timestamp:       timestamp,
-            Question:        body.Question,
-            Answer:          result.Answer,
-            RetrievedContext: result.RetrievedContext,
-            LatencyMs:       result.LatencyMs,
-            InputTokens:     result.InputTokens,
-            OutputTokens:    result.OutputTokens),
-            context.CancellationToken);
+        if (_reportWriter.IsEnabled)
+            await _reportWriter.WriteQueryReportAsync(new QueryRunReport(
+                RunId:            Guid.NewGuid().ToString("N"),
+                Timestamp:        timestamp,
+                Question:         body.Question,
+                Answer:           result.Answer,
+                RetrievedContext: result.RetrievedContext,
+                LatencyMs:        result.LatencyMs,
+                InputTokens:      result.InputTokens,
+                OutputTokens:     result.OutputTokens),
+                context.CancellationToken);
 
         var response = req.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(new

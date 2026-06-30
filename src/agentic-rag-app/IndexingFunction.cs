@@ -89,16 +89,17 @@ public class IndexingFunction
             error = ex.Message;
         }
 
-        await context.CallActivityAsync("SaveIndexReportActivity", new IndexRunReport(
-            InstanceId:     context.InstanceId,
-            StartedAt:      startedAt,
-            Source:         input.Source,
-            ForceReindex:   input.ForceReindex,
-            DocsExtracted:  docsExtracted,
-            ChunksProduced: chunksProduced,
-            DocsUploaded:   docsUploaded,
-            Success:        success,
-            ErrorMessage:   error));
+        if (_reportWriter.IsEnabled)
+            await context.CallActivityAsync("SaveIndexReportActivity", new IndexRunReport(
+                InstanceId:     context.InstanceId,
+                StartedAt:      startedAt,
+                Source:         input.Source,
+                ForceReindex:   input.ForceReindex,
+                DocsExtracted:  docsExtracted,
+                ChunksProduced: chunksProduced,
+                DocsUploaded:   docsUploaded,
+                Success:        success,
+                ErrorMessage:   error));
 
         if (!success)
             throw new InvalidOperationException(error ?? "Indexing pipeline failed");
