@@ -89,6 +89,13 @@ var host = new HostBuilder()
                 .AddMeter(Instrumentation.MeterName)
                 .AddAzureMonitorMetricExporter(o => o.ConnectionString = appInsightsConnectionString));
 
+        if (ctx.HostingEnvironment.IsDevelopment())
+            services.AddSingleton<IRunReportWriter>(sp =>
+                new RunReportWriter(
+                    sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("run-reports")));
+        else
+            services.AddSingleton<IRunReportWriter, NullRunReportWriter>();
+
         services.AddSingleton<IRequestTelemetry, RequestTelemetry>();
         services.AddSingleton(_ =>
             new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential));

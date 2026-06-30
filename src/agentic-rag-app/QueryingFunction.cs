@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
+using ProtocolsIndexer.Observability.Reports;
 using ProtocolsIndexer.Services;
 
 namespace ProtocolsIndexer;
@@ -9,12 +10,14 @@ namespace ProtocolsIndexer;
 public class QueryingFunction
 {
     private readonly IRagQueryService          _ragService;
-    private readonly ILogger<QueryingFunction>  _logger;
+    private readonly IRunReportWriter          _reportWriter;
+    private readonly ILogger<QueryingFunction> _logger;
 
-    public QueryingFunction(IRagQueryService ragService, ILogger<QueryingFunction> logger)
+    public QueryingFunction(IRagQueryService ragService, IRunReportWriter reportWriter, ILogger<QueryingFunction> logger)
     {
-        _ragService = ragService;
-        _logger     = logger;
+        _ragService   = ragService;
+        _reportWriter = reportWriter;
+        _logger       = logger;
     }
 
     // POST /api/query   body: { "question": "..." }
@@ -31,11 +34,23 @@ public class QueryingFunction
             return bad;
         }
 
-        var result = await _ragService.AskAsync(body.Question, context.CancellationToken);
+        var timestamp = DateTimeOffset.UtcNow;
+        var result    = await _ragService.AskAsync(body.Question, context.CancellationToken);
 
         _logger.LogInformation(
             "Query telemetry: {LatencyMs}ms, in={In} tokens, out={Out} tokens",
             result.LatencyMs, result.InputTokens, result.OutputTokens);
+
+        await _reportWriter.WriteQueryReportAsync(new QueryRunReport(
+            RunId:           Guid.NewGuid().ToString("N"),
+            Timestamp:       timestamp,
+            Question:        body.Question,
+            Answer:          result.Answer,
+            RetrievedContext: result.RetrievedContext,
+            LatencyMs:       result.LatencyMs,
+            InputTokens:     result.InputTokens,
+            OutputTokens:    result.OutputTokens),
+            context.CancellationToken);
 
         var response = req.CreateResponse(HttpStatusCode.OK);
         await response.WriteAsJsonAsync(new
