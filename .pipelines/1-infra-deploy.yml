@@ -68,6 +68,10 @@ stages:
               addSpnToEnvironment: true
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
               inlineScript: |
+                STORAGE_KEY=$(az storage account keys list \
+                  --resource-group rg-tfstate \
+                  --account-name $(backendStorageAccount) \
+                  --query '[0].value' -o tsv)
                 export ARM_CLIENT_ID=$servicePrincipalId
                 export ARM_CLIENT_SECRET=$servicePrincipalKey
                 export ARM_TENANT_ID=$tenantId
@@ -79,11 +83,7 @@ stages:
                   -backend-config="storage_account_name=$(backendStorageAccount)" \
                   -backend-config="container_name=$(backendContainer)" \
                   -backend-config="key=$(backendKey)" \
-                  -backend-config="client_id=$servicePrincipalId" \
-                  -backend-config="client_secret=$servicePrincipalKey" \
-                  -backend-config="tenant_id=$tenantId" \
-                  -backend-config="subscription_id=$ARM_SUBSCRIPTION_ID" \
-                  -backend-config="use_cli=false"
+                  -backend-config="access_key=$STORAGE_KEY"
 
           - task: AzureCLI@2
             displayName: 'Validate'
