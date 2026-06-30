@@ -63,10 +63,9 @@ stages:
               terraform version
             displayName: 'Install Terraform'
 
-          # Extract SP credentials into step-scoped variables.
-          # AzureCLI@2 clears the CLI session on exit (az account clear),
-          # so subsequent Bash tasks run with no active CLI session —
-          # forcing Terraform to use ARM_* env vars instead of CLI auth.
+          # Extract SP credentials into job-scoped variables.
+          # AzureCLI@2 clears the CLI session on exit, so subsequent
+          # Bash tasks run with no active CLI session.
           - task: AzureCLI@2
             displayName: 'Get SP Credentials'
             inputs:
@@ -82,15 +81,16 @@ stages:
 
           - task: Bash@3
             displayName: 'Init'
+            env:
+              ARM_CLIENT_ID: $(tf_client_id)
+              ARM_CLIENT_SECRET: $(tf_client_secret)
+              ARM_TENANT_ID: $(tf_tenant_id)
+              ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
+              ARM_USE_CLI: false
             inputs:
               targetType: inline
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
               script: |
-                export ARM_CLIENT_ID="$(tf_client_id)"
-                export ARM_CLIENT_SECRET="$(tf_client_secret)"
-                export ARM_TENANT_ID="$(tf_tenant_id)"
-                export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
-                export ARM_USE_CLI=false
                 terraform init \
                   -backend-config="resource_group_name=$(backendRgName)" \
                   -backend-config="storage_account_name=$(backendStorageAccount)" \
@@ -100,28 +100,29 @@ stages:
 
           - task: Bash@3
             displayName: 'Validate'
+            env:
+              ARM_CLIENT_ID: $(tf_client_id)
+              ARM_CLIENT_SECRET: $(tf_client_secret)
+              ARM_TENANT_ID: $(tf_tenant_id)
+              ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
+              ARM_USE_CLI: false
             inputs:
               targetType: inline
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-              script: |
-                export ARM_CLIENT_ID="$(tf_client_id)"
-                export ARM_CLIENT_SECRET="$(tf_client_secret)"
-                export ARM_TENANT_ID="$(tf_tenant_id)"
-                export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
-                export ARM_USE_CLI=false
-                terraform validate
+              script: terraform validate
 
           - task: Bash@3
             displayName: 'Plan'
+            env:
+              ARM_CLIENT_ID: $(tf_client_id)
+              ARM_CLIENT_SECRET: $(tf_client_secret)
+              ARM_TENANT_ID: $(tf_tenant_id)
+              ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
+              ARM_USE_CLI: false
             inputs:
               targetType: inline
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
               script: |
-                export ARM_CLIENT_ID="$(tf_client_id)"
-                export ARM_CLIENT_SECRET="$(tf_client_secret)"
-                export ARM_TENANT_ID="$(tf_tenant_id)"
-                export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
-                export ARM_USE_CLI=false
                 terraform plan \
                   -var-file="$(tfvarsFile)" \
                   -out=$(Build.ArtifactStagingDirectory)/tfplan
@@ -170,15 +171,16 @@ stages:
 
                 - task: Bash@3
                   displayName: 'Init'
+                  env:
+                    ARM_CLIENT_ID: $(tf_client_id)
+                    ARM_CLIENT_SECRET: $(tf_client_secret)
+                    ARM_TENANT_ID: $(tf_tenant_id)
+                    ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
+                    ARM_USE_CLI: false
                   inputs:
                     targetType: inline
                     workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
                     script: |
-                      export ARM_CLIENT_ID="$(tf_client_id)"
-                      export ARM_CLIENT_SECRET="$(tf_client_secret)"
-                      export ARM_TENANT_ID="$(tf_tenant_id)"
-                      export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
-                      export ARM_USE_CLI=false
                       terraform init \
                         -backend-config="resource_group_name=$(backendRgName)" \
                         -backend-config="storage_account_name=$(backendStorageAccount)" \
@@ -188,13 +190,13 @@ stages:
 
                 - task: Bash@3
                   displayName: 'Apply'
+                  env:
+                    ARM_CLIENT_ID: $(tf_client_id)
+                    ARM_CLIENT_SECRET: $(tf_client_secret)
+                    ARM_TENANT_ID: $(tf_tenant_id)
+                    ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
+                    ARM_USE_CLI: false
                   inputs:
                     targetType: inline
                     workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-                    script: |
-                      export ARM_CLIENT_ID="$(tf_client_id)"
-                      export ARM_CLIENT_SECRET="$(tf_client_secret)"
-                      export ARM_TENANT_ID="$(tf_tenant_id)"
-                      export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
-                      export ARM_USE_CLI=false
-                      terraform apply $(Pipeline.Workspace)/tfplan/tfplan
+                    script: terraform apply $(Pipeline.Workspace)/tfplan/tfplan
