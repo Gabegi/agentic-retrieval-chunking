@@ -18,7 +18,7 @@ variables:
       - name: envName
         value: 'prod'
       - name: serviceConnection
-        value: 'sc-terraform-prod'
+        value: 'cor-cap-app-prd'
       - name: tfvarsFile
         value: 'envs/prod.tfvars'
       - name: backendKey
