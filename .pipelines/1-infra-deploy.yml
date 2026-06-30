@@ -106,6 +106,34 @@ stages:
                 terraform plan \
                   -var-file="$(tfvarsFile)" \
                   -out=$(Build.ArtifactStagingDirectory)/tfplan
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: '1.7.5'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Init'
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: '$(serviceConnection)'
+              backendAzureRmResourceGroupName: 'rg-tfstate'
+              backendAzureRmStorageAccountName: '$(backendStorageAccount)'
+              backendAzureRmContainerName: '$(backendContainer)'
+              backendAzureRmKey: '$(backendKey)'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Validate'
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Plan'
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              commandOptions: '-var-file="$(tfvarsFile)" -out=$(Build.ArtifactStagingDirectory)/tfplan'
+              environmentServiceNameAzureRM: '$(serviceConnection)'
 
           - publish: '$(Build.ArtifactStagingDirectory)/tfplan'
             artifact: tfplan
@@ -113,6 +141,7 @@ stages:
   # Only runs on push to development/production, not on PRs.
   # Create 'dev' and 'prod' environments in Pipelines > Environments in the ADO UI.
   # Add an Approval check on 'prod' to gate production deployments.
+
   - stage: Apply
     displayName: 'Apply ($(envName))'
     dependsOn: Plan
