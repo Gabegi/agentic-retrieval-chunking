@@ -56,39 +56,30 @@ stages:
           - checkout: self
 
           - script: |
-              TF_VERSION="1.7.5"
+              TF_VERSION="1.15.7"
               curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
               unzip -o terraform.zip
               sudo mv terraform /usr/local/bin/terraform
               terraform version
             displayName: 'Install Terraform'
 
-          # Extract SP credentials into job-scoped variables.
-          # AzureCLI@2 clears the CLI session on exit (az account clear),
-          # so subsequent Bash tasks run with no active CLI session —
-          # forcing Terraform to use ARM_* env vars instead of CLI auth.
+          # OIDC auth via the service connection's Workload Identity Federation.
+          # AzureCLI@2 auto-populates AZURESUBSCRIPTION_TENANT_ID / _CLIENT_ID /
+          # _SERVICE_CONNECTION_ID for the duration of THIS task — no stored
+          # secret to extract, and no shared CLI session needed across tasks.
           - task: AzureCLI@2
-            displayName: 'Get SP Credentials'
+            displayName: 'Init'
             inputs:
               azureSubscription: '$(serviceConnection)'
               scriptType: bash
               scriptLocation: inlineScript
-              addSpnToEnvironment: true
-              inlineScript: |
-                echo "##vso[task.setvariable variable=tf_client_id;issecret=true]$servicePrincipalId"
-                echo "##vso[task.setvariable variable=tf_client_secret;issecret=true]$servicePrincipalKey"
-                echo "##vso[task.setvariable variable=tf_tenant_id]$tenantId"
-                echo "##vso[task.setvariable variable=tf_subscription_id]$(az account show --query id -o tsv)"
-
-          # Secret pipeline variables (tf_client_id/tf_client_secret) don't
-          # resolve via $(...) macro syntax inside a script body — only via
-          # an explicit env: mapping on the task.
-          - task: Bash@3
-            displayName: 'Init'
-            inputs:
-              targetType: inline
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-              script: |
+              inlineScript: |
+                export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                export ARM_USE_OIDC=true
                 terraform init \
                   -backend-config="resource_group_name=$(backendRgName)" \
                   -backend-config="storage_account_name=$(backendStorageAccount)" \
@@ -96,40 +87,43 @@ stages:
                   -backend-config="key=$(backendKey)" \
                   -backend-config="use_azuread_auth=true"
             env:
-              ARM_CLIENT_ID: $(tf_client_id)
-              ARM_CLIENT_SECRET: $(tf_client_secret)
-              ARM_TENANT_ID: $(tf_tenant_id)
-              ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
-              ARM_USE_CLI: 'false'
+              ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
 
-          - task: Bash@3
+          - task: AzureCLI@2
             displayName: 'Validate'
             inputs:
-              targetType: inline
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-              script: terraform validate
+              inlineScript: |
+                export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                export ARM_USE_OIDC=true
+                terraform validate
             env:
-              ARM_CLIENT_ID: $(tf_client_id)
-              ARM_CLIENT_SECRET: $(tf_client_secret)
-              ARM_TENANT_ID: $(tf_tenant_id)
-              ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
-              ARM_USE_CLI: 'false'
+              ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
 
-          - task: Bash@3
+          - task: AzureCLI@2
             displayName: 'Plan'
             inputs:
-              targetType: inline
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-              script: |
+              inlineScript: |
+                export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                export ARM_USE_OIDC=true
                 terraform plan \
                   -var-file="$(tfvarsFile)" \
                   -out=$(Build.ArtifactStagingDirectory)/tfplan
             env:
-              ARM_CLIENT_ID: $(tf_client_id)
-              ARM_CLIENT_SECRET: $(tf_client_secret)
-              ARM_TENANT_ID: $(tf_tenant_id)
-              ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
-              ARM_USE_CLI: 'false'
+              ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
 
           - publish: '$(Build.ArtifactStagingDirectory)/tfplan'
             artifact: tfplan
@@ -153,7 +147,7 @@ stages:
                   artifact: tfplan
 
                 - script: |
-                    TF_VERSION="1.7.5"
+                    TF_VERSION="1.15.7"
                     curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
                     unzip -o terraform.zip
                     sudo mv terraform /usr/local/bin/terraform
@@ -161,24 +155,18 @@ stages:
                   displayName: 'Install Terraform'
 
                 - task: AzureCLI@2
-                  displayName: 'Get SP Credentials'
+                  displayName: 'Init'
                   inputs:
                     azureSubscription: '$(serviceConnection)'
                     scriptType: bash
                     scriptLocation: inlineScript
-                    addSpnToEnvironment: true
-                    inlineScript: |
-                      echo "##vso[task.setvariable variable=tf_client_id;issecret=true]$servicePrincipalId"
-                      echo "##vso[task.setvariable variable=tf_client_secret;issecret=true]$servicePrincipalKey"
-                      echo "##vso[task.setvariable variable=tf_tenant_id]$tenantId"
-                      echo "##vso[task.setvariable variable=tf_subscription_id]$(az account show --query id -o tsv)"
-
-                - task: Bash@3
-                  displayName: 'Init'
-                  inputs:
-                    targetType: inline
                     workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-                    script: |
+                    inlineScript: |
+                      export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                      export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                      export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                      export ARM_USE_OIDC=true
                       terraform init \
                         -backend-config="resource_group_name=$(backendRgName)" \
                         -backend-config="storage_account_name=$(backendStorageAccount)" \
@@ -186,21 +174,21 @@ stages:
                         -backend-config="key=$(backendKey)" \
                         -backend-config="use_azuread_auth=true"
                   env:
-                    ARM_CLIENT_ID: $(tf_client_id)
-                    ARM_CLIENT_SECRET: $(tf_client_secret)
-                    ARM_TENANT_ID: $(tf_tenant_id)
-                    ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
-                    ARM_USE_CLI: 'false'
+                    ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
 
-                - task: Bash@3
+                - task: AzureCLI@2
                   displayName: 'Apply'
                   inputs:
-                    targetType: inline
+                    azureSubscription: '$(serviceConnection)'
+                    scriptType: bash
+                    scriptLocation: inlineScript
                     workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-                    script: terraform apply $(Pipeline.Workspace)/tfplan/tfplan
+                    inlineScript: |
+                      export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                      export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                      export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                      export ARM_USE_OIDC=true
+                      terraform apply $(Pipeline.Workspace)/tfplan/tfplan
                   env:
-                    ARM_CLIENT_ID: $(tf_client_id)
-                    ARM_CLIENT_SECRET: $(tf_client_secret)
-                    ARM_TENANT_ID: $(tf_tenant_id)
-                    ARM_SUBSCRIPTION_ID: $(tf_subscription_id)
-                    ARM_USE_CLI: 'false'
+                    ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
