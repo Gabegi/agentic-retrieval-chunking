@@ -1,0 +1,122 @@
+trigger:
+  branches:
+    include:
+      - development
+      - production
+
+pr:
+  branches:
+    include:
+      - development
+      - production
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/production') }}:
+      - name: envName
+        value: 'prod'
+      - name: serviceConnection
+        value: 'cor-cap-app-prd'
+      - name: tfvarsFile
+        value: 'envs/prod.tfvars'
+      - name: backendKey
+        value: 'prod.terraform.tfstate'
+      - name: backendStorageAccount
+        value: 'corsttfcapprdwe'
+      - name: backendContainer
+        value: 'terraform-state'
+  - ${{ else }}:
+      - name: envName
+        value: 'dev'
+      - name: serviceConnection
+        value: 'cor-cap-app-dev'
+      - name: tfvarsFile
+        value: 'envs/dev.tfvars'
+      - name: backendKey
+        value: 'dev.terraform.tfstate'
+      - name: backendStorageAccount
+        value: 'corsttfcapdevwe'
+      - name: backendContainer
+        value: 'terraform-state'
+
+stages:
+
+  # Runs on PRs and on push to either branch: init, validate, plan
+  - stage: Plan
+    displayName: 'Validate & Plan ($(envName))'
+    jobs:
+      - job: terraform_plan
+        steps:
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: '1.7.5'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Init'
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: '$(serviceConnection)'
+              backendAzureRmResourceGroupName: 'rg-tfstate'
+              backendAzureRmStorageAccountName: '$(backendStorageAccount)'
+              backendAzureRmContainerName: '$(backendContainer)'
+              backendAzureRmKey: '$(backendKey)'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Validate'
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Plan'
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              commandOptions: '-var-file="$(tfvarsFile)" -out=$(Build.ArtifactStagingDirectory)/tfplan'
+              environmentServiceNameAzureRM: '$(serviceConnection)'
+
+          - publish: '$(Build.ArtifactStagingDirectory)/tfplan'
+            artifact: tfplan
+
+  # Only runs on push to development/production, not on PRs.
+  # 'prod' Azure DevOps Environment should have an Approval check configured
+  # in the UI (Pipelines > Environments) so this stage pauses for sign-off.
+  - stage: Apply
+    displayName: 'Apply ($(envName))'
+    dependsOn: Plan
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - deployment: terraform_apply
+        environment: '$(envName)'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: tfplan
+
+                - task: TerraformInstaller@1
+                  inputs:
+                    terraformVersion: '1.7.5'
+
+                - task: TerraformTaskV4@4
+                  displayName: 'Init'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'init'
+                    backendServiceArm: '$(serviceConnection)'
+                    backendAzureRmResourceGroupName: 'rg-tfstate'
+                    backendAzureRmStorageAccountName: 'tfstateXXXX'
+                    backendAzureRmContainerName: 'tfstate'
+                    backendAzureRmKey: '$(backendKey)'
+
+                - task: TerraformTaskV4@4
+                  displayName: 'Apply'
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'apply'
+                    commandOptions: '$(Pipeline.Workspace)/tfplan/tfplan'
+                    environmentServiceNameAzureRM: '$(serviceConnection)'
