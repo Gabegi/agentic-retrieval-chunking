@@ -6,23 +6,19 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
 
 namespace ProtocolsIndexer.Services;
 
 public class EmbeddingService : IEmbeddingService
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
-    private readonly IRequestTelemetry _telemetry;
     private readonly ILogger<EmbeddingService> _logger;
 
     public EmbeddingService(
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
-        IRequestTelemetry telemetry,
         ILogger<EmbeddingService> logger)
     {
         _embeddingGenerator = embeddingGenerator;
-        _telemetry          = telemetry;
         _logger             = logger;
     }
 
