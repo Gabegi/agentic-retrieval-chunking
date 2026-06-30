@@ -25,5 +25,6 @@ test
 | | dev | prod |
 |---|---|---|
 | serviceConnection | `cor-cap-app-dev` | `cor-cap-app-prd` |
+| backendRgName | `cor-cap-cicd-dev-we-001` | `cor-cap-cicd-prd-we-001` |
 | backendStorageAccount | `corsttfcapdevwe` | `corsttfcapprdwe` |
 | backendContainer | `terraform-state` | `terraform-state` |
