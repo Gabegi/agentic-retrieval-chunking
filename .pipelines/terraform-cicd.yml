@@ -1,0 +1,46 @@
+name: $(BuildDefinitionName)$(SourceBranchName)$(date:yyyyMMdd)$(rev:.r)
+
+trigger:
+  branches:
+    include:
+    - master
+    # - development
+
+variables:
+  ServiceConnectionName: 'anynameofsp'
+  bk-rg-name: 'rg-name'
+  bk-str-account-name: 'strname'
+  bk-container-name: 'containername'
+  bk-key: 'terraform.tfstate'
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+
+  - stage: validate_terraform
+    displayName: 'Validate Terraform'
+
+    jobs:
+    - template: Terraform/plan.yml
+      parameters:
+        env: dev
+    - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/master') }}:
+      - template: Terraform/plan.yml
+        parameters:
+          env: prd
+
+  - stage: deploy_terraform
+    displayName: 'Deploy Terraform'
+    dependsOn:
+    - validate_terraform
+    condition: succeeded('validate_terraform')
+
+    jobs:
+    - template: Terraform/deploy.yml
+      parameters:
+        env: dev
+    - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/master') }}:
+      - template: Terraform/deploy.yml
+        parameters:
+          env: prd
