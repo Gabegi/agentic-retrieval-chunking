@@ -63,13 +63,13 @@ var host = new HostBuilder()
             sp.GetRequiredService<AzureOpenAIClient>()
               .GetEmbeddingClient(config.OpenAiEmbeddingDeployment)
               .AsIEmbeddingGenerator())
-            .UseOpenTelemetry();
+            .UseOpenTelemetry(sourceName: "Microsoft.Extensions.AI", configure: c => c.EnableSensitiveData = true);
 
         services.AddChatClient(sp =>
             sp.GetRequiredService<AzureOpenAIClient>()
               .GetChatClient(config.OpenAiGptDeployment)
               .AsIChatClient())
-            .UseOpenTelemetry();
+            .UseOpenTelemetry(sourceName: "Microsoft.Extensions.AI", configure: c => c.EnableSensitiveData = true);
 
         var appInsightsConnectionString = ctx.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]!;
 
