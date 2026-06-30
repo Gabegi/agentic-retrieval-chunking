@@ -16,7 +16,7 @@ pool:
 variables:
   - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/production') }}:
       - name: envName
-        value: 'prod'
+        value: 'production'
       - name: serviceConnection
         value: 'cor-cap-app-prd'
       - name: tfvarsFile
@@ -29,7 +29,7 @@ variables:
         value: 'terraform-state'
   - ${{ else }}:
       - name: envName
-        value: 'dev'
+        value: 'development'
       - name: serviceConnection
         value: 'cor-cap-app-dev'
       - name: tfvarsFile
