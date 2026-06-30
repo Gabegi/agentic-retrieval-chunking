@@ -95,7 +95,7 @@ public class RagQueryService : IRagQueryService
         sw.Stop();
 
         return new RagQueryResult(
-            Answer:            response.Message.Text ?? "",
+            Answer:            response.Text ?? "",
             RetrievedContext:  retrievedContext,
             SystemInstructions: systemPrompt,
             ChunksRetrieved:   chunks.Count,
