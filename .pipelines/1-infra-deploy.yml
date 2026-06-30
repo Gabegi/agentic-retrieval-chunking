@@ -63,64 +63,65 @@ stages:
               terraform version
             displayName: 'Install Terraform'
 
+          # Extract SP credentials into step-scoped variables.
+          # AzureCLI@2 clears the CLI session on exit (az account clear),
+          # so subsequent Bash tasks run with no active CLI session —
+          # forcing Terraform to use ARM_* env vars instead of CLI auth.
           - task: AzureCLI@2
-            displayName: 'Init'
+            displayName: 'Get SP Credentials'
             inputs:
               azureSubscription: '$(serviceConnection)'
               scriptType: bash
               scriptLocation: inlineScript
               addSpnToEnvironment: true
-              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
               inlineScript: |
-                STORAGE_KEY=$(az storage account keys list \
-                  --resource-group $(backendRgName) \
-                  --account-name $(backendStorageAccount) \
-                  --query '[0].value' -o tsv)
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_TENANT_ID=$tenantId
-                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                echo "##vso[task.setvariable variable=tf_client_id;issecret=true]$servicePrincipalId"
+                echo "##vso[task.setvariable variable=tf_client_secret;issecret=true]$servicePrincipalKey"
+                echo "##vso[task.setvariable variable=tf_tenant_id]$tenantId"
+                echo "##vso[task.setvariable variable=tf_subscription_id]$(az account show --query id -o tsv)"
+
+          - task: Bash@3
+            displayName: 'Init'
+            inputs:
+              targetType: inline
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+              script: |
+                export ARM_CLIENT_ID="$(tf_client_id)"
+                export ARM_CLIENT_SECRET="$(tf_client_secret)"
+                export ARM_TENANT_ID="$(tf_tenant_id)"
+                export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
                 export ARM_USE_CLI=false
-                export AZURE_CONFIG_DIR=$(mktemp -d)
                 terraform init \
                   -backend-config="resource_group_name=$(backendRgName)" \
                   -backend-config="storage_account_name=$(backendStorageAccount)" \
                   -backend-config="container_name=$(backendContainer)" \
                   -backend-config="key=$(backendKey)" \
-                  -backend-config="access_key=$STORAGE_KEY"
+                  -backend-config="use_azuread_auth=true"
 
-          - task: AzureCLI@2
+          - task: Bash@3
             displayName: 'Validate'
             inputs:
-              azureSubscription: '$(serviceConnection)'
-              scriptType: bash
-              scriptLocation: inlineScript
-              addSpnToEnvironment: true
+              targetType: inline
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-              inlineScript: |
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_TENANT_ID=$tenantId
-                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+              script: |
+                export ARM_CLIENT_ID="$(tf_client_id)"
+                export ARM_CLIENT_SECRET="$(tf_client_secret)"
+                export ARM_TENANT_ID="$(tf_tenant_id)"
+                export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
                 export ARM_USE_CLI=false
-                export AZURE_CONFIG_DIR=$(mktemp -d)
                 terraform validate
 
-          - task: AzureCLI@2
+          - task: Bash@3
             displayName: 'Plan'
             inputs:
-              azureSubscription: '$(serviceConnection)'
-              scriptType: bash
-              scriptLocation: inlineScript
-              addSpnToEnvironment: true
+              targetType: inline
               workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-              inlineScript: |
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_TENANT_ID=$tenantId
-                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+              script: |
+                export ARM_CLIENT_ID="$(tf_client_id)"
+                export ARM_CLIENT_SECRET="$(tf_client_secret)"
+                export ARM_TENANT_ID="$(tf_tenant_id)"
+                export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
                 export ARM_USE_CLI=false
-                export AZURE_CONFIG_DIR=$(mktemp -d)
                 terraform plan \
                   -var-file="$(tfvarsFile)" \
                   -out=$(Build.ArtifactStagingDirectory)/tfplan
@@ -129,7 +130,7 @@ stages:
             artifact: tfplan
 
   # Only runs on push to development/production, not on PRs.
-  # 'prod' environment requires an Approval check in Pipelines > Environments.
+  # 'production' environment requires an Approval check in Pipelines > Environments.
   - stage: Apply
     displayName: 'Apply ($(envName))'
     dependsOn: Plan
@@ -155,43 +156,45 @@ stages:
                   displayName: 'Install Terraform'
 
                 - task: AzureCLI@2
-                  displayName: 'Init'
+                  displayName: 'Get SP Credentials'
                   inputs:
                     azureSubscription: '$(serviceConnection)'
                     scriptType: bash
                     scriptLocation: inlineScript
                     addSpnToEnvironment: true
-                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
                     inlineScript: |
-                      export ARM_CLIENT_ID=$servicePrincipalId
-                      export ARM_CLIENT_SECRET=$servicePrincipalKey
-                      export ARM_TENANT_ID=$tenantId
-                      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                      echo "##vso[task.setvariable variable=tf_client_id;issecret=true]$servicePrincipalId"
+                      echo "##vso[task.setvariable variable=tf_client_secret;issecret=true]$servicePrincipalKey"
+                      echo "##vso[task.setvariable variable=tf_tenant_id]$tenantId"
+                      echo "##vso[task.setvariable variable=tf_subscription_id]$(az account show --query id -o tsv)"
+
+                - task: Bash@3
+                  displayName: 'Init'
+                  inputs:
+                    targetType: inline
+                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+                    script: |
+                      export ARM_CLIENT_ID="$(tf_client_id)"
+                      export ARM_CLIENT_SECRET="$(tf_client_secret)"
+                      export ARM_TENANT_ID="$(tf_tenant_id)"
+                      export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
                       export ARM_USE_CLI=false
-                      export AZURE_CONFIG_DIR=$(mktemp -d)
                       terraform init \
                         -backend-config="resource_group_name=$(backendRgName)" \
                         -backend-config="storage_account_name=$(backendStorageAccount)" \
                         -backend-config="container_name=$(backendContainer)" \
                         -backend-config="key=$(backendKey)" \
-                        -backend-config="client_id=$servicePrincipalId" \
-                        -backend-config="client_secret=$servicePrincipalKey" \
-                        -backend-config="tenant_id=$tenantId" \
-                        -backend-config="subscription_id=$ARM_SUBSCRIPTION_ID"
+                        -backend-config="use_azuread_auth=true"
 
-                - task: AzureCLI@2
+                - task: Bash@3
                   displayName: 'Apply'
                   inputs:
-                    azureSubscription: '$(serviceConnection)'
-                    scriptType: bash
-                    scriptLocation: inlineScript
-                    addSpnToEnvironment: true
+                    targetType: inline
                     workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-                    inlineScript: |
-                      export ARM_CLIENT_ID=$servicePrincipalId
-                      export ARM_CLIENT_SECRET=$servicePrincipalKey
-                      export ARM_TENANT_ID=$tenantId
-                      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                    script: |
+                      export ARM_CLIENT_ID="$(tf_client_id)"
+                      export ARM_CLIENT_SECRET="$(tf_client_secret)"
+                      export ARM_TENANT_ID="$(tf_tenant_id)"
+                      export ARM_SUBSCRIPTION_ID="$(tf_subscription_id)"
                       export ARM_USE_CLI=false
-                      export AZURE_CONFIG_DIR=$(mktemp -d)
                       terraform apply $(Pipeline.Workspace)/tfplan/tfplan
