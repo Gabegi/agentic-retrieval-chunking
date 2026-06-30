@@ -1,5 +1,23 @@
 # Amazing Repo
 
+## Repository Structure
+
+```
+/
+├── infra/                      # Terraform infrastructure
+│   ├── envs/
+│   │   ├── dev.tfvars
+│   │   └── prod.tfvars
+│   ├── main.tf
+│   ├── outputs.tf
+│   ├── providers.tf
+│   └── variables.tf
+├── src/                        # .NET application code
+├── .pipelines/                 # Azure DevOps pipelines
+│   └── 1-infra-deploy.yml      # Terraform CI/CD (plan on PR, apply on push)
+└── ReadMe.md
+```
+
 ## Terraform Pipeline Configuration
 
 | | dev | prod |
