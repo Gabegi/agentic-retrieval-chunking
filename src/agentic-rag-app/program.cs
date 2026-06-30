@@ -74,6 +74,7 @@ var host = new HostBuilder()
         var appInsightsConnectionString = ctx.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]!;
 
         services.AddOpenTelemetry()
+            .UseFunctionsWorkerDefaults()
             .ConfigureResource(r => r.AddService(
                 serviceName:    "protocols-indexer",
                 serviceVersion: "1.0.0"))
