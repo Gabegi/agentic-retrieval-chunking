@@ -48,9 +48,13 @@ public class QueryingFunction
                 Question:         body.Question,
                 Answer:           result.Answer,
                 RetrievedContext: result.RetrievedContext,
+                ChunksRetrieved:  result.ChunksRetrieved,
+                Model:            result.Model,
+                FinishReason:     result.FinishReason,
                 LatencyMs:        result.LatencyMs,
                 InputTokens:      result.InputTokens,
-                OutputTokens:     result.OutputTokens),
+                OutputTokens:     result.OutputTokens,
+                TotalTokens:      result.TotalTokens),
                 context.CancellationToken);
 
         var response = req.CreateResponse(HttpStatusCode.OK);

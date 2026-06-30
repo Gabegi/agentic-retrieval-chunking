@@ -89,8 +89,12 @@ public class RagQueryService : IRagQueryService
         return new RagQueryResult(
             Answer:           completion.Value.Content[0].Text,
             RetrievedContext: retrievedContext,
+            ChunksRetrieved:  chunks.Count,
+            Model:            completion.Value.Model,
+            FinishReason:     completion.Value.FinishReason?.ToString() ?? "unknown",
             LatencyMs:        sw.ElapsedMilliseconds,
             InputTokens:      completion.Value.Usage.InputTokenCount,
-            OutputTokens:     completion.Value.Usage.OutputTokenCount);
+            OutputTokens:     completion.Value.Usage.OutputTokenCount,
+            TotalTokens:      completion.Value.Usage.TotalTokenCount);
     }
 }
