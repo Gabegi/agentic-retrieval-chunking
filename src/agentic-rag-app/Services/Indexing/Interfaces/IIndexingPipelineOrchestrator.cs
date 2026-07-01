@@ -10,5 +10,7 @@ public interface IIndexingPipelineOrchestrator
 
     (IReadOnlyList<ProtocolDocument> Docs, ChunkStats Stats) Chunk(IReadOnlyList<ExtractionDocument> docs);
 
-    Task<EmbedUploadStats> EmbedAndUploadAsync(IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default);
+    Task<EmbeddingRunResult> EmbedAsync(IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default);
+
+    Task<UploadResult> UploadAsync(IEnumerable<ProtocolDocument> docs, CancellationToken ct = default);
 }
