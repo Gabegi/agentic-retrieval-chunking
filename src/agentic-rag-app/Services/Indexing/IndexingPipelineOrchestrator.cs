@@ -13,6 +13,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
     private readonly Dictionary<string, IExtractionOrchestrator> _extractors;
     private readonly IChunkingService                            _chunkingService;
     private readonly IEmbeddingService                           _embeddingService;
+    private readonly IUploadService                              _uploadService;
     private readonly IIndexService                               _indexService;
     private readonly IIndexDocumentService                       _indexDocumentService;
     private readonly ILogger<IndexingPipelineOrchestrator>       _logger;
@@ -21,6 +22,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         IEnumerable<IExtractionOrchestrator>  extractors,
         IChunkingService                      chunkingService,
         IEmbeddingService                     embeddingService,
+        IUploadService                        uploadService,
         IIndexService                         indexService,
         IIndexDocumentService                 indexDocumentService,
         ILogger<IndexingPipelineOrchestrator> logger)
@@ -28,6 +30,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         _extractors           = extractors.ToDictionary(e => e.Source, StringComparer.OrdinalIgnoreCase);
         _chunkingService      = chunkingService;
         _embeddingService     = embeddingService;
+        _uploadService        = uploadService;
         _indexService         = indexService;
         _indexDocumentService = indexDocumentService;
         _logger               = logger;
