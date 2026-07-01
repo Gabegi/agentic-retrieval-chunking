@@ -115,5 +115,9 @@ public class IndexService : IIndexService
         return semanticSearch;
     }
 
-    
+    public async Task<(long DocumentCount, long StorageSizeBytes)> GetStatisticsAsync(CancellationToken ct = default)
+    {
+        var response = await _indexClient.GetIndexStatisticsAsync(_config.SearchIndexName, ct);
+        return (response.Value.DocumentCount, response.Value.StorageSize);
+    }
 }
