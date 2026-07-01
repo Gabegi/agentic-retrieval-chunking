@@ -6,7 +6,7 @@ using ProtocolsIndexer.Utils;
 
 namespace ProtocolsIndexer.Services;
 
-public class DocumentIntelligenceExtractionService : IExtractionService
+public class DocumentIntelligenceExtractionService
 {
     public string Name => "Document Intelligence";
 
