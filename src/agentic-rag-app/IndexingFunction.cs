@@ -106,6 +106,7 @@ public class IndexingFunction
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "extract"));
             _logger.LogError(ex, "ExtractActivity failed for '{Source}'", req.Source);
             throw new InvalidOperationException($"ExtractActivity failed: {ex.Message}");
         }
@@ -126,6 +127,7 @@ public class IndexingFunction
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "chunk"));
             _logger.LogError(ex, "ChunkActivity failed for '{InputBlob}'", req.InputBlob);
             throw new InvalidOperationException($"ChunkActivity failed: {ex.Message}");
         }
