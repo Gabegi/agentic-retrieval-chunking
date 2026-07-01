@@ -171,7 +171,8 @@ public class IndexingFunction
                 VectorDimErrors:               embeddingResult.VectorDimErrors,
                 TotalEmbeddingDurationMs:      sw.ElapsedMilliseconds,
                 IndexDocumentCountSnapshot:    uploadResult.IndexDocumentCountSnapshot,
-                IndexStorageSizeBytesSnapshot: uploadResult.IndexStorageSizeBytesSnapshot);
+                IndexStorageSizeBytesSnapshot: uploadResult.IndexStorageSizeBytesSnapshot,
+                RedFlags:                      uploadResult.RedFlags);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

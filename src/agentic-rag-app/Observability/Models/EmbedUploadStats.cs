@@ -10,5 +10,8 @@ public record EmbedUploadingResults(
     // Snapshot taken after upload. Azure Search stats lag live writes by minutes —
     // use this for corpus drift checks, not for "did this run add N chunks" (use DocsUploaded for that).
     long? IndexDocumentCountSnapshot,
-    long? IndexStorageSizeBytesSnapshot
+    long? IndexStorageSizeBytesSnapshot,
+    // Populated when doc-count drift exceeds the threshold in UploadService. Merged into
+    // IndexRunReport.RedFlags alongside extraction-stage flags.
+    IReadOnlyList<string> RedFlags
 );

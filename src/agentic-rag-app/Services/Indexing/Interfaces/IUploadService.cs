@@ -11,5 +11,6 @@ public record UploadResult(
     int   DocsUploaded,
     int   DocsFailed,
     long? IndexDocumentCountSnapshot,
-    long? IndexStorageSizeBytesSnapshot
+    long? IndexStorageSizeBytesSnapshot,
+    IReadOnlyList<string> RedFlags
 );
