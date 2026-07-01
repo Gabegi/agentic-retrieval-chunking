@@ -12,7 +12,7 @@ namespace ProtocolsIndexer.Services;
 // Used during development to compare different PDF extraction services side-by-side.
 public class ExtractionComparisonRunner
 {
-    private readonly IExtractionService[]                _services;
+    private readonly IPdfExtractionService[]             _services;
     private readonly BlobContainerClient                 _container;
     private readonly AzureOpenAIClient                   _openAi;
     private readonly IndexerConfig                       _config;
@@ -21,7 +21,7 @@ public class ExtractionComparisonRunner
     private const string OutputDir = "comparison-output";
 
     public ExtractionComparisonRunner(
-        IEnumerable<IExtractionService>      services,
+        IEnumerable<IPdfExtractionService>   services,
         BlobContainerClient                  container,
         AzureOpenAIClient                    openAi,
         IndexerConfig                        config,

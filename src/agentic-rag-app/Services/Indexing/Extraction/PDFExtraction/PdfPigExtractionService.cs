@@ -6,7 +6,7 @@ using UglyToad.PdfPig;
 
 namespace ProtocolsIndexer.Services;
 
-public class PdfPigExtractionService
+public class PdfPigExtractionService : IPdfExtractionService
 {
     public string Name => "PdfPig (Heuristic)";
 
