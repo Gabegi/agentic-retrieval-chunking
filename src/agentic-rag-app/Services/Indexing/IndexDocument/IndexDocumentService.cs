@@ -22,14 +22,16 @@ public class IndexDocumentService : IIndexDocumentService
     }
 
     // Uploads embedded documents to the index in batches of 1000 (push API limit).
-    public async Task UpsertDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default)
+    public async Task<(int Succeeded, int Failed)> UpsertDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default)
     {
         var docList   = documents.ToList();
         var succeeded = 0;
         var failed    = 0;
+        var batches   = 0;
 
         foreach (var batch in docList.Chunk(1000))
         {
+            batches++;
             var response = await _searchClient.UploadDocumentsAsync(batch, cancellationToken: ct);
             foreach (var result in response.Value.Results)
             {
@@ -39,11 +41,17 @@ public class IndexDocumentService : IIndexDocumentService
                     Instrumentation.UploadFailures.Add(1);
                     failed++;
                 }
-                else succeeded++;
+                else
+                {
+                    succeeded++;
+                }
             }
         }
 
+        Instrumentation.DocsUpserted.Add(succeeded);
+        Instrumentation.UploadBatchCount.Add(batches);
         _logger.LogInformation("Upsert complete — {Succeeded} succeeded, {Failed} failed", succeeded, failed);
+        return (succeeded, failed);
     }
 
     // Pages through the entire index selecting only document_id + last_modified_date.
