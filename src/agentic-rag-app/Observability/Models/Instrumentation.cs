@@ -127,4 +127,9 @@ internal static class Instrumentation
     // Successful full pipeline runs. Kept from the original implementation.
     internal static readonly Counter<long> BlobsProcessed =
         Meter.CreateCounter<long>("indexer.blobs_processed", description: "Pipeline runs completed successfully");
+
+    // Unhandled exceptions per pipeline stage. Tags: stage (extract|chunk|embed_upload).
+    // Distinct from UploadFailures (per-document) — this fires once per stage crash.
+    internal static readonly Counter<long> PipelineFailures =
+        Meter.CreateCounter<long>("indexer.pipeline_failures", description: "Unhandled exceptions per pipeline stage (tag: stage)");
 }
