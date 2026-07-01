@@ -125,4 +125,14 @@ internal static class Instrumentation
     // Distinct from UploadFailures (per-document) — this fires once per stage crash.
     internal static readonly Counter<long> PipelineFailures =
         Meter.CreateCounter<long>("indexer.pipeline_failures", description: "Unhandled exceptions per pipeline stage (tag: stage)");
+
+    // ── Index Stats ──────────────────────────────────────────────────────────
+    // Whole-index aggregates from Azure Search, recorded once per run (histogram over runs, not per-doc).
+    // Unlike IndexRunReport, these are exported in every environment — the basis for drift dashboards/alerts.
+
+    internal static readonly Histogram<long> IndexDocumentCount =
+        Meter.CreateHistogram<long>("indexer.index_document_count", description: "Total documents in the Azure Search index after this run's upload");
+
+    internal static readonly Histogram<long> IndexStorageSizeBytes =
+        Meter.CreateHistogram<long>("indexer.index_storage_size_bytes", unit: "bytes", description: "Total storage size of the Azure Search index after this run's upload");
 }
