@@ -134,16 +134,31 @@ public class IndexingFunction
         }
     }
 
-    // Step 3 — read ProtocolDocuments, embed and upload to Azure AI Search; return stats
+    // Step 3 — read ProtocolDocuments, embed then upload to Azure AI Search; return combined stats
     [Function("EmbedAndUploadActivity")]
     public async Task<EmbedUploadStats> EmbedAndUploadActivity([ActivityTrigger] string chunksBlobName, FunctionContext context)
     {
         try
         {
             var chunks = await ReadBlobAsync<List<ProtocolDocument>>(chunksBlobName, context.CancellationToken);
-            var stats  = await _orchestrator.EmbedAndUploadAsync(chunks, context.CancellationToken);
+
+            var sw              = System.Diagnostics.Stopwatch.StartNew();
+            var embeddingResult = await _orchestrator.EmbedAsync(chunks, context.CancellationToken);
+            sw.Stop();
+
+            var uploadResult = await _orchestrator.UploadAsync(embeddingResult.Documents, context.CancellationToken);
+
             await DeleteBlobAsync(chunksBlobName, context.CancellationToken);
-            return stats;
+
+            return new EmbedUploadStats(
+                DocsUploaded:                  uploadResult.DocsUploaded,
+                DocsFailed:                    uploadResult.DocsFailed,
+                ChunksTruncated:               embeddingResult.ChunksTruncated,
+                EmbeddingRetries:              embeddingResult.EmbeddingRetries,
+                VectorDimErrors:               embeddingResult.VectorDimErrors,
+                TotalEmbeddingDurationMs:      sw.ElapsedMilliseconds,
+                IndexDocumentCountSnapshot:    uploadResult.IndexDocumentCountSnapshot,
+                IndexStorageSizeBytesSnapshot: uploadResult.IndexStorageSizeBytesSnapshot);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
