@@ -126,33 +126,20 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
             var embeddingResult = await _embeddingService.EmbedDocumentsAsync(docs, ct);
             sw.Stop();
 
-            var (succeeded, failed) = await _indexDocumentService.UpsertDocumentsAsync(embeddingResult.Documents, ct);
+            var uploadResult = await _uploadService.UploadDocumentsAsync(embeddingResult.Documents, ct);
 
             Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
-            _logger.LogInformation("Embedded and uploaded {Count} documents ({Succeeded} succeeded, {Failed} failed)",
-                docs.Count, succeeded, failed);
-
-            long? indexDocCount = null, indexStorageBytes = null;
-            try
-            {
-                var (docCount, storageBytes) = await _indexService.GetStatisticsAsync(ct);
-                (indexDocCount, indexStorageBytes) = (docCount, storageBytes);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning(ex, "Index stats snapshot failed — continuing, this run's own results are unaffected");
-                Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "stats_snapshot"));
-            }
+            _logger.LogInformation("Embedded and uploaded {Count} documents", docs.Count);
 
             return new EmbedUploadStats(
-                DocsUploaded:                  succeeded,
-                DocsFailed:                    failed,
+                DocsUploaded:                  uploadResult.DocsUploaded,
+                DocsFailed:                    uploadResult.DocsFailed,
                 ChunksTruncated:               embeddingResult.ChunksTruncated,
                 EmbeddingRetries:              embeddingResult.EmbeddingRetries,
                 VectorDimErrors:               embeddingResult.VectorDimErrors,
                 TotalEmbeddingDurationMs:      sw.ElapsedMilliseconds,
-                IndexDocumentCountSnapshot:    indexDocCount,
-                IndexStorageSizeBytesSnapshot: indexStorageBytes);
+                IndexDocumentCountSnapshot:    uploadResult.IndexDocumentCountSnapshot,
+                IndexStorageSizeBytesSnapshot: uploadResult.IndexStorageSizeBytesSnapshot);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
