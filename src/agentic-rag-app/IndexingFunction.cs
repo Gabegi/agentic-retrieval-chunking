@@ -255,7 +255,7 @@ public class IndexingFunction
             IndexDocumentCountSnapshot:      embed?.IndexDocumentCountSnapshot,
             IndexStorageSizeBytesSnapshot:   embed?.IndexStorageSizeBytesSnapshot,
             Issues:                  ext?.Issues         ?? [],
-            RedFlags:                ext?.RedFlags        ?? [],
+            RedFlags:                [.. ext?.RedFlags ?? [], .. embed?.RedFlags ?? []],
             SpotCheckSample:         ext?.SpotCheckSample ?? []);
 
     private async Task WriteBlobAsync<T>(string blobPath, T data, CancellationToken ct)
