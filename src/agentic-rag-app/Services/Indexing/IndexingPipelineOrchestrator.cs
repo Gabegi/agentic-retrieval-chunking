@@ -117,33 +117,32 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
     public (IReadOnlyList<ProtocolDocument> Docs, ChunkStats Stats) Chunk(
         IReadOnlyList<ExtractionDocument> docs) => _chunkingService.ChunkDocuments(docs);
 
-    public async Task<EmbedUploadStats> EmbedAndUploadAsync(
+    public async Task<EmbeddingRunResult> EmbedAsync(
         IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default)
     {
         try
         {
-            var sw              = System.Diagnostics.Stopwatch.StartNew();
-            var embeddingResult = await _embeddingService.EmbedDocumentsAsync(docs, ct);
-            sw.Stop();
-
-            var uploadResult = await _uploadService.UploadDocumentsAsync(embeddingResult.Documents, ct);
-
-            Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
-            _logger.LogInformation("Embedded and uploaded {Count} documents", docs.Count);
-
-            return new EmbedUploadStats(
-                DocsUploaded:                  uploadResult.DocsUploaded,
-                DocsFailed:                    uploadResult.DocsFailed,
-                ChunksTruncated:               embeddingResult.ChunksTruncated,
-                EmbeddingRetries:              embeddingResult.EmbeddingRetries,
-                VectorDimErrors:               embeddingResult.VectorDimErrors,
-                TotalEmbeddingDurationMs:      sw.ElapsedMilliseconds,
-                IndexDocumentCountSnapshot:    uploadResult.IndexDocumentCountSnapshot,
-                IndexStorageSizeBytesSnapshot: uploadResult.IndexStorageSizeBytesSnapshot);
+            return await _embeddingService.EmbedDocumentsAsync(docs, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "embed_upload"));
+            Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "embed"));
+            throw;
+        }
+    }
+
+    public async Task<UploadResult> UploadAsync(
+        IEnumerable<ProtocolDocument> docs, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await _uploadService.UploadDocumentsAsync(docs, ct);
+            Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
+            return result;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "upload"));
             Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "failure"));
             throw;
         }
