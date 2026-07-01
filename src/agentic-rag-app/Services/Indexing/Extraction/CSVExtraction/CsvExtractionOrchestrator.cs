@@ -1,12 +1,13 @@
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
+using ProtocolsIndexer.Observability;
 
 namespace ProtocolsIndexer.Services;
 
 // CSV implementation of IExtractionOrchestrator.
 // Downloads pages.csv + index.csv from blob storage, runs the full CSV pipeline,
-// and returns source-agnostic ExtractionDocuments. Callers see no CSV internals.
+// and returns source-agnostic ExtractionDocuments plus quality metadata from the validator.
 public class CsvExtractionOrchestrator : IExtractionOrchestrator
 {
     private readonly BlobContainerClient                _container;
@@ -25,7 +26,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         _logger    = logger;
     }
 
-    public async Task<IReadOnlyList<ExtractionDocument>> ExtractDocumentsAsync(CancellationToken ct = default)
+    public async Task<ExtractionOutput> ExtractDocumentsAsync(CancellationToken ct = default)
     {
         using var pagesStream = new MemoryStream();
         using var indexStream = new MemoryStream();
@@ -55,7 +56,45 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             throw new InvalidOperationException(
                 $"CSV validation failed ({report.ReconciliationProblems.Count} reconciliation problem(s)) — aborting extraction.");
 
-        return cleanResult.Records
+        // Emit validation metrics
+        var errors   = report.Issues.Count(i => i.Severity == "Error");
+        var warnings = report.Issues.Count(i => i.Severity != "Error");
+
+        var sourceTag = new KeyValuePair<string, object?>("source", Source);
+
+        if (errors > 0)
+            Instrumentation.ValidationIssues.Add(errors, sourceTag, new("severity", "error"));
+        if (warnings > 0)
+            Instrumentation.ValidationIssues.Add(warnings, sourceTag, new("severity", "warning"));
+
+        if (report.RedFlags.Count > 0)
+        {
+            // Extract stale doc count from the red-flag message produced by PipelineValidator
+            var staleFlag = report.RedFlags.FirstOrDefault(f => f.Contains("check_date_exceeded"));
+            if (staleFlag != null && int.TryParse(
+                    new string(staleFlag.TakeWhile(char.IsDigit).ToArray()), out var staleCount))
+                Instrumentation.StaleDocs.Add(staleCount, sourceTag);
+        }
+
+        Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
+
+        // Metadata completeness — count docs missing title, version, department
+        var docs = cleanResult.Records.ToList();
+        var missingTitle      = docs.DistinctBy(r => r.DocumentId).Count(r => string.IsNullOrWhiteSpace(r.Title));
+        var missingVersion    = docs.DistinctBy(r => r.DocumentId).Count(r => string.IsNullOrWhiteSpace(r.Version));
+        var missingDepartment = docs.DistinctBy(r => r.DocumentId).Count(r => string.IsNullOrWhiteSpace(r.FolderPath));
+
+        if (missingTitle > 0)      Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
+        if (missingVersion > 0)    Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
+        if (missingDepartment > 0) Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
+
+        var staleDocCount = cleanResult.Records
+            .Where(r => r.AttentionFlags.Contains("check_date_exceeded"))
+            .Select(r => r.DocumentId)
+            .Distinct()
+            .Count();
+
+        var extractionDocs = cleanResult.Records
             .Select(r => new ExtractionDocument(
                 SourceId: r.DocumentId,
                 Ordinal:  r.PageIndex,
@@ -72,5 +111,31 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
                     ["summary"]            = r.Summary,
                 }))
             .ToList();
+
+        var issues = report.Issues
+            .Take(100)  // cap to stay safely under Durable Table Storage 64KB limit
+            .Select(i => new ValidationIssueEntry(i.Stage, i.Severity, i.DocumentId, i.Message))
+            .ToList();
+
+        var spotCheck = report.SpotCheckSample
+            .Select(r => new SpotCheckEntry(
+                r.DocumentId,
+                r.Title,
+                r.PageContent.Length > 300 ? r.PageContent[..300] + "…" : r.PageContent))
+            .ToList();
+
+        return new ExtractionOutput(
+            Docs:                   extractionDocs,
+            ValidationErrors:       errors,
+            ValidationWarnings:     warnings,
+            ReconciliationProblems: report.ReconciliationProblems.Count,
+            StaleDocCount:          staleDocCount,
+            DocsWithoutHeadings:    report.DocumentsNeedingFallbackChunking.Count,
+            MissingTitleCount:      missingTitle,
+            MissingVersionCount:    missingVersion,
+            MissingDepartmentCount: missingDepartment,
+            Issues:                 issues,
+            RedFlags:               report.RedFlags.ToList(),
+            SpotCheckSample:        spotCheck);
     }
 }

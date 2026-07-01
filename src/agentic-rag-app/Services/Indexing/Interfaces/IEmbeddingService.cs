@@ -4,5 +4,13 @@ namespace ProtocolsIndexer.Services;
 
 public interface IEmbeddingService
 {
-    Task<IEnumerable<ProtocolDocument>> EmbedDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default);
+    Task<EmbeddingRunResult> EmbedDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default);
 }
+
+public record EmbeddingRunResult(
+    IEnumerable<ProtocolDocument> Documents,
+    int  ChunksTruncated,
+    int  EmbeddingRetries,
+    int  VectorDimErrors,
+    long TotalDurationMs
+);
