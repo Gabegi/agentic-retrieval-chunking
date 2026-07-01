@@ -11,7 +11,7 @@ public interface IChunkingService
     IReadOnlyList<TextChunk> ChunkAsync(string content);
 
     // High-level: converts ExtractionDocuments into indexed ProtocolDocuments,
-    // computes ChunkStats, and emits all chunk telemetry.
+    // computes ChunkingResults, and emits all chunk telemetry.
     (IReadOnlyList<ProtocolDocument> Docs, ChunkingResults Stats) ChunkDocuments(
         IReadOnlyList<ExtractionDocument> docs);
 }
