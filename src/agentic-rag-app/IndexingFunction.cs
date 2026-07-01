@@ -8,6 +8,7 @@ using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
+using ProtocolsIndexer.Observability;
 using ProtocolsIndexer.Observability.Reports;
 using ProtocolsIndexer.Services;
 

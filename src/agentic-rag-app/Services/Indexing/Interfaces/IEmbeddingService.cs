@@ -9,8 +9,7 @@ public interface IEmbeddingService
 
 public record EmbeddingRunResult(
     IEnumerable<ProtocolDocument> Documents,
-    int  ChunksTruncated,
-    int  EmbeddingRetries,
-    int  VectorDimErrors,
-    long TotalDurationMs
+    int ChunksTruncated,
+    int EmbeddingRetries,
+    int VectorDimErrors
 );

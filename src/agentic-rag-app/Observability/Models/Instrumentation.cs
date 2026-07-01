@@ -94,10 +94,6 @@ internal static class Instrumentation
 
     // ── Embedding ────────────────────────────────────────────────────────────
 
-    // Wall-clock time to embed a single chunk. Outliers here reveal oversized content or API latency.
-    internal static readonly Histogram<long> EmbeddingDurationMs =
-        Meter.CreateHistogram<long>("indexer.embedding_duration_ms", unit: "ms", description: "Time to embed a single chunk including retries");
-
     // 429 throttle retries. A spike here means you are hitting OpenAI rate limits.
     internal static readonly Counter<long> EmbeddingRetries =
         Meter.CreateCounter<long>("indexer.embedding_retries", description: "OpenAI 429 throttle retries during embedding");
