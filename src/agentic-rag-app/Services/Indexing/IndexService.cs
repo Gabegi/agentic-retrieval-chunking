@@ -114,18 +114,4 @@ public class IndexService : IIndexService
         semanticSearch.DefaultConfigurationName = "semantic-config";
         return semanticSearch;
     }
-
-    // Gets Azure AI Search stats:
-        // DocumentCount – total documents currently in the index
-        // StorageSize – total storage the index is consuming, in bytes
-    // Fetches whole-index aggregates from Azure AI Search (GET .../indexes/{name}/stats) —
-    // just DocumentCount and StorageSize, no per-field or per-document detail.
-    // Called once per run, after upload, purely as a corpus-drift signal across runs;
-    // it does not confirm what this run wrote (use DocsUploaded/DocsFailed for that) and
-    // no automated action is taken on the result — see IndexRunReport for how it's surfaced.
-    public async Task<(long DocumentCount, long StorageSizeBytes)> GetStatisticsAsync(CancellationToken ct = default)
-    {
-        var response = await _indexClient.GetIndexStatisticsAsync(_config.SearchIndexName, ct);
-        return (response.Value.DocumentCount, response.Value.StorageSize);
-    }
 }

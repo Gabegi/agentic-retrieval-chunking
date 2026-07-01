@@ -1,23 +1,37 @@
 using Azure.Search.Documents;
+using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
 using Azure.Core;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Observability;
+using ProtocolsIndexer.Observability.Reports;
 
 namespace ProtocolsIndexer.Services;
 
-// Handles document-level CRUD operations against the Azure AI Search index.
+// Handles document-level CRUD operations against the Azure AI Search index, plus the
+// data-volume monitoring (stats + drift) that rides along with it.
 // IndexService owns schema lifecycle; this class owns the document data inside it.
 public class IndexDocumentService : IIndexDocumentService
 {
-    private readonly SearchClient                _searchClient;
+    // Run-over-run doc-count swing beyond this is flagged as drift. Tune based on observed
+    // corpus volatility — the source data doesn't churn more than this between runs today.
+    private const double DriftThresholdPct = 0.15;
+
+    private readonly SearchClient                  _searchClient;
+    private readonly SearchIndexClient             _indexClient;
+    private readonly IndexerConfig                 _config;
+    private readonly IRunReportWriter              _reportWriter;
     private readonly ILogger<IndexDocumentService>  _logger;
 
-    public IndexDocumentService(IndexerConfig config, TokenCredential credential, ILogger<IndexDocumentService> logger)
+    public IndexDocumentService(
+        IndexerConfig config, TokenCredential credential, IRunReportWriter reportWriter, ILogger<IndexDocumentService> logger)
     {
         _searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
+        _indexClient  = new SearchIndexClient(new Uri(config.SearchEndpoint), credential);
+        _config       = config;
+        _reportWriter = reportWriter;
         _logger       = logger;
     }
 
@@ -110,5 +124,42 @@ public class IndexDocumentService : IIndexDocumentService
 
         _logger.LogInformation("Deleted {ChunkCount} chunks for {Count} documents", chunkIds.Count, idList.Count);
         return chunkIds.Count;
+    }
+
+    // Fetches whole-index aggregates from Azure AI Search (GET .../indexes/{name}/stats):
+    //   DocumentCount – total documents currently in the index
+    //   StorageSize   – total storage the index is consuming, in bytes
+    // No per-field or per-document detail is available from this API. Recorded as histograms
+    // in every environment (not just dev) so drift dashboards/alerts have data to work with.
+    public async Task<(long DocumentCount, long StorageSizeBytes)> GetStatisticsAsync(CancellationToken ct = default)
+    {
+        var response = await _indexClient.GetIndexStatisticsAsync(_config.SearchIndexName, ct);
+        var (docCount, storageBytes) = (response.Value.DocumentCount, response.Value.StorageSize);
+
+        Instrumentation.IndexDocumentCount.Record(docCount);
+        Instrumentation.IndexStorageSizeBytes.Record(storageBytes);
+
+        return (docCount, storageBytes);
+    }
+
+    // Compares against the last saved baseline and flags a run-over-run doc-count swing
+    // beyond DriftThresholdPct, then saves the given stats as the new baseline regardless.
+    public async Task<IReadOnlyList<string>> CheckDriftAsync(long documentCount, long storageSizeBytes, CancellationToken ct = default)
+    {
+        var redFlags = new List<string>();
+        var previous = await _reportWriter.GetLastIndexStatsAsync(ct);
+        if (previous is { DocumentCount: > 0 } baseline)
+        {
+            var deltaPct = (documentCount - baseline.DocumentCount) / (double)baseline.DocumentCount;
+            if (Math.Abs(deltaPct) > DriftThresholdPct)
+            {
+                redFlags.Add($"index_doc_count_drift:{deltaPct:+0.0%;-0.0%} ({baseline.DocumentCount} -> {documentCount})");
+                _logger.LogWarning("Index doc count drift detected: {Previous} -> {Current} ({DeltaPct:P1})",
+                    baseline.DocumentCount, documentCount, deltaPct);
+            }
+        }
+
+        await _reportWriter.SaveLastIndexStatsAsync(documentCount, storageSizeBytes, ct);
+        return redFlags;
     }
 }
