@@ -29,7 +29,7 @@ public class ChunkingService : IChunkingService
     }
 
     // Converts ExtractionDocuments into indexed ProtocolDocuments,
-    // computes ChunkStats, and emits all chunk telemetry in one place.
+    // computes ChunkingResults, and emits all chunk telemetry in one place.
     public (IReadOnlyList<ProtocolDocument> Docs, ChunkingResults Stats) ChunkDocuments(
         IReadOnlyList<ExtractionDocument> docs)
     {
@@ -83,7 +83,7 @@ public class ChunkingService : IChunkingService
         Instrumentation.ChunksExtracted.Record(stats.ChunksProduced, strategyTag);
 
         // Per-chunk histogram — preserves the real distribution in App Insights,
-        // not just the aggregates already in ChunkStats.
+        // not just the aggregates already in ChunkingResults.
         foreach (var chunk in chunks)
             Instrumentation.ChunkSizeChars.Record(chunk.Content.Length, strategyTag);
 
