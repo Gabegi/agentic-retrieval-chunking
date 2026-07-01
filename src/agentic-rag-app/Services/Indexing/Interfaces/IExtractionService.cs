@@ -1,9 +1,10 @@
 using ProtocolsIndexer.Models;
+using ProtocolsIndexer.Observability.Reports;
 
 namespace ProtocolsIndexer.Services;
 
 public interface IExtractionService
 {
-    string Name { get; }
-    Task<ExtractionRun> ExtractAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default);
+    Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionStats Stats)> ExtractAsync(
+        string source, bool forceReindex = false, CancellationToken ct = default);
 }
