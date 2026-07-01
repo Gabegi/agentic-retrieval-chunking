@@ -28,6 +28,11 @@ public record IndexRunReport(
     int DocsUpdated,     // docs whose source changed — stale chunks deleted, then re-indexed
     int DocsDeleted,     // stale chunk batches deleted for changed docs (before re-insert)
 
+    // Quality signal: the actual chunk rows removed for changed docs — one doc can own many chunks,
+    // so this is the real cost of DocsUpdated. Net this against ChunksProduced/DocsUploaded to see
+    // true corpus growth for the run, since DocsUploaded alone doesn't account for what was deleted.
+    int ChunksRemoved,
+
     // Quality signal: ValidationErrors > 0 means corrupted or malformed source data made it
     // into the pipeline. Check the Issues list below for the specific records.
     // ValidationWarnings are soft (mojibake, inconsistent tables) — worth reviewing but not blocking.
@@ -79,13 +84,6 @@ public record IndexRunReport(
     int    Band100To500,
     int    Band500To1500,
     int    Band1500Plus,
-
-    // Quality signal: OversizedChunks (token estimate > 1024) may exceed LLM context budgets
-    // and are likely to be truncated or poorly attended to by the model.
-    // UndersizedChunks (token estimate < 20) are too short to carry meaningful retrieval signal.
-    int    OversizedChunks,
-    int    UndersizedChunks,
-    double AvgTokenEstimate,
 
     // Quality signal: CoherentChunks start with a capital letter or digit and end with punctuation —
     // a proxy for well-formed sentence boundaries. Low ratio means the chunker is cutting mid-sentence.
