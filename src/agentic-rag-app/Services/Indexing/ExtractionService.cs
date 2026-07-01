@@ -59,18 +59,19 @@ public class ExtractionService : IExtractionService
         }
 
         var skipped = output.Docs.Count - toProcess.Count;
+        var chunksRemoved = 0;
 
         if (toDelete.Count > 0)
         {
             _logger.LogInformation("Deleting stale chunks for {Count} updated documents", toDelete.Count);
-            await _indexDocumentService.DeleteDocumentsAsync(toDelete, ct);
+            chunksRemoved = await _indexDocumentService.DeleteDocumentsAsync(toDelete, ct);
         }
 
         _logger.LogInformation(
             "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Skipped} skipped",
             _extractor.Source, newCount, updated, skipped);
 
-        return new DiffResult(output, toProcess, toDelete, newCount, updated, skipped);
+        return new DiffResult(output, toProcess, toDelete, newCount, updated, skipped, chunksRemoved);
     }
 
     // 2. Emit instrumentation metrics from the diff result
@@ -81,6 +82,7 @@ public class ExtractionService : IExtractionService
         Instrumentation.DocsNew.Add(diff.NewCount);
         Instrumentation.DocsUpdated.Add(diff.Updated);
         Instrumentation.DocsDeleted.Add(diff.ToDelete.Count);
+        Instrumentation.ChunksRemoved.Add(diff.ChunksRemoved);
         Instrumentation.ValidationIssues.Add(diff.Output.ValidationErrors + diff.Output.ValidationWarnings);
         Instrumentation.StaleDocs.Add(diff.Output.StaleDocCount);
         Instrumentation.DocsWithoutHeadings.Add(diff.Output.DocsWithoutHeadings);
@@ -93,6 +95,7 @@ public class ExtractionService : IExtractionService
         DocsNew:                diff.NewCount,
         DocsUpdated:            diff.Updated,
         DocsDeleted:            diff.ToDelete.Count,
+        ChunksRemoved:          diff.ChunksRemoved,
         ValidationErrors:       diff.Output.ValidationErrors,
         ValidationWarnings:     diff.Output.ValidationWarnings,
         ReconciliationProblems: diff.Output.ReconciliationProblems,
@@ -111,5 +114,6 @@ public class ExtractionService : IExtractionService
         List<string>             ToDelete,
         int                      NewCount,
         int                      Updated,
-        int                      Skipped);
+        int                      Skipped,
+        int                      ChunksRemoved);
 }
