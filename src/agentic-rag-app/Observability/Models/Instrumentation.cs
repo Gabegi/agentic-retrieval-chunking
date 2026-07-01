@@ -11,7 +11,104 @@ internal static class Instrumentation
     internal static readonly ActivitySource ActivitySource = new(ActivitySourceName, "1.0.0");
     internal static readonly Meter          Meter          = new(MeterName, "1.0.0");
 
-    internal static readonly Counter<long>   BlobsProcessed  = Meter.CreateCounter<long>("indexer.blobs_processed",  description: "Blobs fully processed through the indexing pipeline");
-    internal static readonly Counter<long>   UploadFailures  = Meter.CreateCounter<long>("indexer.upload_failures",  description: "Individual document upload failures");
-    internal static readonly Histogram<long> ChunksExtracted = Meter.CreateHistogram<long>("indexer.chunks_extracted", unit: "chunks", description: "Chunks produced per blob");
+    // ── Extraction ────────────────────────────────────────────────────────────
+    // Tags: source (e.g. "csv")
+
+    // Total pages/records extracted from the source before diff filtering.
+    internal static readonly Counter<long> DocsExtracted =
+        Meter.CreateCounter<long>("indexer.docs_extracted", description: "Total records extracted from source before diff filtering");
+
+    // Unchanged docs skipped — incremental indexing working correctly. High ratio is good.
+    internal static readonly Counter<long> DocsSkipped =
+        Meter.CreateCounter<long>("indexer.docs_skipped", description: "Docs skipped because content is unchanged since last run");
+
+    // Net-new docs hitting the index for the first time.
+    internal static readonly Counter<long> DocsNew =
+        Meter.CreateCounter<long>("indexer.docs_new", description: "Docs indexed for the first time");
+
+    // Changed docs: stale chunks deleted then re-indexed.
+    internal static readonly Counter<long> DocsUpdated =
+        Meter.CreateCounter<long>("indexer.docs_updated", description: "Docs re-indexed because source content changed");
+
+    // Stale chunk batches removed for changed docs (before re-insert). Should equal DocsUpdated.
+    internal static readonly Counter<long> DocsDeleted =
+        Meter.CreateCounter<long>("indexer.docs_deleted", description: "Stale chunk batches deleted for changed docs");
+
+    // Validation errors and warnings from PipelineValidator. Tags: source, severity (error|warning), stage.
+    internal static readonly Counter<long> ValidationIssues =
+        Meter.CreateCounter<long>("indexer.validation_issues", description: "Validation issues by severity and stage");
+
+    // Docs past their check_date — live but potentially stale guidance in the index.
+    internal static readonly Counter<long> StaleDocs =
+        Meter.CreateCounter<long>("indexer.stale_docs", description: "Docs flagged check_date_exceeded — guidance may be outdated");
+
+    // Docs with no markdown headings — chunked without structural guidance; may produce lower-quality chunks.
+    internal static readonly Counter<long> DocsWithoutHeadings =
+        Meter.CreateCounter<long>("indexer.docs_without_headings", description: "Docs with no markdown headings — chunked without structural guidance");
+
+    // Docs missing key metadata fields. Tags: source, field (title|version|department).
+    // Missing title is the worst: it is prepended to every chunk and is the primary BM25 signal.
+    internal static readonly Counter<long> MissingMetadata =
+        Meter.CreateCounter<long>("indexer.missing_metadata", description: "Docs missing key metadata fields (title, version, department)");
+
+    // ── Chunking ─────────────────────────────────────────────────────────────
+    // Tags: strategy (chunking strategy name)
+
+    // Per-chunk character length histogram. Azure Monitor computes p50/p95/max automatically.
+    // Watch p95: near 1500 is healthy for this strategy; >> 1500 means truncation risk at embedding.
+    internal static readonly Histogram<long> ChunkSizeChars =
+        Meter.CreateHistogram<long>("indexer.chunk_size_chars", unit: "chars", description: "Character length of each individual chunk");
+
+    // Explicit size-band counter for dashboard distribution charts. Tags: strategy, band.
+    // BandUnder100 = noise. Band1500Plus = approaching embedding truncation limit.
+    internal static readonly Counter<long> ChunkSizeBand =
+        Meter.CreateCounter<long>("indexer.chunk_size_band", description: "Chunk count per size band (under_100 / 100_to_500 / 500_to_1500 / 1500_plus)");
+
+    // Docs that produced zero chunks — empty or whitespace-only content after extraction.
+    internal static readonly Counter<long> DocsWithZeroChunks =
+        Meter.CreateCounter<long>("indexer.docs_with_zero_chunks", description: "Docs that produced no chunks — likely empty content");
+
+    // Duplicate chunks (identical content within the same run). Non-zero wastes vector space.
+    internal static readonly Counter<long> DuplicateChunks =
+        Meter.CreateCounter<long>("indexer.duplicate_chunks", description: "Chunks with content identical to another chunk in the same run");
+
+    // Total chunks produced per run (histogram over runs, not per-chunk). Kept for historical continuity.
+    internal static readonly Histogram<long> ChunksExtracted =
+        Meter.CreateHistogram<long>("indexer.chunks_extracted", unit: "chunks", description: "Total chunks produced per indexing run");
+
+    // ── Embedding ────────────────────────────────────────────────────────────
+
+    // Wall-clock time to embed a single chunk. Outliers here reveal oversized content or API latency.
+    internal static readonly Histogram<long> EmbeddingDurationMs =
+        Meter.CreateHistogram<long>("indexer.embedding_duration_ms", unit: "ms", description: "Time to embed a single chunk including retries");
+
+    // 429 throttle retries. A spike here means you are hitting OpenAI rate limits.
+    internal static readonly Counter<long> EmbeddingRetries =
+        Meter.CreateCounter<long>("indexer.embedding_retries", description: "OpenAI 429 throttle retries during embedding");
+
+    // Chunks over 24k chars truncated before embedding. The model sees incomplete content — quality is degraded.
+    internal static readonly Counter<long> ChunksTruncated =
+        Meter.CreateCounter<long>("indexer.chunks_truncated", description: "Chunks truncated to 24k chars before embedding — model saw incomplete content");
+
+    // Wrong vector dimensions — should always be zero. Non-zero means a model or config mismatch.
+    internal static readonly Counter<long> VectorDimErrors =
+        Meter.CreateCounter<long>("indexer.vector_dim_errors", description: "Chunks with unexpected embedding vector dimensions");
+
+    // ── Upload ────────────────────────────────────────────────────────────────
+
+    // Individual chunk upserts that succeeded. Pair with UploadFailures for the full picture.
+    internal static readonly Counter<long> DocsUpserted =
+        Meter.CreateCounter<long>("indexer.docs_upserted", description: "Individual chunk upserts that succeeded in Azure AI Search");
+
+    // Number of 1000-doc batches submitted to the Search push API.
+    internal static readonly Counter<long> UploadBatchCount =
+        Meter.CreateCounter<long>("indexer.upload_batch_count", description: "Number of 1000-doc batches sent to Azure AI Search");
+
+    // Individual chunk upsert failures. Kept from the original implementation.
+    internal static readonly Counter<long> UploadFailures =
+        Meter.CreateCounter<long>("indexer.upload_failures", description: "Individual document upload failures");
+
+    // Successful full pipeline runs. Kept from the original implementation.
+    internal static readonly Counter<long> BlobsProcessed =
+        Meter.CreateCounter<long>("indexer.blobs_processed", description: "Pipeline runs completed successfully");
 }
