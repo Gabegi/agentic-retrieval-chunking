@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Observability;
+using ProtocolsIndexer.Observability.Reports;
 using ProtocolsIndexer.Utils;
 
 namespace ProtocolsIndexer.Services;
@@ -14,7 +15,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
     private readonly IChunkingService                            _chunkingService;
     private readonly IEmbeddingService                           _embeddingService;
     private readonly IIndexService                               _indexService;
-    private readonly IIndexDocumentService                           _indexDocumentService;
+    private readonly IIndexDocumentService                       _indexDocumentService;
     private readonly ILogger<IndexingPipelineOrchestrator>       _logger;
 
     public IndexingPipelineOrchestrator(
@@ -22,20 +23,20 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         IChunkingService                     chunkingService,
         IEmbeddingService                    embeddingService,
         IIndexService                        indexService,
-        IIndexDocumentService                    indexDocumentService,
+        IIndexDocumentService                indexDocumentService,
         ILogger<IndexingPipelineOrchestrator> logger)
     {
-        _extractors       = extractors.ToDictionary(e => e.Source, StringComparer.OrdinalIgnoreCase);
-        _chunkingService  = chunkingService;
-        _embeddingService = embeddingService;
-        _indexService     = indexService;
+        _extractors           = extractors.ToDictionary(e => e.Source, StringComparer.OrdinalIgnoreCase);
+        _chunkingService      = chunkingService;
+        _embeddingService     = embeddingService;
+        _indexService         = indexService;
         _indexDocumentService = indexDocumentService;
-        _logger           = logger;
+        _logger               = logger;
     }
 
-    public async Task<IReadOnlyList<ExtractionDocument>> ExtractAsync(string source, bool forceReindex = false, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionStats Stats)> ExtractAsync(
+        string source, bool forceReindex = false, CancellationToken ct = default)
     {
-        // Resolve extractor by the ?source= param (e.g. "csv"). New sources only need a new IExtractionOrchestrator registered in program.cs.
         if (!_extractors.TryGetValue(source, out var extractor))
             throw new ArgumentException(
                 $"No extractor registered for source '{source}'. Available: {string.Join(", ", _extractors.Keys)}");
@@ -43,7 +44,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
         await _indexService.EnsureIndexAsync();
 
         _logger.LogInformation("Extracting from source '{Source}'", source);
-        var docs = await extractor.ExtractDocumentsAsync(ct);
+        var output = await extractor.ExtractDocumentsAsync(ct);
 
         var indexedDates = forceReindex
             ? new Dictionary<string, DateTimeOffset>()
@@ -51,12 +52,15 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
 
         var toProcess = new List<ExtractionDocument>();
         var toDelete  = new List<string>();
+        var newCount  = 0;
+        var updated   = 0;
 
-        foreach (var doc in docs)
+        foreach (var doc in output.Docs)
         {
             if (!indexedDates.TryGetValue(doc.SourceId, out var indexedDate))
             {
                 toProcess.Add(doc);
+                newCount++;
                 continue;
             }
 
@@ -64,9 +68,9 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
             if (DateTimeOffset.TryParse(modifiedStr, out var modifiedDate) && modifiedDate <= indexedDate)
                 continue; // unchanged — skip
 
-            // Document changed: delete stale chunks, then re-index
             toDelete.Add(doc.SourceId);
             toProcess.Add(doc);
+            updated++;
         }
 
         if (toDelete.Count > 0)
@@ -75,15 +79,42 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
             await _indexDocumentService.DeleteDocumentsAsync(toDelete, ct);
         }
 
+        var skipped = output.Docs.Count - toProcess.Count;
         _logger.LogInformation("Skipping {Skipped} unchanged, processing {Count} new/changed documents",
-            docs.Count - toProcess.Count, toProcess.Count);
+            skipped, toProcess.Count);
 
-        return toProcess;
+        var sourceTag = new KeyValuePair<string, object?>("source", source);
+        Instrumentation.DocsExtracted.Add(output.Docs.Count, sourceTag);
+        Instrumentation.DocsSkipped.Add(skipped,        sourceTag);
+        Instrumentation.DocsNew.Add(newCount,            sourceTag);
+        Instrumentation.DocsUpdated.Add(updated,         sourceTag);
+        Instrumentation.DocsDeleted.Add(toDelete.Count,  sourceTag);
+
+        var stats = new ExtractionStats(
+            DocsToProcess:          toProcess.Count,
+            DocsSkipped:            skipped,
+            DocsNew:                newCount,
+            DocsUpdated:            updated,
+            DocsDeleted:            toDelete.Count,
+            ValidationErrors:       output.ValidationErrors,
+            ValidationWarnings:     output.ValidationWarnings,
+            ReconciliationProblems: output.ReconciliationProblems,
+            StaleDocCount:          output.StaleDocCount,
+            DocsWithoutHeadings:    output.DocsWithoutHeadings,
+            MissingTitleCount:      output.MissingTitleCount,
+            MissingVersionCount:    output.MissingVersionCount,
+            MissingDepartmentCount: output.MissingDepartmentCount,
+            Issues:                 output.Issues,
+            RedFlags:               output.RedFlags,
+            SpotCheckSample:        output.SpotCheckSample);
+
+        return (toProcess, stats);
     }
 
-    public IReadOnlyList<ProtocolDocument> Chunk(IReadOnlyList<ExtractionDocument> docs)
+    public (IReadOnlyList<ProtocolDocument> Docs, ChunkStats Stats) Chunk(IReadOnlyList<ExtractionDocument> docs)
     {
         var result           = new List<ProtocolDocument>();
+        var seen             = new HashSet<string>();
         int globalChunkIndex = 0;
 
         foreach (var doc in docs.OrderBy(d => d.SourceId).ThenBy(d => d.Ordinal))
@@ -92,9 +123,6 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
             var chunks = _chunkingService.ChunkAsync(doc.Content);
             foreach (var chunk in chunks)
             {
-                // Prepend the document title so every chunk — including short continuation pages
-                // that contain no query-term overlap on their own — benefits from the parent
-                // document's identity in both BM25 and vector scoring.
                 var body = chunk.Heading != null
                     ? $"{chunk.Heading}\n\n{chunk.Content}"
                     : chunk.Content;
@@ -118,25 +146,113 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
             }
         }
 
+        var stats = ComputeChunkStats(result, seen);
+
         Instrumentation.ChunksExtracted.Record(result.Count,
             new KeyValuePair<string, object?>("strategy", _chunkingService.Name));
 
         _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks ({Strategy})",
             docs.Count, result.Count, _chunkingService.Name);
-        return result;
+
+        return (result, stats);
     }
 
-    private static DateTimeOffset? ParseDate(string? value) =>
-        DateTimeOffset.TryParse(value, out var result) ? result : null;
+    private ChunkStats ComputeChunkStats(List<ProtocolDocument> chunks, HashSet<string> seen)
+    {
+        if (chunks.Count == 0)
+            return new ChunkStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
-    public async Task EmbedAndUploadAsync(IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default)
+        var strategyTag = new KeyValuePair<string, object?>("strategy", _chunkingService.Name);
+
+        var sizes          = new List<long>(chunks.Count);
+        var docsProduced   = new HashSet<string>();
+        var allDocIds      = new HashSet<string>(chunks.Select(c => c.DocumentId));
+        var duplicates     = 0;
+        var oversized      = 0;
+        var undersized     = 0;
+        var coherent       = 0;
+        var headings       = 0;
+        var totalTokens    = 0L;
+        var band0          = 0;
+        var band1          = 0;
+        var band2          = 0;
+        var band3          = 0;
+
+        foreach (var chunk in chunks)
+        {
+            var len = (long)chunk.Content.Length;
+            sizes.Add(len);
+            docsProduced.Add(chunk.DocumentId);
+
+            // Size bands
+            if      (len < 100)  { band0++; Instrumentation.ChunkSizeBand.Add(1, strategyTag, new("band", "under_100")); }
+            else if (len < 500)  { band1++; Instrumentation.ChunkSizeBand.Add(1, strategyTag, new("band", "100_to_500")); }
+            else if (len < 1500) { band2++; Instrumentation.ChunkSizeBand.Add(1, strategyTag, new("band", "500_to_1500")); }
+            else                 { band3++; Instrumentation.ChunkSizeBand.Add(1, strategyTag, new("band", "1500_plus")); }
+
+            Instrumentation.ChunkSizeChars.Record(len, strategyTag);
+
+            // Duplicates (exact content match)
+            if (!seen.Add(chunk.Content))
+            {
+                duplicates++;
+                Instrumentation.DuplicateChunks.Add(1, strategyTag);
+            }
+
+            // Token-based quality
+            var tokens = chunk.TokenEstimate;
+            totalTokens += tokens;
+            if (chunk.IsOversized)  { oversized++;  Instrumentation.OversizedChunks.Add(1); }
+            if (chunk.IsUndersized) { undersized++;  Instrumentation.UndersizedChunks.Add(1); }
+            if (chunk.IsCoherent)   { coherent++;    Instrumentation.CoherentChunks.Add(1); }
+            if (chunk.Heading != null) { headings++; Instrumentation.HeadingsDetected.Add(1); }
+        }
+
+        var docsWithZero = allDocIds.Count - docsProduced.Count;
+        if (docsWithZero > 0) Instrumentation.DocsWithZeroChunks.Add(docsWithZero, strategyTag);
+
+        sizes.Sort();
+        var p95Index = (int)(sizes.Count * 0.95);
+
+        return new ChunkStats(
+            ChunksProduced:    chunks.Count,
+            DocsWithZeroChunks: docsWithZero,
+            DuplicateChunks:   duplicates,
+            MinChunkSizeChars: sizes[0],
+            MaxChunkSizeChars: sizes[^1],
+            AvgChunkSizeChars: sizes.Average(),
+            P95ChunkSizeChars: sizes[Math.Min(p95Index, sizes.Count - 1)],
+            BandUnder100:      band0,
+            Band100To500:      band1,
+            Band500To1500:     band2,
+            Band1500Plus:      band3,
+            OversizedChunks:   oversized,
+            UndersizedChunks:  undersized,
+            AvgTokenEstimate:  (double)totalTokens / chunks.Count,
+            CoherentChunks:    coherent,
+            HeadingsDetected:  headings);
+    }
+
+    public async Task<EmbedUploadStats> EmbedAndUploadAsync(IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default)
     {
         try
         {
-            var embedded = await _embeddingService.EmbedDocumentsAsync(docs, ct);
-            await _indexDocumentService.UpsertDocumentsAsync(embedded, ct);
+            var embeddingResult = await _embeddingService.EmbedDocumentsAsync(docs, ct);
+            var (succeeded, failed) = await _indexDocumentService.UpsertDocumentsAsync(embeddingResult.Documents, ct);
+            var (docCount, storageBytes) = await _indexService.GetStatisticsAsync(ct);
+
             Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
             _logger.LogInformation("Embedded and uploaded {Count} documents", docs.Count);
+
+            return new EmbedUploadStats(
+                DocsUploaded:           succeeded,
+                DocsFailed:             failed,
+                ChunksTruncated:        embeddingResult.ChunksTruncated,
+                EmbeddingRetries:       embeddingResult.EmbeddingRetries,
+                VectorDimErrors:        embeddingResult.VectorDimErrors,
+                TotalEmbeddingDurationMs: embeddingResult.TotalDurationMs,
+                IndexDocumentCount:     docCount,
+                IndexStorageSizeBytes:  storageBytes);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -144,4 +260,7 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
             throw;
         }
     }
+
+    private static DateTimeOffset? ParseDate(string? value) =>
+        DateTimeOffset.TryParse(value, out var result) ? result : null;
 }

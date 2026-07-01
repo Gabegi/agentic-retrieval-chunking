@@ -46,10 +46,6 @@ public class IndexingFunction
         _logger            = logger;
     }
 
-    // POST /api/index?source=csv
-    // No request body needed. The ?source param selects the registered extractor
-    // (currently only "csv"). The source files (pages.csv, index.csv) are read
-    // directly from the "documentscsv" blob container by the extractor.
     [Function("StartIndexing")]
     public async Task<HttpResponseData> Start(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
@@ -66,23 +62,23 @@ public class IndexingFunction
     [Function("IndexingOrchestrator")]
     public async Task RunOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
-        var startedAt  = context.CurrentUtcDateTime;
-        var input      = context.GetInput<IndexRequest>()!;
-        // Durable Functions pass activity inputs/outputs through Azure Table Storage, which has a 64KB row size limit.
-        // Only the blob path string (e.g. "abc123/extracted.json") travels through Table Storage.
+        var startedAt = context.CurrentUtcDateTime;
+        var input     = context.GetInput<IndexRequest>()!;
         var docsBlob   = $"{context.InstanceId}/extracted.json";
         var chunksBlob = $"{context.InstanceId}/chunks.json";
 
-        int    docsExtracted = 0, chunksProduced = 0, docsUploaded = 0;
-        bool   success = false;
-        string? error  = null;
+        ExtractionStats?  extractStats = null;
+        ChunkStats?       chunkStats   = null;
+        EmbedUploadStats? embedStats   = null;
+        bool    success = false;
+        string? error   = null;
 
         try
         {
-            docsExtracted  = await context.CallActivityAsync<int>("ExtractActivity",        new ExtractRequest(input.Source, input.ForceReindex, docsBlob));
-            chunksProduced = await context.CallActivityAsync<int>("ChunkActivity",          new ChunkRequest(docsBlob, chunksBlob));
-            docsUploaded   = await context.CallActivityAsync<int>("EmbedAndUploadActivity", chunksBlob);
-            success        = true;
+            extractStats = await context.CallActivityAsync<ExtractionStats>("ExtractActivity",        new ExtractRequest(input.Source, input.ForceReindex, docsBlob));
+            chunkStats   = await context.CallActivityAsync<ChunkStats>("ChunkActivity",               new ChunkRequest(docsBlob, chunksBlob));
+            embedStats   = await context.CallActivityAsync<EmbedUploadStats>("EmbedAndUploadActivity", chunksBlob);
+            success      = true;
         }
         catch (Exception ex)
         {
@@ -90,31 +86,23 @@ public class IndexingFunction
         }
 
         if (_reportWriter.IsEnabled)
-            await context.CallActivityAsync("SaveIndexReportActivity", new IndexRunReport(
-                InstanceId:     context.InstanceId,
-                StartedAt:      startedAt,
-                Source:         input.Source,
-                ForceReindex:   input.ForceReindex,
-                DocsExtracted:  docsExtracted,
-                ChunksProduced: chunksProduced,
-                DocsUploaded:   docsUploaded,
-                Success:        success,
-                ErrorMessage:   error));
+            await context.CallActivityAsync("SaveIndexReportActivity",
+                BuildReport(context, startedAt, input, extractStats, chunkStats, embedStats, success, error));
 
         if (!success)
             throw new InvalidOperationException(error ?? "Indexing pipeline failed");
     }
 
-    // Step 1 — run the source-specific extractor; serialise ExtractionDocuments to blob
+    // Step 1 — run the source-specific extractor; serialise ExtractionDocuments to blob; return stats
     [Function("ExtractActivity")]
-    public async Task<int> ExtractActivity([ActivityTrigger] ExtractRequest req, FunctionContext context)
+    public async Task<ExtractionStats> ExtractActivity([ActivityTrigger] ExtractRequest req, FunctionContext context)
     {
         try
         {
-            var docs = await _orchestrator.ExtractAsync(req.Source, req.ForceReindex, context.CancellationToken);
+            var (docs, stats) = await _orchestrator.ExtractAsync(req.Source, req.ForceReindex, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
             _logger.LogInformation("Extracted {Count} docs from '{Source}' → {Blob}", docs.Count, req.Source, req.OutputBlob);
-            return docs.Count;
+            return stats;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -123,18 +111,18 @@ public class IndexingFunction
         }
     }
 
-    // Step 2 — read ExtractionDocuments, chunk, serialise ProtocolDocuments to blob; delete input blob
+    // Step 2 — read ExtractionDocuments, chunk, serialise ProtocolDocuments to blob; return stats
     [Function("ChunkActivity")]
-    public async Task<int> ChunkActivity([ActivityTrigger] ChunkRequest req, FunctionContext context)
+    public async Task<ChunkStats> ChunkActivity([ActivityTrigger] ChunkRequest req, FunctionContext context)
     {
         try
         {
-            var docs   = await ReadBlobAsync<List<ExtractionDocument>>(req.InputBlob, context.CancellationToken);
-            var chunks = _orchestrator.Chunk(docs);
+            var docs           = await ReadBlobAsync<List<ExtractionDocument>>(req.InputBlob, context.CancellationToken);
+            var (chunks, stats) = _orchestrator.Chunk(docs);
             await DeleteBlobAsync(req.InputBlob, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, chunks, context.CancellationToken);
             _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks → {Blob}", docs.Count, chunks.Count, req.OutputBlob);
-            return chunks.Count;
+            return stats;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -143,16 +131,16 @@ public class IndexingFunction
         }
     }
 
-    // Step 3 — read ProtocolDocuments, embed and upload to Azure AI Search; delete input blob
+    // Step 3 — read ProtocolDocuments, embed and upload to Azure AI Search; return stats
     [Function("EmbedAndUploadActivity")]
-    public async Task<int> EmbedAndUploadActivity([ActivityTrigger] string chunksBlobName, FunctionContext context)
+    public async Task<EmbedUploadStats> EmbedAndUploadActivity([ActivityTrigger] string chunksBlobName, FunctionContext context)
     {
         try
         {
             var chunks = await ReadBlobAsync<List<ProtocolDocument>>(chunksBlobName, context.CancellationToken);
-            await _orchestrator.EmbedAndUploadAsync(chunks, context.CancellationToken);
+            var stats  = await _orchestrator.EmbedAndUploadAsync(chunks, context.CancellationToken);
             await DeleteBlobAsync(chunksBlobName, context.CancellationToken);
-            return chunks.Count;
+            return stats;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -167,10 +155,9 @@ public class IndexingFunction
         await _reportWriter.WriteIndexReportAsync(report, context.CancellationToken);
         _logger.LogInformation(
             "Index run report saved — instance={InstanceId}, docs={Docs}, chunks={Chunks}, success={Success}",
-            report.InstanceId, report.DocsExtracted, report.ChunksProduced, report.Success);
+            report.InstanceId, report.DocsToProcess, report.ChunksProduced, report.Success);
     }
 
-    // POST /api/setup-knowledge-base — run once after the index is populated
     [Function("SetupKnowledgeBase")]
     public async Task<HttpResponseData> RunSetupKnowledgeBase(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "setup-knowledge-base")] HttpRequestData req,
@@ -183,6 +170,63 @@ public class IndexingFunction
         await response.WriteStringAsync("Knowledge source and knowledge base created or updated");
         return response;
     }
+
+    private static IndexRunReport BuildReport(
+        TaskOrchestrationContext context,
+        DateTimeOffset           startedAt,
+        IndexRequest             input,
+        ExtractionStats?         ext,
+        ChunkStats?              chunk,
+        EmbedUploadStats?        embed,
+        bool                     success,
+        string?                  error) => new(
+            InstanceId:              context.InstanceId,
+            StartedAt:               startedAt,
+            FinishedAt:              context.CurrentUtcDateTime,
+            Source:                  input.Source,
+            ForceReindex:            input.ForceReindex,
+            Success:                 success,
+            ErrorMessage:            error,
+            DocsToProcess:           ext?.DocsToProcess          ?? 0,
+            DocsSkipped:             ext?.DocsSkipped             ?? 0,
+            DocsNew:                 ext?.DocsNew                 ?? 0,
+            DocsUpdated:             ext?.DocsUpdated             ?? 0,
+            DocsDeleted:             ext?.DocsDeleted             ?? 0,
+            ValidationErrors:        ext?.ValidationErrors        ?? 0,
+            ValidationWarnings:      ext?.ValidationWarnings      ?? 0,
+            ReconciliationProblems:  ext?.ReconciliationProblems  ?? 0,
+            StaleDocCount:           ext?.StaleDocCount           ?? 0,
+            DocsWithoutHeadings:     ext?.DocsWithoutHeadings     ?? 0,
+            MissingTitleCount:       ext?.MissingTitleCount       ?? 0,
+            MissingVersionCount:     ext?.MissingVersionCount     ?? 0,
+            MissingDepartmentCount:  ext?.MissingDepartmentCount  ?? 0,
+            ChunksProduced:          chunk?.ChunksProduced        ?? 0,
+            DocsWithZeroChunks:      chunk?.DocsWithZeroChunks    ?? 0,
+            DuplicateChunks:         chunk?.DuplicateChunks       ?? 0,
+            MinChunkSizeChars:       chunk?.MinChunkSizeChars     ?? 0,
+            MaxChunkSizeChars:       chunk?.MaxChunkSizeChars     ?? 0,
+            AvgChunkSizeChars:       chunk?.AvgChunkSizeChars     ?? 0,
+            P95ChunkSizeChars:       chunk?.P95ChunkSizeChars     ?? 0,
+            BandUnder100:            chunk?.BandUnder100          ?? 0,
+            Band100To500:            chunk?.Band100To500          ?? 0,
+            Band500To1500:           chunk?.Band500To1500         ?? 0,
+            Band1500Plus:            chunk?.Band1500Plus          ?? 0,
+            OversizedChunks:         chunk?.OversizedChunks       ?? 0,
+            UndersizedChunks:        chunk?.UndersizedChunks      ?? 0,
+            AvgTokenEstimate:        chunk?.AvgTokenEstimate      ?? 0,
+            CoherentChunks:          chunk?.CoherentChunks        ?? 0,
+            HeadingsDetected:        chunk?.HeadingsDetected      ?? 0,
+            ChunksTruncated:         embed?.ChunksTruncated       ?? 0,
+            EmbeddingRetries:        embed?.EmbeddingRetries      ?? 0,
+            VectorDimErrors:         embed?.VectorDimErrors       ?? 0,
+            TotalEmbeddingDurationMs: embed?.TotalEmbeddingDurationMs ?? 0,
+            DocsUploaded:            embed?.DocsUploaded          ?? 0,
+            DocsFailed:              embed?.DocsFailed            ?? 0,
+            IndexDocumentCount:      embed?.IndexDocumentCount    ?? 0,
+            IndexStorageSizeBytes:   embed?.IndexStorageSizeBytes ?? 0,
+            Issues:                  ext?.Issues         ?? [],
+            RedFlags:                ext?.RedFlags        ?? [],
+            SpotCheckSample:         ext?.SpotCheckSample ?? []);
 
     private async Task WriteBlobAsync<T>(string blobPath, T data, CancellationToken ct)
     {
@@ -202,7 +246,6 @@ public class IndexingFunction
         _pipelineContainer.GetBlobClient(blobPath).DeleteIfExistsAsync(cancellationToken: ct);
 }
 
-// Input records for Durable activity functions — must be serializable by System.Text.Json.
 public record IndexRequest(string Source, bool ForceReindex);
 public record ExtractRequest(string Source, bool ForceReindex, string OutputBlob);
 public record ChunkRequest(string InputBlob, string OutputBlob);
