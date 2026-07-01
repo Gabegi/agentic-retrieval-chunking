@@ -14,10 +14,7 @@ public sealed record ChunkingResults(
     int    Band100To500,
     int    Band500To1500,
     int    Band1500Plus,
-    int    OversizedChunks,   // TODO: confirm ProtocolDocument.TokenEstimate is a real subword count.
-    int    UndersizedChunks,  //   If yes — keep, it's your only leading indicator for ChunksTruncated.
-    double AvgTokenEstimate,  //   If it's Content.Split(' ').Length — rename to AvgWordCountEstimate,
-    int    CoherentChunks,    //   these two become redundant with the char bands, drop them.
+    int    CoherentChunks,
     int    HeadingsDetected,
     string Strategy)
 {
@@ -25,7 +22,6 @@ public sealed record ChunkingResults(
         ChunksProduced:     0, DocsWithZeroChunks: 0, DuplicateChunks: 0,
         MinChunkSizeChars:  0, MaxChunkSizeChars:  0, AvgChunkSizeChars: 0, P95ChunkSizeChars: 0,
         BandUnder100:       0, Band100To500: 0, Band500To1500: 0, Band1500Plus: 0,
-        OversizedChunks:    0, UndersizedChunks: 0, AvgTokenEstimate: 0,
         CoherentChunks:     0, HeadingsDetected: 0, Strategy: strategy);
 
     public static ChunkingResults Compute(IReadOnlyList<ProtocolDocument> chunks, string strategy)
