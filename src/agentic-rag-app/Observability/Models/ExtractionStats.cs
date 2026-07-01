@@ -2,7 +2,7 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Observability.Reports;
 
-public record ExtractionStats(
+public record ExtractionResults(
     int DocsToProcess,
     int DocsSkipped,
     int DocsNew,

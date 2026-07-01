@@ -12,6 +12,6 @@ public interface IChunkingService
 
     // High-level: converts ExtractionDocuments into indexed ProtocolDocuments,
     // computes ChunkStats, and emits all chunk telemetry.
-    (IReadOnlyList<ProtocolDocument> Docs, ChunkStats Stats) ChunkDocuments(
+    (IReadOnlyList<ProtocolDocument> Docs, ChunkingResults Stats) ChunkDocuments(
         IReadOnlyList<ExtractionDocument> docs);
 }

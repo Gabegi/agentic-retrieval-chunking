@@ -1,6 +1,6 @@
 namespace ProtocolsIndexer.Observability.Reports;
 
-public record EmbedUploadStats(
+public record EmbedUploadingResults(
     int   DocsUploaded,
     int   DocsFailed,
     int   ChunksTruncated,

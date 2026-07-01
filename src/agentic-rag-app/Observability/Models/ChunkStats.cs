@@ -2,7 +2,7 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Observability.Reports;
 
-public sealed record ChunkStats(
+public sealed record ChunkingResults(
     int    ChunksProduced,
     int    DocsWithZeroChunks,
     int    DuplicateChunks,
@@ -21,14 +21,14 @@ public sealed record ChunkStats(
     int    HeadingsDetected,
     string Strategy)
 {
-    public static ChunkStats Empty(string strategy) => new(
+    public static ChunkingResults Empty(string strategy) => new(
         ChunksProduced:     0, DocsWithZeroChunks: 0, DuplicateChunks: 0,
         MinChunkSizeChars:  0, MaxChunkSizeChars:  0, AvgChunkSizeChars: 0, P95ChunkSizeChars: 0,
         BandUnder100:       0, Band100To500: 0, Band500To1500: 0, Band1500Plus: 0,
         OversizedChunks:    0, UndersizedChunks: 0, AvgTokenEstimate: 0,
         CoherentChunks:     0, HeadingsDetected: 0, Strategy: strategy);
 
-    public static ChunkStats Compute(IReadOnlyList<ProtocolDocument> chunks, string strategy)
+    public static ChunkingResults Compute(IReadOnlyList<ProtocolDocument> chunks, string strategy)
     {
         if (chunks.Count == 0) return Empty(strategy);
 
@@ -63,7 +63,7 @@ public sealed record ChunkStats(
         sizes.Sort();
         var p95Index = (int)(sizes.Count * 0.95);
 
-        return new ChunkStats(
+        return new ChunkingResults(
             ChunksProduced:     chunks.Count,
             DocsWithZeroChunks: allDocIds.Count - docsProduced.Count,
             DuplicateChunks:    duplicates,

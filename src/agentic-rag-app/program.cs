@@ -108,12 +108,12 @@ var host = new HostBuilder()
             sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
 
         // RAG pipeline
+        services.AddSingleton<IExtractionService, ExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IUploadService, UploadService>();
         services.AddSingleton<IIndexService, IndexService>();
         services.AddSingleton<IIndexDocumentService, IndexDocumentService>();
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
-        services.AddSingleton<IIndexingPipelineOrchestrator, IndexingPipelineOrchestrator>();
     })
     .Build();
 
