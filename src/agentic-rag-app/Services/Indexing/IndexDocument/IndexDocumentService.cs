@@ -81,10 +81,10 @@ public class IndexDocumentService : IIndexDocumentService
     // Queries all chunk ids for the given document IDs, then submits batch delete actions.
     // Batches document IDs into groups of 50 to keep OData filter length manageable,
     // and chunk deletes into batches of 1000 per the push API limit.
-    public async Task DeleteDocumentsAsync(IEnumerable<string> documentIds, CancellationToken ct = default)
+    public async Task<int> DeleteDocumentsAsync(IEnumerable<string> documentIds, CancellationToken ct = default)
     {
         var idList = documentIds.ToList();
-        if (idList.Count == 0) return;
+        if (idList.Count == 0) return 0;
 
         var chunkIds = new List<string>();
 
@@ -108,6 +108,7 @@ public class IndexDocumentService : IIndexDocumentService
             await _searchClient.IndexDocumentsAsync(IndexDocumentsBatch.Create(actions.ToArray()), cancellationToken: ct);
         }
 
-        _logger.LogInformation("Deleted all chunks for {Count} documents", idList.Count);
+        _logger.LogInformation("Deleted {ChunkCount} chunks for {Count} documents", chunkIds.Count, idList.Count);
+        return chunkIds.Count;
     }
 }

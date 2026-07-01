@@ -8,6 +8,7 @@ public record ExtractionResults(
     int DocsNew,
     int DocsUpdated,
     int DocsDeleted,
+    int ChunksRemoved,
     int ValidationErrors,
     int ValidationWarnings,
     int ReconciliationProblems,
