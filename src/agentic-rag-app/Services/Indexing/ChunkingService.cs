@@ -94,8 +94,6 @@ public class ChunkingService : IChunkingService
 
         // All quality counters now carry strategyTag consistently.
         Instrumentation.DuplicateChunks.Add(stats.DuplicateChunks,   strategyTag);
-        Instrumentation.OversizedChunks.Add(stats.OversizedChunks,   strategyTag);
-        Instrumentation.UndersizedChunks.Add(stats.UndersizedChunks, strategyTag);
         Instrumentation.CoherentChunks.Add(stats.CoherentChunks,     strategyTag);
         Instrumentation.HeadingsDetected.Add(stats.HeadingsDetected, strategyTag);
 

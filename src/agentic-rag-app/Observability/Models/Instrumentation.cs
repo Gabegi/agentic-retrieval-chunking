@@ -34,6 +34,11 @@ internal static class Instrumentation
     internal static readonly Counter<long> DocsDeleted =
         Meter.CreateCounter<long>("indexer.docs_deleted", description: "Stale chunk batches deleted for changed docs");
 
+    // Actual chunk rows deleted from the index for changed docs — the real count behind DocsDeleted,
+    // since one changed doc can own many chunks. Nets against DocsUploaded to see true corpus growth.
+    internal static readonly Counter<long> ChunksRemoved =
+        Meter.CreateCounter<long>("indexer.chunks_removed", description: "Chunk rows deleted from the index for changed docs");
+
     // Validation errors and warnings from PipelineValidator. Tags: source, severity (error|warning), stage.
     internal static readonly Counter<long> ValidationIssues =
         Meter.CreateCounter<long>("indexer.validation_issues", description: "Validation issues by severity and stage");
@@ -75,14 +80,6 @@ internal static class Instrumentation
     // Total chunks produced per run (histogram over runs, not per-chunk). Kept for historical continuity.
     internal static readonly Histogram<long> ChunksExtracted =
         Meter.CreateHistogram<long>("indexer.chunks_extracted", unit: "chunks", description: "Total chunks produced per indexing run");
-
-    // Token estimate > 1024 — may exceed LLM context budgets.
-    internal static readonly Counter<long> OversizedChunks =
-        Meter.CreateCounter<long>("indexer.chunks_oversized_tokens", description: "Chunks with token estimate > 1024");
-
-    // Token estimate < 20 — too short to carry meaningful retrieval signal.
-    internal static readonly Counter<long> UndersizedChunks =
-        Meter.CreateCounter<long>("indexer.chunks_undersized_tokens", description: "Chunks with token estimate < 20");
 
     // Chunks that start with uppercase/digit AND end with punctuation — proxy for clean sentence boundaries.
     internal static readonly Counter<long> CoherentChunks =
