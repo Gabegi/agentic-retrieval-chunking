@@ -36,9 +36,8 @@ public sealed record ChunkingResults(
         var sizes        = new List<long>(chunks.Count);
         var docsProduced = new HashSet<string>();
         var allDocIds    = new HashSet<string>(chunks.Select(c => c.DocumentId));
-        int duplicates = 0, oversized = 0, undersized = 0, coherent = 0, headings = 0;
+        int duplicates = 0, coherent = 0, headings = 0;
         int band0 = 0, band1 = 0, band2 = 0, band3 = 0;
-        long totalTokens = 0;
 
         foreach (var chunk in chunks)
         {
@@ -53,9 +52,6 @@ public sealed record ChunkingResults(
 
             if (!seen.Add(chunk.Content)) duplicates++;
 
-            totalTokens += chunk.TokenEstimate;
-            if (chunk.IsOversized)     oversized++;
-            if (chunk.IsUndersized)    undersized++;
             if (chunk.IsCoherent)      coherent++;
             if (chunk.Heading != null) headings++;
         }
@@ -75,9 +71,6 @@ public sealed record ChunkingResults(
             Band100To500:       band1,
             Band500To1500:      band2,
             Band1500Plus:       band3,
-            OversizedChunks:    oversized,
-            UndersizedChunks:   undersized,
-            AvgTokenEstimate:   (double)totalTokens / chunks.Count,
             CoherentChunks:     coherent,
             HeadingsDetected:   headings,
             Strategy:           strategy);
