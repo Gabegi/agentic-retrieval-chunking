@@ -76,6 +76,22 @@ internal static class Instrumentation
     internal static readonly Histogram<long> ChunksExtracted =
         Meter.CreateHistogram<long>("indexer.chunks_extracted", unit: "chunks", description: "Total chunks produced per indexing run");
 
+    // Token estimate > 1024 — may exceed LLM context budgets.
+    internal static readonly Counter<long> OversizedChunks =
+        Meter.CreateCounter<long>("indexer.chunks_oversized_tokens", description: "Chunks with token estimate > 1024");
+
+    // Token estimate < 20 — too short to carry meaningful retrieval signal.
+    internal static readonly Counter<long> UndersizedChunks =
+        Meter.CreateCounter<long>("indexer.chunks_undersized_tokens", description: "Chunks with token estimate < 20");
+
+    // Chunks that start with uppercase/digit AND end with punctuation — proxy for clean sentence boundaries.
+    internal static readonly Counter<long> CoherentChunks =
+        Meter.CreateCounter<long>("indexer.chunks_coherent", description: "Chunks with clean sentence start and end boundaries");
+
+    // Chunks with a heading field set — benefit from structural context in retrieval.
+    internal static readonly Counter<long> HeadingsDetected =
+        Meter.CreateCounter<long>("indexer.chunks_with_headings", description: "Chunks with a heading field set");
+
     // ── Embedding ────────────────────────────────────────────────────────────
 
     // Wall-clock time to embed a single chunk. Outliers here reveal oversized content or API latency.

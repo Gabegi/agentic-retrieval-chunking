@@ -10,7 +10,7 @@ namespace ProtocolsIndexer.Observability.Reports;
 // are the ones most likely to explain a retrieval regression.
 public record IndexRunReport(
     // ── Identity ──────────────────────────────────────────────────────────────
-    string         InstanceId,    // Durable orchestration ID — use this to find the full trace in App Insights
+    string         InstanceId,    // Durable orchestration ID — correlate with App Insights traces
     DateTimeOffset StartedAt,
     DateTimeOffset FinishedAt,
     string         Source,        // which extractor ran (e.g. "csv")
@@ -24,12 +24,12 @@ public record IndexRunReport(
     // A high DocsSkipped ratio means the corpus is stable — incremental indexing is working.
     int DocsToProcess,   // docs queued for chunking + embedding (= DocsNew + DocsUpdated)
     int DocsSkipped,     // unchanged docs skipped — content identical to last indexed version
-    int DocsNew,         // first-time docs that were never in the index before
+    int DocsNew,         // first-time docs never in the index before
     int DocsUpdated,     // docs whose source changed — stale chunks deleted, then re-indexed
     int DocsDeleted,     // stale chunk batches deleted for changed docs (before re-insert)
 
-    // Quality signal: ValidationErrors > 0 is a hard problem — corrupted or malformed source data
-    // made it into the pipeline. Check the Issues list below for the specific records.
+    // Quality signal: ValidationErrors > 0 means corrupted or malformed source data made it
+    // into the pipeline. Check the Issues list below for the specific records.
     // ValidationWarnings are soft (mojibake, inconsistent tables) — worth reviewing but not blocking.
     int ValidationErrors,
     int ValidationWarnings,
@@ -69,8 +69,8 @@ public record IndexRunReport(
     //   BandUnder100  — near-empty chunks; bad vectors; investigate source content
     //   Band100To500  — short but usable; may lack context for complex queries
     //   Band500To1500 — target zone; most chunks should land here
-    //   Band1500Plus  — approaching or over the strategy max; some may be truncated before embedding
-    // p95 near 1500 is healthy. p95 >> 1500 means truncation risk.
+    //   Band1500Plus  — at or over the strategy max; risk of embedding truncation
+    // p95 near 1500 is healthy. p95 >> 1500 means truncation risk at embedding time.
     long   MinChunkSizeChars,
     long   MaxChunkSizeChars,
     double AvgChunkSizeChars,
@@ -79,6 +79,19 @@ public record IndexRunReport(
     int    Band100To500,
     int    Band500To1500,
     int    Band1500Plus,
+
+    // Quality signal: OversizedChunks (token estimate > 1024) may exceed LLM context budgets
+    // and are likely to be truncated or poorly attended to by the model.
+    // UndersizedChunks (token estimate < 20) are too short to carry meaningful retrieval signal.
+    int    OversizedChunks,
+    int    UndersizedChunks,
+    double AvgTokenEstimate,
+
+    // Quality signal: CoherentChunks start with a capital letter or digit and end with punctuation —
+    // a proxy for well-formed sentence boundaries. Low ratio means the chunker is cutting mid-sentence.
+    // HeadingsDetected: chunks with a heading set benefit from structural context in retrieval.
+    int CoherentChunks,
+    int HeadingsDetected,
 
     // ── Embedding ────────────────────────────────────────────────────────────
 
@@ -93,7 +106,7 @@ public record IndexRunReport(
 
     // ── Upload ────────────────────────────────────────────────────────────────
 
-    // Quality signal: DocsFailed > 0 means those chunks are missing from the index silently.
+    // Quality signal: DocsFailed > 0 means those chunks are silently missing from the index.
     // Retrieval will not find content from failed chunks.
     int DocsUploaded,
     int DocsFailed,
