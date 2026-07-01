@@ -1,12 +1,115 @@
+using ProtocolsIndexer.Models;
+
 namespace ProtocolsIndexer.Observability.Reports;
 
+// Written to blob after every development indexing run.
+// Path: telemetry-reports/indexing/{yyyy}/{MM}/{dd}/{instanceId}.json
+//
+// How to use: compare two reports side-by-side after a source change or config tweak
+// to see whether quality moved in the right direction. Fields marked "Quality signal"
+// are the ones most likely to explain a retrieval regression.
 public record IndexRunReport(
-    string         InstanceId,
+    // ── Identity ──────────────────────────────────────────────────────────────
+    string         InstanceId,    // Durable orchestration ID — use this to find the full trace in App Insights
     DateTimeOffset StartedAt,
-    string         Source,
-    bool           ForceReindex,
-    int            DocsExtracted,
-    int            ChunksProduced,
-    int            DocsUploaded,
+    DateTimeOffset FinishedAt,
+    string         Source,        // which extractor ran (e.g. "csv")
+    bool           ForceReindex,  // true = all docs re-indexed regardless of last-modified date
     bool           Success,
-    string?        ErrorMessage);
+    string?        ErrorMessage,
+
+    // ── Extraction ────────────────────────────────────────────────────────────
+
+    // Quality signal: DocsNew + DocsUpdated is your actual workload for this run.
+    // A high DocsSkipped ratio means the corpus is stable — incremental indexing is working.
+    int DocsToProcess,   // docs queued for chunking + embedding (= DocsNew + DocsUpdated)
+    int DocsSkipped,     // unchanged docs skipped — content identical to last indexed version
+    int DocsNew,         // first-time docs that were never in the index before
+    int DocsUpdated,     // docs whose source changed — stale chunks deleted, then re-indexed
+    int DocsDeleted,     // stale chunk batches deleted for changed docs (before re-insert)
+
+    // Quality signal: ValidationErrors > 0 is a hard problem — corrupted or malformed source data
+    // made it into the pipeline. Check the Issues list below for the specific records.
+    // ValidationWarnings are soft (mojibake, inconsistent tables) — worth reviewing but not blocking.
+    int ValidationErrors,
+    int ValidationWarnings,
+    // Quality signal: should always be 0. Non-zero means row counts don't add up across pipeline
+    // stages (Parse → Join → Clean), which indicates a logic bug or data truncation.
+    int ReconciliationProblems,
+
+    // Quality signal: StaleDocCount > 0 means live guidance past its review date is in the index.
+    // Retrieval will surface it as if it were current — flag to content owners.
+    int StaleDocCount,
+
+    // Quality signal: docs with no markdown headings get chunked with no structural guidance.
+    // These chunks may be lower quality. Check whether the source has headings at all,
+    // or whether the extraction step failed to preserve them.
+    int DocsWithoutHeadings,
+
+    // Quality signal: MissingTitle is the most damaging. The title is prepended to every chunk
+    // and is the primary BM25 signal in retrieval. Zero is ideal; investigate any non-zero count.
+    int MissingTitleCount,
+    int MissingVersionCount,
+    int MissingDepartmentCount,
+
+    // ── Chunking ─────────────────────────────────────────────────────────────
+
+    int ChunksProduced,
+
+    // Quality signal: non-zero means extracted content was empty or whitespace-only after cleaning.
+    // Those docs are in the pipeline but contribute nothing to the index.
+    int DocsWithZeroChunks,
+
+    // Quality signal: identical content indexed more than once wastes vector space and causes
+    // duplicate results in retrieval. Non-zero usually means duplicate pages in the source.
+    int DuplicateChunks,
+
+    // Quality signal: the chunk size distribution tells you whether the chunking strategy is working.
+    // For the SentenceAwareSlidingWindow (max 1500 chars, overlap 150):
+    //   BandUnder100  — near-empty chunks; bad vectors; investigate source content
+    //   Band100To500  — short but usable; may lack context for complex queries
+    //   Band500To1500 — target zone; most chunks should land here
+    //   Band1500Plus  — approaching or over the strategy max; some may be truncated before embedding
+    // p95 near 1500 is healthy. p95 >> 1500 means truncation risk.
+    long   MinChunkSizeChars,
+    long   MaxChunkSizeChars,
+    double AvgChunkSizeChars,
+    long   P95ChunkSizeChars,
+    int    BandUnder100,
+    int    Band100To500,
+    int    Band500To1500,
+    int    Band1500Plus,
+
+    // ── Embedding ────────────────────────────────────────────────────────────
+
+    // Quality signal: truncated chunks were embedded with incomplete content.
+    // The vector represents only the first 24k chars — retrieval quality for those chunks is degraded.
+    int  ChunksTruncated,
+    // A spike here means you hit OpenAI rate limits — consider reducing parallelism or adding quota.
+    int  EmbeddingRetries,
+    // Should always be 0. Non-zero means the embedding model returned wrong dimensions — a config mismatch.
+    int  VectorDimErrors,
+    long TotalEmbeddingDurationMs,
+
+    // ── Upload ────────────────────────────────────────────────────────────────
+
+    // Quality signal: DocsFailed > 0 means those chunks are missing from the index silently.
+    // Retrieval will not find content from failed chunks.
+    int DocsUploaded,
+    int DocsFailed,
+
+    // Quality signal: track IndexDocumentCount across runs. A sudden drop means chunks were
+    // deleted without re-insertion (pipeline error). Steady growth = healthy corpus expansion.
+    // IndexStorageSizeBytes growing disproportionately to DocumentCount may indicate oversized chunks.
+    long IndexDocumentCount,    // total chunks in the index after this run
+    long IndexStorageSizeBytes, // total index storage in bytes
+
+    // ── Detail (development only) ─────────────────────────────────────────────
+
+    // Full issue list with document IDs — use to identify which source records to investigate.
+    IReadOnlyList<ValidationIssueEntry> Issues,
+    // High-priority signals: stale docs, docs without headings, magnitude shifts vs previous run.
+    IReadOnlyList<string>               RedFlags,
+    // Random sample of 5 cleaned records for manual inspection — spot-check content fidelity.
+    IReadOnlyList<SpotCheckEntry>       SpotCheckSample
+);
