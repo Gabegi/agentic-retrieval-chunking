@@ -111,11 +111,12 @@ public record IndexRunReport(
     int DocsUploaded,
     int DocsFailed,
 
-    // Quality signal: track IndexDocumentCount across runs. A sudden drop means chunks were
-    // deleted without re-insertion (pipeline error). Steady growth = healthy corpus expansion.
-    // IndexStorageSizeBytes growing disproportionately to DocumentCount may indicate oversized chunks.
-    long IndexDocumentCount,    // total chunks in the index after this run
-    long IndexStorageSizeBytes, // total index storage in bytes
+    // Quality signal: track IndexDocumentCountSnapshot across runs for corpus drift checks.
+    // Null if the stats API call failed (run results are unaffected).
+    // Never diff this run-over-run for "did this run add N chunks" — use DocsUploaded for that.
+    // Azure Search stats lag live writes by minutes, so this reflects the state shortly after upload.
+    long? IndexDocumentCountSnapshot,
+    long? IndexStorageSizeBytesSnapshot,
 
     // ── Detail (development only) ─────────────────────────────────────────────
 

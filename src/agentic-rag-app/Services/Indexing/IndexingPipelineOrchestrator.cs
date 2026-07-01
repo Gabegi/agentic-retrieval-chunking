@@ -117,31 +117,44 @@ public class IndexingPipelineOrchestrator : IIndexingPipelineOrchestrator
     public async Task<EmbedUploadStats> EmbedAndUploadAsync(
         IReadOnlyList<ProtocolDocument> docs, CancellationToken ct = default)
     {
-        // Snapshot index size before this run's writes — Search stats lag a few minutes
-        // after upload, so reading post-upload would give a stale or unchanged number.
-        var (baselineDocCount, baselineStorageBytes) = await _indexService.GetStatisticsAsync(ct);
-
         try
         {
-            var embeddingResult     = await _embeddingService.EmbedDocumentsAsync(docs, ct);
+            var sw              = System.Diagnostics.Stopwatch.StartNew();
+            var embeddingResult = await _embeddingService.EmbedDocumentsAsync(docs, ct);
+            sw.Stop();
+
             var (succeeded, failed) = await _indexDocumentService.UpsertDocumentsAsync(embeddingResult.Documents, ct);
 
             Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "success"));
-            _logger.LogInformation("Embedded and uploaded {Count} documents", docs.Count);
+            _logger.LogInformation("Embedded and uploaded {Count} documents ({Succeeded} succeeded, {Failed} failed)",
+                docs.Count, succeeded, failed);
+
+            long? indexDocCount = null, indexStorageBytes = null;
+            try
+            {
+                var (docCount, storageBytes) = await _indexService.GetStatisticsAsync(ct);
+                (indexDocCount, indexStorageBytes) = (docCount, storageBytes);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Index stats snapshot failed — continuing, this run's own results are unaffected");
+                Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "stats_snapshot"));
+            }
 
             return new EmbedUploadStats(
-                DocsUploaded:             succeeded,
-                DocsFailed:               failed,
-                ChunksTruncated:          embeddingResult.ChunksTruncated,
-                EmbeddingRetries:         embeddingResult.EmbeddingRetries,
-                VectorDimErrors:          embeddingResult.VectorDimErrors,
-                TotalEmbeddingDurationMs: embeddingResult.TotalDurationMs,
-                IndexDocumentCount:       baselineDocCount,
-                IndexStorageSizeBytes:    baselineStorageBytes);
+                DocsUploaded:                  succeeded,
+                DocsFailed:                    failed,
+                ChunksTruncated:               embeddingResult.ChunksTruncated,
+                EmbeddingRetries:              embeddingResult.EmbeddingRetries,
+                VectorDimErrors:               embeddingResult.VectorDimErrors,
+                TotalEmbeddingDurationMs:      sw.ElapsedMilliseconds,
+                IndexDocumentCountSnapshot:    indexDocCount,
+                IndexStorageSizeBytesSnapshot: indexStorageBytes);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "embed_upload"));
+            Instrumentation.BlobsProcessed.Add(1, new KeyValuePair<string, object?>("status", "failure"));
             throw;
         }
     }
