@@ -10,7 +10,10 @@ public class CleanResult
     public IReadOnlyList<CleaningError>     Errors   => _errors;
     public IReadOnlyList<CleaningWarning>   Warnings => _warnings;
 
+    public int DuplicatePagesSkipped { get; private set; }
+
     internal void AddRecord(CleanedPageRecord r)  => _records.Add(r);
     internal void AddError(CleaningError e)        => _errors.Add(e);
     internal void AddWarning(CleaningWarning w)    => _warnings.Add(w);
+    internal void CountDuplicateSkipped()          => DuplicatePagesSkipped++;
 }

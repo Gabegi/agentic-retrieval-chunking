@@ -19,9 +19,20 @@ public static class DataCleaner
     public static CleanResult Clean(IReadOnlyList<JoinedPageRecord> pages)
     {
         var result = new CleanResult();
+        var seenKeys = new HashSet<(string DocId, int Page)>();
 
         foreach (var page in pages)
         {
+            if (!seenKeys.Add((page.DocumentId, page.PageIndex)))
+            {
+                result.CountDuplicateSkipped();
+                result.AddWarning(new CleaningWarning
+                {
+                    DocumentId = page.DocumentId,
+                    Message    = $"Duplicate page {page.PageIndex} in source — kept the first occurrence.",
+                });
+                continue;
+            }
             try
             {
                 var content = CleanPageContent(page.PageContent);
