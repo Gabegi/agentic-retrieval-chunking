@@ -33,8 +33,7 @@ public class ChunkingService : IChunkingService
     public (IReadOnlyList<ProtocolDocument> Docs, ChunkingResults Stats) ChunkDocuments(
         IReadOnlyList<ExtractionDocument> docs)
     {
-        var result           = new List<ProtocolDocument>();
-        int globalChunkIndex = 0;
+        var result = new List<ProtocolDocument>();
 
         foreach (var doc in docs.OrderBy(d => d.SourceId).ThenBy(d => d.Ordinal))
         {
@@ -42,8 +41,13 @@ public class ChunkingService : IChunkingService
             var summary = doc.Metadata.GetValueOrDefault("summary");
             var chunks  = ChunkAsync(doc.Content);
 
-            foreach (var chunk in chunks)
+            // Chunk ordinal is scoped to this document (SourceId + Ordinal), not the run —
+            // otherwise the same document gets different chunk IDs depending on which other
+            // documents happen to be processed alongside it in a given run.
+            for (int docChunkIndex = 0; docChunkIndex < chunks.Count; docChunkIndex++)
             {
+                var chunk = chunks[docChunkIndex];
+
                 // Prepend the document title so every chunk — including short continuation
                 // pages with no query-term overlap on their own — benefits from the parent
                 // document's identity in both BM25 and vector scoring.
@@ -52,7 +56,7 @@ public class ChunkingService : IChunkingService
 
                 result.Add(new ProtocolDocument
                 {
-                    Id               = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", globalChunkIndex),
+                    Id               = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", docChunkIndex),
                     DocumentId       = doc.SourceId,
                     Title            = doc.Metadata.GetValueOrDefault("title"),
                     Department       = doc.Metadata.GetValueOrDefault("folder_path"),
@@ -64,7 +68,7 @@ public class ChunkingService : IChunkingService
                     Content          = content,
                     Heading          = chunk.Heading,
                     PageNumber       = doc.Ordinal,
-                    ChunkIndex       = globalChunkIndex++,
+                    ChunkIndex       = docChunkIndex,
                     // Same Summary value on every chunk of a document (the join copies the
                     // index record's summary onto every page) — unlike the title prepend
                     // above, this stays out of Content and lives in its own searchable/
