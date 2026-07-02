@@ -82,7 +82,7 @@ public class IndexService : IIndexService
                 new SimpleField("version",            SearchFieldDataType.String)         { IsFilterable = true },
                 new SimpleField("page_number",        SearchFieldDataType.Int32),
                 new SimpleField("chunk_index",        SearchFieldDataType.Int32),
-                new VectorSearchField("content_vector", 3072, "vector-profile")           { IsHidden = true, IsStored = false }
+                new VectorSearchField("content_vector", _config.OpenAiEmbeddingDimensions, "vector-profile") { IsHidden = true, IsStored = false }
             }
         };
 
@@ -101,7 +101,7 @@ public class IndexService : IIndexService
             {
                 ResourceUri    = new Uri(_config.OpenAiEndpoint.TrimEnd('/')),
                 DeploymentName = _config.OpenAiEmbeddingDeployment,
-                ModelName      = "text-embedding-3-large"
+                ModelName      = _config.OpenAiEmbeddingModelName
             }
         });
         return vectorSearch;

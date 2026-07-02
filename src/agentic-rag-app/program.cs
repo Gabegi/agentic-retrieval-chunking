@@ -2,6 +2,7 @@ using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Search.Documents;
+using Azure.Search.Documents.KnowledgeBases;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.OpenTelemetry;
@@ -59,6 +60,8 @@ var host = new HostBuilder()
             SearchIndexName              = ctx.Configuration["SEARCH_INDEX_NAME"]!,
             KnowledgeSourceName          = ctx.Configuration["KNOWLEDGE_SOURCE_NAME"]!,
             KnowledgeBaseName            = ctx.Configuration["KNOWLEDGE_BASE_NAME"]!,
+            OpenAiEmbeddingModelName     = ctx.Configuration["OPENAI_EMBEDDING_MODEL_NAME"] ?? "text-embedding-3-large",
+            OpenAiEmbeddingDimensions    = int.TryParse(ctx.Configuration["OPENAI_EMBEDDING_DIMENSIONS"], out var dims) ? dims : 3072,
         };
 
         TokenCredential credential = new DefaultAzureCredential();
@@ -118,6 +121,10 @@ var host = new HostBuilder()
 
         services.AddSingleton(_ =>
             new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential));
+        services.AddSingleton(_ =>
+            new KnowledgeBaseRetrievalClient(new Uri(config.SearchEndpoint), config.KnowledgeBaseName, credential));
+        services.AddSingleton(sp =>
+            new ChunkNeighborExpander(sp.GetRequiredService<SearchClient>()));
         services.AddSingleton<IRagQueryService, AgenticRagQueryService>();
 
         // Chunking

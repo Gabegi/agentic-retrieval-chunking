@@ -3,6 +3,7 @@ using System.Net.Http;
 using Azure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Observability;
 
@@ -11,18 +12,20 @@ namespace ProtocolsIndexer.Services;
 public class EmbeddingService : IEmbeddingService
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
+    private readonly IndexerConfig                                 _config;
     private readonly ILogger<EmbeddingService>                     _logger;
 
     private const int MaxParallelism = 4;
     private const int BatchSize = 100;    // one request per batch instead of one per chunk
     private const int TruncationLimit = 24_000;
-    private const int ExpectedDimensions = 3072;
 
     public EmbeddingService(
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
+        IndexerConfig                                 config,
         ILogger<EmbeddingService>                     logger)
     {
         _embeddingGenerator = embeddingGenerator;
+        _config             = config;
         _logger             = logger;
     }
 
@@ -78,7 +81,7 @@ public class EmbeddingService : IEmbeddingService
                 var doc           = batch[i];
                 doc.ContentVector = vectors[i];
 
-                var dimError = doc.ContentVector?.Length != ExpectedDimensions;
+                var dimError = doc.ContentVector?.Length != _config.OpenAiEmbeddingDimensions;
                 if (dimError)
                 {
                     _logger.LogError("Wrong vector dimensions {Dims} for {Id}", doc.ContentVector?.Length, doc.Id);

@@ -104,7 +104,7 @@ public static class TextFidelityChecker
             .ToList();
 
     private static int CountReplacementCharacters(string text) =>
-        text.Count(c => c == '\uFFFD');
+        text.Count(c => c == '�');
 
     private static List<string> FindDroppedDiacritics(string text)
     {

@@ -14,4 +14,6 @@ public class IndexerConfig
     public string OpenAiGptModelName { get; init; } = default!;
     public string OpenAiExtractionDeployment   { get; init; } = "gpt-41-extraction";
     public string DocumentIntelligenceEndpoint { get; init; } = "";
+    public string OpenAiEmbeddingModelName     { get; init; } = "text-embedding-3-large";
+    public int    OpenAiEmbeddingDimensions    { get; init; } = 3072;
 }

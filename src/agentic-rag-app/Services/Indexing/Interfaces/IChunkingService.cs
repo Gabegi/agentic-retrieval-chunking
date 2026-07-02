@@ -8,7 +8,7 @@ public interface IChunkingService
     string Name { get; }
 
     // Low-level: splits raw text into TextChunks using the configured strategy.
-    IReadOnlyList<TextChunk> ChunkAsync(string content);
+    IReadOnlyList<TextChunk> Chunk(string content);
 
     // High-level: converts ExtractionDocuments into indexed ProtocolDocuments,
     // computes ChunkingResults, and emits all chunk telemetry.

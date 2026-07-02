@@ -20,7 +20,7 @@ public class ChunkingService : IChunkingService
     }
 
     // Low-level passthrough — splits raw text into TextChunks.
-    public IReadOnlyList<TextChunk> ChunkAsync(string content)
+    public IReadOnlyList<TextChunk> Chunk(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
             return [];
@@ -39,7 +39,7 @@ public class ChunkingService : IChunkingService
         {
             var title   = doc.Metadata.GetValueOrDefault("title") ?? "";
             var summary = doc.Metadata.GetValueOrDefault("summary");
-            var chunks  = ChunkAsync(doc.Content);
+            var chunks  = Chunk(doc.Content);
 
             // Chunk ordinal is scoped to this document (SourceId + Ordinal), not the run —
             // otherwise the same document gets different chunk IDs depending on which other
