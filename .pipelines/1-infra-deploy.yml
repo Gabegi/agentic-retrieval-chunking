@@ -28,7 +28,7 @@ variables:
       - name: backendStorageAccount
         value: 'corsttfcapprdwe'
       - name: backendContainer
-        value: 'terraform-state'
+        value: 'terraform-state-app'
   - ${{ else }}:
       - name: envName
         value: 'development'
@@ -43,7 +43,7 @@ variables:
       - name: backendStorageAccount
         value: 'corsttfcapdevwe'
       - name: backendContainer
-        value: 'terraform-state'
+        value: 'terraform-state-app'
 
 stages:
 
