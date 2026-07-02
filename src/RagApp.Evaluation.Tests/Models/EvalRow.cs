@@ -31,8 +31,7 @@ public record EvalRow(
     double       Retrieval,          // 1-5  LLM — was the right context fetched?  (re-enable with Retrieval)
     double       F1,                 // 0-1  NLP — token overlap vs expected answer (re-enable with F1)
 
-     DateTimeOffset Timestamp,
-     double Retrieval)
+    DateTimeOffset Timestamp)
 {
     /// <summary>Builds a row representing a failed RAG call, with all scores zeroed.</summary>
     public static EvalRow ForFailure(TestQuery q, string error, long latencyMs) => new(
