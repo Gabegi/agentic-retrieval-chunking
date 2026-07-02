@@ -10,11 +10,12 @@ public static class PipelineValidator
     private const int    SpotCheckSampleSize                = 5;
     private const char   ReplacementChar                    = '�';
 
-    private static readonly Dictionary<string, string> KnownMojibakePatterns = new()
-    {
-        ["Ã«"] = "ë", ["Ã©"] = "é", ["Ã¯"] = "ï", ["Ã¼"] = "ü",
-        ["â€™"] = "'", ["â€œ"] = "\"", ["â€"] = "\""
-    };
+    // Checked in order; longer patterns first so "â€œ" isn't double-reported by a prefix.
+    private static readonly (string Pattern, string Fix)[] KnownMojibakePatterns =
+    [
+        ("â€™", "'"), ("â€œ", "\""), ("â€", "\""), ("â€“", "–"), ("â€”", "—"),
+        ("Ã«", "ë"), ("Ã©", "é"), ("Ã¯", "ï"), ("Ã¼", "ü"),
+    ];
 
     private static readonly Regex MarkdownHeading =
         new(@"^#{1,6}\s", RegexOptions.Multiline | RegexOptions.Compiled);
@@ -113,10 +114,15 @@ public static class PipelineValidator
                     Message    = $"Page {record.PageIndex}: {replacementCount} U+FFFD char(s) — source text is corrupted." });
 
             foreach (var (pattern, fix) in KnownMojibakePatterns)
+            {
                 if (record.PageContent.Contains(pattern))
+                {
                     issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
                         DocumentId = record.DocumentId,
                         Message    = $"Page {record.PageIndex}: possible mojibake '{pattern}' (expected '{fix}')." });
+                    break;   // one mojibake warning per page is enough
+                }
+            }
 
             // Check each table block independently — a page can legitimately contain
             // multiple tables of different widths; checking the whole page at once
