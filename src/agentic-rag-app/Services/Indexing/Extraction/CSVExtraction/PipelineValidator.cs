@@ -47,6 +47,17 @@ public static class PipelineValidator
         issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue
             { Stage = "Clean", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
 
+        // 1b. Index documents with no pages never reach the search index — make that visible.
+        issues.AddRange(joinResult.SkippedIndexRecords.Select(r => new ValidationIssue
+        {
+            Stage      = "Join",
+            Severity   = "Warning",
+            DocumentId = r.DocumentId,
+            Message    = "Index record has no pages — document will not be indexed.",
+        }));
+        if (joinResult.SkippedIndexRecords.Count > 0)
+            redFlags.Add($"{joinResult.SkippedIndexRecords.Count} index document(s) have no pages and will not be indexed.");
+
         // 2. Reconcile counts across step boundaries.
         // Join dedupes its error log per DOCUMENT, not per page — recompute the real
         // per-page total for unmatched docs before comparing.
