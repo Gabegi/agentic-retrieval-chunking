@@ -19,6 +19,9 @@ public class ProtocolDocument
     [JsonPropertyName("quick_code")]
     public string? QuickCode { get; set; }
 
+    [JsonPropertyName("relative_path")]
+    public string? RelativePath { get; set; }
+
     [JsonPropertyName("last_modified_date")]
     public DateTimeOffset? LastModifiedDate { get; set; }
 

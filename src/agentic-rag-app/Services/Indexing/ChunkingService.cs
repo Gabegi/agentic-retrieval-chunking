@@ -57,6 +57,7 @@ public class ChunkingService : IChunkingService
                     Title            = doc.Metadata.GetValueOrDefault("title"),
                     Department       = doc.Metadata.GetValueOrDefault("folder_path"),
                     QuickCode        = doc.Metadata.GetValueOrDefault("quick_code"),
+                    RelativePath     = doc.Metadata.GetValueOrDefault("relative_path"),
                     LastModifiedDate = ParseDate(doc.Metadata.GetValueOrDefault("last_modified_date")),
                     CheckDate        = ParseDate(doc.Metadata.GetValueOrDefault("check_date")),
                     Version          = doc.Metadata.GetValueOrDefault("version"),
