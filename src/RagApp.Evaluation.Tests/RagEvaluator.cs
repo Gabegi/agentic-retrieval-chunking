@@ -83,11 +83,6 @@ public sealed class RagEvaluator
         {
             new RetrievalEvaluatorContext(result.RetrievedContext)
         };
-        var f1Ctx = new List<EvaluationContext>           // re-enable with F1
-        {
-            new F1EvaluatorContext(testQuery.ExpectedAnswer)
-        };
-
         // Run evaluators sequentially with 2 s gaps; retry handles residual 429s via Retry-After headers.
         var groundednessResult = await JudgeAsync(() => _groundedness.EvaluateAsync(messages, chatResponse, _judgeConfig, groundednessCtx, ct).AsTask(), ct);
         await Task.Delay(2000, ct);
@@ -98,7 +93,16 @@ public sealed class RagEvaluator
         var equivalenceResult  = await JudgeAsync(() => _equivalence.EvaluateAsync(messages, chatResponse, _judgeConfig, equivalenceCtx, ct).AsTask(), ct);
         await Task.Delay(2000, ct);                                                                                                                           // re-enable with Retrieval
         var retrievalResult = await JudgeAsync(() => _retrieval.EvaluateAsync(messages, chatResponse, _judgeConfig, retrievalCtx, ct).AsTask(), ct);          // re-enable with Retrieval
-        var f1Result        = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);                                                               // re-enable with F1
+
+        // F1 (token overlap) is only meaningful when the corpus can produce the reference
+        // answer. Known-gap scenarios get -1 so dashboards can exclude them from trends.
+        double f1 = -1;
+        if (testQuery.AnswerableFromCorpus)
+        {
+            var f1Ctx = new List<EvaluationContext> { new F1EvaluatorContext(testQuery.ExpectedAnswer) };
+            var f1Result = await _f1.EvaluateAsync(messages, chatResponse, null, f1Ctx, ct);
+            f1 = f1Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0;
+        }
 
         return new EvalRow(
             ScenarioName:    testQuery.Name,
@@ -119,8 +123,8 @@ public sealed class RagEvaluator
             Relevance:    relevanceResult.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName)?.Value ?? 0,
             Coherence:    coherenceResult.Get<NumericMetric>(CoherenceEvaluator.CoherenceMetricName)?.Value ?? 0,
             Equivalence:  equivalenceResult.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
-            Retrieval: retrievalResult.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,  
-            F1:        f1Result.Get<NumericMetric>(F1Evaluator.F1MetricName)?.Value ?? 0,                       
+            Retrieval: retrievalResult.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,
+            F1:        f1,
             Timestamp:    DateTimeOffset.UtcNow);
     }
 
