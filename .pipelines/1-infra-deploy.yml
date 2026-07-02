@@ -131,12 +131,12 @@ stages:
   # Only runs on push to development/production, not on PRs.
   # 'production' environment requires an Approval check in Pipelines > Environments.
   - stage: Apply
-    displayName: 'Apply ($(envName))'
+    displayName: 'Apply (${{ variables.envName }})'
     dependsOn: Plan
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     jobs:
       - deployment: terraform_apply
-        environment: '$(envName)'
+        environment: '${{ variables.envName }}'
         strategy:
           runOnce:
             deploy:
