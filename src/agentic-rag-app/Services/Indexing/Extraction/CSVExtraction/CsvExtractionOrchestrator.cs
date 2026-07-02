@@ -70,7 +70,12 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         var indexResult = CsvExtractor.ExtractIndex(indexStream);
         var joinResult  = CsvJoiner.Join(pagesResult.Records, indexResult.Records);
         var cleanResult = DataCleaner.Clean(joinResult.Joined);
-        var report      = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult);
+
+        var previousCount = await ReadPreviousCleanedCountAsync(ct);
+        var report = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
+
+        foreach (var warning in report.MagnitudeWarnings)
+            _logger.LogWarning("{Warning}", warning);
 
         _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
             report.Passed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
@@ -83,6 +88,8 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         if (!report.Passed)
             throw new InvalidOperationException(
                 $"CSV validation failed ({report.ReconciliationProblems.Count} reconciliation problem(s)) — aborting extraction.");
+
+        await SaveRunStateAsync(cleanResult.Records.Count, ct);   // only after a passing run
 
         // Emit validation metrics
         var errors   = report.Issues.Count(i => i.Severity == "Error");
