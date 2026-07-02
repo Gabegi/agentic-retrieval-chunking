@@ -9,6 +9,7 @@ public class CleanedPageRecord
     public DateTime      LastModified     { get; set; }
     public int           PageIndex        { get; set; }
     public string        PageContent      { get; set; } = "";
+    public string        Language         { get; set; } = "";
 
     public string        DocumentTypeName { get; set; } = "";
     public string        Summary          { get; set; } = "";

@@ -93,6 +93,7 @@ public static class CsvExtractor
                     LastModifiedRaw = csv.GetField("LAST_MODIFIED_DATETIME") ?? "",
                     PageIndex       = ParsePageIndex(csv),
                     PageContent     = csv.GetField("PAGE_CONTENT") ?? "",
+                    Language        = csv.GetField("LANGUAGE") ?? "",
                 });
             }
             catch (Exception ex)

@@ -10,6 +10,7 @@ public class JoinedPageRecord
     public string LastModifiedRaw { get; set; } = "";
     public int    PageIndex       { get; set; }
     public string PageContent     { get; set; } = "";
+    public string Language        { get; set; } = "";
 
     // from IndexRecord
     public string DocumentTypeName  { get; set; } = "";
