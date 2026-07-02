@@ -9,7 +9,8 @@ namespace ProtocolsIndexer.Services;
 public static class DataCleaner
 {
     private static readonly Regex CordaanBoilerplate =
-        new(@"^cordaan(\n+|$)", RegexOptions.Compiled);   // case-sensitive, intentionally
+        new(@"^cordaan[ \t]*$\n?", RegexOptions.Multiline | RegexOptions.Compiled);
+        // standalone logo lines only; case-sensitive, intentionally — never touches "Cordaan" in prose
     private static readonly Regex ImagePlaceholder =
         new(@"!\[[^\]]*\]\([^\)]*\)", RegexOptions.Compiled);
     private static readonly Regex ExcessBlankLines =
