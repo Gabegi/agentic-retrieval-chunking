@@ -63,6 +63,9 @@ public class IndexService : IIndexService
                 new SimpleField("document_id",        SearchFieldDataType.String)         { IsFilterable = true },
                 new SearchableField("title")                                               { IsFilterable = true, IsFacetable = true },
                 new SearchableField("content")                                             { AnalyzerName = "nl.microsoft" },
+                // Curated "what is this document for" line from Zenya's SUMMARY column —
+                // prime semantic-ranking material, kept out of "content" so it doesn't repeat once per chunk.
+                new SearchableField("summary")                                             { AnalyzerName = "nl.microsoft" },
                 new SearchableField("heading")                                             { IsFilterable = true, IsFacetable = true, AnalyzerName = "nl.microsoft" },
                 // From FOLDER_MINI_FULL_PATH — bounded set of department/category values (HR, Kwaliteit, Facilitaire zaken, ...).
                 new SearchableField("department")                                          { IsFilterable = true, IsFacetable = true },
