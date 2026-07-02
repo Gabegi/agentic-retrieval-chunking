@@ -10,6 +10,13 @@ public class PdfPigExtractionService : IPdfExtractionService
 {
     public string Name => "PdfPig (Heuristic)";
 
+    private readonly IChunkingStrategy _chunkingStrategy;
+
+    public PdfPigExtractionService(IChunkingStrategy chunkingStrategy)
+    {
+        _chunkingStrategy = chunkingStrategy;
+    }
+
     private static readonly HashSet<string> KnownSections = new(StringComparer.OrdinalIgnoreCase)
     {
         "Samenvatting", "Ziekteverschijnselen", "Verwekker", "Epidemiologie",
@@ -60,10 +67,10 @@ public class PdfPigExtractionService : IPdfExtractionService
                 var text = buffer.ToString().Trim();
                 if (string.IsNullOrWhiteSpace(text) || text.Split(' ').Length < 5) return;
 
-                foreach (var part in ChunkingUtils.SplitContent(text))
+                foreach (var part in _chunkingStrategy.Chunk(text))
                 {
                     // Prepend heading into content so keyword and vector signals align
-                    var fullContent = currentHeading != null ? $"{currentHeading}\n\n{part}" : part;
+                    var fullContent = currentHeading != null ? $"{currentHeading}\n\n{part.Content}" : part.Content;
                     run.Chunks.Add(new ProtocolDocument
                     {
                         Id         = ChunkingUtils.SafeKey(blobName, chunkIndex),
