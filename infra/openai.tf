@@ -1,6 +1,6 @@
 resource "azurerm_cognitive_account" "openai" {
-  name                = "oai-chuking-agentic-rag"
-  resource_group_name = azurerm_resource_group.main.name
+  name                  = "oai-chuking-agentic-rag"
+  resource_group_name   = azurerm_resource_group.main.name
   # Pinned to westeurope (independent of the resource group's eastus location) —
   # the subscription has 0 TPM quota for gpt-4.1/gpt-4o and 0 App Service P1v3
   # quota in eastus. Search/Storage/Function App stay in eastus; only this
