@@ -181,6 +181,7 @@ public static class PipelineValidator
             SkippedIndexDocuments         = joinResult.SkippedIndexRecords
                 .Select(r => $"{r.DocumentTypeName} ({r.DocumentId})")
                 .ToList(),
+            StaleDocCount                 = staleDocCount,
             Passed                        = passed,
         };
     }

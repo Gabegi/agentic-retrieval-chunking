@@ -102,14 +102,8 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         if (warnings > 0)
             Instrumentation.ValidationIssues.Add(warnings, sourceTag, new("severity", "warning"));
 
-        if (report.RedFlags.Count > 0)
-        {
-            // Extract stale doc count from the red-flag message produced by PipelineValidator
-            var staleFlag = report.RedFlags.FirstOrDefault(f => f.Contains("check_date_exceeded"));
-            if (staleFlag != null && int.TryParse(
-                    new string(staleFlag.TakeWhile(char.IsDigit).ToArray()), out var staleCount))
-                Instrumentation.StaleDocs.Add(staleCount, sourceTag);
-        }
+        if (report.StaleDocCount > 0)
+            Instrumentation.StaleDocs.Add(report.StaleDocCount, sourceTag);
 
         Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
 
