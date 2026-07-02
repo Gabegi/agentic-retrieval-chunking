@@ -96,7 +96,7 @@ var host = new HostBuilder()
 
         services.AddSingleton(_ =>
             new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential));
-        services.AddSingleton<IRagQueryService, RagQueryService>();
+        services.AddSingleton<IRagQueryService, AgenticRagQueryService>();
 
         // Chunking
         services.AddSingleton<IChunkingStrategy, ChunkingStrategy1>();
