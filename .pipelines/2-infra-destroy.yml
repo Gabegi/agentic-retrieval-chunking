@@ -1,0 +1,189 @@
+trigger: none
+pr: none
+
+parameters:
+  - name: environment
+    displayName: 'Environment to destroy'
+    type: string
+    default: development
+    values:
+      - development
+      - production
+  - name: confirmationText
+    displayName: 'Type the environment name above exactly to confirm'
+    type: string
+    default: ''
+
+variables:
+  - ${{ if eq(parameters.environment, 'production') }}:
+      - name: serviceConnection
+        value: 'cor-cap-app-prd'
+      - name: tfvarsFile
+        value: 'envs/prod.tfvars'
+      - name: backendRgName
+        value: 'cor-cap-cicd-prd-we-001'
+      - name: backendKey
+        value: 'prod.terraform.tfstate'
+      - name: backendStorageAccount
+        value: 'corsttfcapprdwe'
+      - name: backendContainer
+        value: 'terraform-state-app'
+  - ${{ else }}:
+      - name: serviceConnection
+        value: 'cor-cap-app-dev'
+      - name: tfvarsFile
+        value: 'envs/dev.tfvars'
+      - name: backendRgName
+        value: 'cor-cap-cicd-dev-we-001'
+      - name: backendKey
+        value: 'dev.terraform.tfstate'
+      - name: backendStorageAccount
+        value: 'corsttfcapdevwe'
+      - name: backendContainer
+        value: 'terraform-state-app'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+
+  # Runs unconditionally so the confirmation check always executes before
+  # anything that touches Terraform state.
+  - stage: Confirm
+    displayName: 'Confirm destroy (${{ parameters.environment }})'
+    jobs:
+      - job: check_confirmation
+        steps:
+          - script: |
+              if [ "${{ parameters.confirmationText }}" != "${{ parameters.environment }}" ]; then
+                echo "##vso[task.logissue type=error]Confirmation text '${{ parameters.confirmationText }}' does not match environment '${{ parameters.environment }}'. Aborting."
+                exit 1
+              fi
+              echo "Confirmed: destroying ${{ parameters.environment }}."
+            displayName: 'Check typed confirmation'
+
+  - stage: Plan
+    displayName: 'Destroy Plan (${{ parameters.environment }})'
+    dependsOn: Confirm
+    jobs:
+      - job: terraform_destroy_plan
+        steps:
+          - checkout: self
+
+          - script: |
+              TF_VERSION="1.15.7"
+              curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
+              unzip -o terraform.zip
+              sudo mv terraform /usr/local/bin/terraform
+              terraform version
+            displayName: 'Install Terraform'
+
+          - task: AzureCLI@2
+            displayName: 'Init'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+              inlineScript: |
+                export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                export ARM_USE_OIDC=true
+                terraform init \
+                  -backend-config="resource_group_name=$(backendRgName)" \
+                  -backend-config="storage_account_name=$(backendStorageAccount)" \
+                  -backend-config="container_name=$(backendContainer)" \
+                  -backend-config="key=$(backendKey)" \
+                  -backend-config="use_azuread_auth=true"
+            env:
+              ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
+
+          - task: AzureCLI@2
+            displayName: 'Destroy Plan'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+              inlineScript: |
+                export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                export ARM_USE_OIDC=true
+                terraform plan \
+                  -destroy \
+                  -var-file="$(tfvarsFile)" \
+                  -out=$(Build.ArtifactStagingDirectory)/tfplan
+            env:
+              ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
+
+          - publish: '$(Build.ArtifactStagingDirectory)/tfplan'
+            artifact: tfplan
+
+  # Gated by the same Azure DevOps Environment approval checks as
+  # 1-infra-deploy.yml (Pipelines > Environments > development/production).
+  - stage: Apply
+    displayName: 'Destroy Apply (${{ parameters.environment }})'
+    dependsOn: Plan
+    condition: succeeded()
+    jobs:
+      - deployment: terraform_destroy_apply
+        environment: '${{ parameters.environment }}'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - download: current
+                  artifact: tfplan
+
+                - script: |
+                    TF_VERSION="1.15.7"
+                    curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
+                    unzip -o terraform.zip
+                    sudo mv terraform /usr/local/bin/terraform
+                    terraform version
+                  displayName: 'Install Terraform'
+
+                - task: AzureCLI@2
+                  displayName: 'Init'
+                  inputs:
+                    azureSubscription: '$(serviceConnection)'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+                    inlineScript: |
+                      export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                      export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                      export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                      export ARM_USE_OIDC=true
+                      terraform init \
+                        -backend-config="resource_group_name=$(backendRgName)" \
+                        -backend-config="storage_account_name=$(backendStorageAccount)" \
+                        -backend-config="container_name=$(backendContainer)" \
+                        -backend-config="key=$(backendKey)" \
+                        -backend-config="use_azuread_auth=true"
+                  env:
+                    ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
+
+                - task: AzureCLI@2
+                  displayName: 'Destroy Apply'
+                  inputs:
+                    azureSubscription: '$(serviceConnection)'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
+                    inlineScript: |
+                      export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
+                      export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
+                      export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
+                      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                      export ARM_USE_OIDC=true
+                      terraform apply $(Pipeline.Workspace)/tfplan/tfplan
+                  env:
+                    ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
