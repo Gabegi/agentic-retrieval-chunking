@@ -71,6 +71,9 @@ public class IndexService : IIndexService
                 new SearchableField("department")                                          { IsFilterable = true, IsFacetable = true },
                 // From QUICK_CODE — Cordaan's internal document code; useful for exact-match lookups and citing source docs.
                 new SimpleField("quick_code",         SearchFieldDataType.String)         { IsFilterable = true },
+                // From RELATIVE_PATH — path back to the original PDF (e.g. "Cordaan/Zorg inhoud/Kwaliteit/{id}_{ts}.pdf").
+                // Structured provenance metadata, not free-text search material — not searchable, just citable.
+                new SimpleField("relative_path",      SearchFieldDataType.String)         { IsFilterable = true },
                 // From LAST_MODIFIED_DATETIME. Renamed from publication_date (no true pub date exists) and retyped to enable date filtering/sorting.
                 new SimpleField("last_modified_date", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
                 // From CHECK_DATE — the next review/expiry date. Lets the RAG layer flag or exclude stale protocols.
