@@ -117,12 +117,6 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         if (missingVersion > 0)    Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
         if (missingDepartment > 0) Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
 
-        var staleDocCount = cleanResult.Records
-            .Where(r => r.AttentionFlags.Contains("check_date_exceeded"))
-            .Select(r => r.DocumentId)
-            .Distinct()
-            .Count();
-
         var extractionDocs = cleanResult.Records
             .Select(r => new ExtractionDocument(
                 SourceId: r.DocumentId,
