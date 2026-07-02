@@ -35,10 +35,16 @@ accordingly.
 | text-embedding-ada-002 | 2 | GenerallyAvailable | Untested, no reason to expect issues | 2027-04-15 | 0 / 1000 |
 | whisper | 001 | GenerallyAvailable | Untested, no reason to expect issues | 2026-12-15 | RPM-based: 0 / 3 (not TPM) |
 
-**Action for `ai_deployments.tf`**: swap `querying` and `extraction` from `gpt-4.1` (`2025-04-14`) to
-`gpt-5.1` (`2025-11-13`) - it's GA, has the full 1000 K TPM quota unused, and has the longest runway
-(retires 2027-05-15) of the immediately-usable options. `gpt-5.5` would be newer but currently has 0
-quota in this subscription/region.
+**Applied in `ai_deployments.tf`**: `querying`, `extraction`, and `evaluation` all moved to `gpt-5.4`
+(`2026-03-05`) - the newest **GA** flagship with quota actually available (1000 K TPM, unused).
+`gpt-5.5` is newer but has 0 quota in this subscription/region, so it isn't usable yet. Regional
+`Standard` SKU was checked too (see the query in "Regenerating this snapshot") - it doesn't offer
+`gpt-5.x`/`gpt-4o`/`text-embedding-3-large` at all, only legacy models plus `gpt-4.1-mini`, so
+`GlobalStandard` remains the right tier here.
+
+Note: using the same model (`gpt-5.4`) for both generation and evaluation risks self-preference bias in
+the eval scores. Worth reconsidering once you're relying on eval numbers for real decisions - a distinct
+judge model would be more trustworthy.
 
 ## Other models in the catalog (not TPM-quota-based, not currently used by this project)
 
