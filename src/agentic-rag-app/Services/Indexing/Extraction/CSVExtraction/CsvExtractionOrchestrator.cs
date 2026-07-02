@@ -2,6 +2,7 @@ using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Observability;
+using System.Text.Json;
 
 namespace ProtocolsIndexer.Services;
 
@@ -11,19 +12,46 @@ namespace ProtocolsIndexer.Services;
 public class CsvExtractionOrchestrator : IExtractionOrchestrator
 {
     private readonly BlobContainerClient                _container;
+    private readonly BlobContainerClient                _stateContainer;
     private readonly ILogger<CsvExtractionOrchestrator> _logger;
 
     public string Source => "csv";
 
     private const string PagesBlobName = "zenya_pages.csv";
     private const string IndexBlobName = "zenya_index.csv";
+    private const string StateBlobName = "csv-extraction-state.json";
+
+    private sealed record RunState(int CleanedRecords);
 
     public CsvExtractionOrchestrator(
         BlobContainerClient                container,
+        BlobContainerClient                stateContainer,
         ILogger<CsvExtractionOrchestrator> logger)
     {
-        _container = container;
-        _logger    = logger;
+        _container      = container;
+        _stateContainer = stateContainer;
+        _logger         = logger;
+    }
+
+    // Persisted in the pipeline-internal "pipeline-temp" container, not the CSV drop
+    // container — the CSV container is overwritten by an external Zenya export process
+    // outside this repo, and it's unclear whether that's a scoped overwrite of the two
+    // named CSVs or a wholesale container wipe. Using our own container avoids the state
+    // file silently disappearing before it's ever read back.
+    private async Task<int?> ReadPreviousCleanedCountAsync(CancellationToken ct)
+    {
+        var blob = _stateContainer.GetBlobClient(StateBlobName);
+        if (!await blob.ExistsAsync(ct)) return null;
+        using var stream = await blob.OpenReadAsync(cancellationToken: ct);
+        var state = await JsonSerializer.DeserializeAsync<RunState>(stream, cancellationToken: ct);
+        return state?.CleanedRecords;
+    }
+
+    private async Task SaveRunStateAsync(int cleanedRecords, CancellationToken ct)
+    {
+        var json = JsonSerializer.Serialize(new RunState(cleanedRecords));
+        await _stateContainer.GetBlobClient(StateBlobName)
+            .UploadAsync(BinaryData.FromString(json), overwrite: true, ct);
     }
 
     public async Task<ExtractionOutput> ExtractDocumentsAsync(CancellationToken ct = default)
