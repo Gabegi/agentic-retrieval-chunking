@@ -177,6 +177,9 @@ public static class PipelineValidator
             RedFlags                      = redFlags,
             SpotCheckSample               = sample,
             DocumentsNeedingFallbackChunking = docsNeedingFallback,
+            SkippedIndexDocuments         = joinResult.SkippedIndexRecords
+                .Select(r => $"{r.DocumentTypeName} ({r.DocumentId})")
+                .ToList(),
             Passed                        = passed,
         };
     }
