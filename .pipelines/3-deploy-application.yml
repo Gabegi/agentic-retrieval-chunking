@@ -1,0 +1,65 @@
+trigger: none
+pr: none
+
+variables:
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/production') }}:
+      - name: envName
+        value: 'production'
+      - name: serviceConnection
+        value: 'cor-cap-app-prd'
+      - name: functionAppName
+        value: 'cor-func-idx-cap-prd-we-001'
+      - name: functionAppRg
+        value: 'cor-cap-data-prd-we-001'
+  - ${{ else }}:
+      - name: envName
+        value: 'development'
+      - name: serviceConnection
+        value: 'cor-cap-app-dev'
+      - name: functionAppName
+        value: 'cor-func-idx-cap-dev-we-001'
+      - name: functionAppRg
+        value: 'cor-cap-data-dev-we-001'
+
+# Self-hosted: the Function App is private-endpoint-only (no public inbound),
+# so a Microsoft-hosted agent has no network path to its SCM/Kudu endpoint.
+# Update the pool name below if your agent isn't registered under "Default".
+pool:
+  name: 'Default'
+
+stages:
+  - stage: Deploy
+    displayName: 'Deploy Application (${{ variables.envName }})'
+    jobs:
+      - job: deploy_function_app
+        steps:
+          - checkout: self
+
+          - task: UseDotNet@2
+            displayName: 'Install .NET 8 SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '8.0.x'
+
+          - script: |
+              dotnet publish src/agentic-rag-app/ProtocolsIndexer.csproj -c Release -o $(Build.ArtifactStagingDirectory)/publish
+            displayName: 'Publish'
+
+          - script: |
+              cd $(Build.ArtifactStagingDirectory)/publish
+              zip -r $(Build.ArtifactStagingDirectory)/protocol-indexer.zip .
+            displayName: 'Zip package'
+
+          # Same OIDC service connection as 1-infra-deploy.yml - no separate
+          # secrets/credentials to manage for app deploys.
+          - task: AzureCLI@2
+            displayName: 'Deploy to Function App'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az functionapp deployment source config-zip \
+                  --resource-group $(functionAppRg) \
+                  --name $(functionAppName) \
+                  --src $(Build.ArtifactStagingDirectory)/protocol-indexer.zip
