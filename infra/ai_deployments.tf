@@ -1,8 +1,10 @@
 # ---------------------------------------------------------------------------
 # OpenAI model deployments on the existing Foundry AI Services account
-# (data.azurerm_ai_services.foundry, see data.tf). Capacities are copied
-# from a prior prototype's quota-fitted values - verify TPM quota for this
-# subscription (cor-cap-dev / westeurope) before relying on them.
+# (data.azurerm_cognitive_account.foundry, see data.tf). Model choices and
+# quota verified 2026-07-02 against cor-cap-dev/westeurope - see
+# docs/ai-foundry-models.md. gpt-4.1 is blocked for new deployments
+# (ServiceModelDeprecating); gpt-5.4 is the newest GA flagship with quota
+# actually available (gpt-5.5 exists but has 0 quota in this sub/region).
 # ---------------------------------------------------------------------------
 
 resource "azurerm_cognitive_deployment" "embedding" {
