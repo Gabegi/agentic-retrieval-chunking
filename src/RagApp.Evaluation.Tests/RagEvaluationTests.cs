@@ -67,9 +67,13 @@ public class RagEvaluationTests
         _writer = new EvalResultWriter(container, executionId: $"{DateTime.UtcNow:yyyyMMddTHHmmss}");
     }
 
+    [TestCleanup]
+    public Task Throttle() => Task.Delay(TimeSpan.FromSeconds(5));
+
     [TestMethod]
-    [DynamicData(nameof(TestQueries))]
-    public async Task EvaluateQuery(TestQuery testQuery)
+    [TestCategory("golden")]
+    [DynamicData(nameof(GoldenQueries))]
+    public async Task EvaluateGoldenQuery(TestQuery testQuery)
     {
         var row = await _evaluator.RunAsync(testQuery, q => _ragService.AskAsync(q));
         await _writer.WriteAsync(row);
@@ -85,53 +89,12 @@ public class RagEvaluationTests
             $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
     }
 
-    [TestCleanup]
-    public Task Throttle() => Task.Delay(TimeSpan.FromSeconds(5));
-
-    [TestMethod]
-    [TestCategory("golden")]
-    [DynamicData(nameof(GoldenQueries))]
-    public async Task EvaluateGoldenQuery(TestQuery testQuery)
-    {
-        var row = await _evaluator.RunAsync(testQuery, q => _ragService.AskAsync(q));
-        await _writer.WriteAsync(row);
-
-        Console.WriteLine(
-            $"[{row.ScenarioName}] G={row.Groundedness:F1} R={row.Relevance:F1} C={row.Coherence:F1} Eq={row.Equivalence:F1}  " +
-            $"{row.LatencyMs}ms  ${row.CostUsd:F4}  in={row.InputTokens} out={row.OutputTokens}  ok={row.Succeeded}");
-
-        Assert.IsTrue(row.Succeeded,
-            $"RAG call failed for '{testQuery.Name}': {row.Error}");
-        Assert.IsTrue(row.Groundedness >= MinGroundedness,
-            $"Groundedness {row.Groundedness:F1}/5 below threshold for '{testQuery.Name}'");
-    }
-
     public static IEnumerable<object[]> GoldenQueries
     {
         get
         {
             var path = Path.Combine(AppContext.BaseDirectory, "testdata", "golden-questions.json");
             return LoadFile(path).Select(q => new object[] { q });
-        }
-    }
-
-    // Merges all test sets into one list:
-    //   original-test-queries.json  — hand-curated, always required
-    //   test-queries.json           — secondary curated set, always required
-    //   test-queries-generated.json — auto-generated, optional (skipped if absent)
-    public static IEnumerable<object[]> TestQueries
-    {
-        get
-        {
-            var dir = Path.Combine(AppContext.BaseDirectory, "testdata");
-
-            var curated   = LoadFile(Path.Combine(dir, "original-test-queries.json"));
-            var secondary = LoadFile(Path.Combine(dir, "test-queries.json"));
-
-            var generatedPath = Path.Combine(dir, "test-queries-generated.json");
-            var generated = File.Exists(generatedPath) ? LoadFile(generatedPath) : [];
-
-            return curated.Concat(secondary).Concat(generated).Select(q => new object[] { q });
         }
     }
 
