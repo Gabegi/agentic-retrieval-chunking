@@ -51,6 +51,10 @@ public class KnowledgeService : IKnowledgeService
                     new SearchIndexFieldReference("quick_code"),
                     new SearchIndexFieldReference("version"),
                     new SearchIndexFieldReference("content"),
+                    // page_number/chunk_index — needed for query-time neighboring-page
+                    // expansion in ChunkNeighborExpander (page-boundary continuations).
+                    new SearchIndexFieldReference("page_number"),
+                    new SearchIndexFieldReference("chunk_index"),
                 }
                 // note: content_vector is excluded — not needed for LLM context
             }
