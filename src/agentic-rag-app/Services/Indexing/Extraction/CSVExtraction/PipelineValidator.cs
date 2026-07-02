@@ -158,11 +158,11 @@ public static class PipelineValidator
             ? [.. cleanResult.Records]
             : [.. cleanResult.Records.OrderBy(_ => Guid.NewGuid()).Take(SpotCheckSampleSize)];
 
-        // 9. Pass/fail. Denominator is every row ATTEMPTED, not just successes —
-        // otherwise 0 records extracted divides to 0% and falsely passes.
-        var errorCount    = issues.Count(i => i.Severity == "Error") + reconciliation.Count;
-        var totalAttempted = pagesExtraction.TotalRows;
-        var errorRate     = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
+        // 9. Pass/fail. Denominator is every row ATTEMPTED across both inputs — parse errors
+        // from the index file count against the same budget they're measured by.
+        var errorCount     = issues.Count(i => i.Severity == "Error") + reconciliation.Count;
+        var totalAttempted = pagesExtraction.TotalRows + indexExtraction.TotalRows;
+        var errorRate      = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
         var passed        = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
 
         return new ValidationReport
