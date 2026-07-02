@@ -23,12 +23,6 @@
     <ProjectReference Include="..\agentic-rag-app\ProtocolsIndexer.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="testdata\original-test-queries.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="testdata\test-queries.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Update="testdata\golden-questions.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
