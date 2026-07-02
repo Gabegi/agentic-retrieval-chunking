@@ -111,7 +111,7 @@ public class IndexService : IIndexService
         semanticSearch.Configurations.Add(new SemanticConfiguration("semantic-config", new SemanticPrioritizedFields
         {
             TitleField     = new SemanticField("title"),
-            ContentFields  = { new SemanticField("content") },
+            ContentFields  = { new SemanticField("content"), new SemanticField("summary") },
             KeywordsFields = { new SemanticField("heading") }
         }));
         semanticSearch.DefaultConfigurationName = "semantic-config";

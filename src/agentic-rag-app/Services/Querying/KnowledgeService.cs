@@ -36,6 +36,7 @@ public class KnowledgeService : IKnowledgeService
                 SearchFields =
                 {
                     new SearchIndexFieldReference("content"),
+                    new SearchIndexFieldReference("summary"),
                     new SearchIndexFieldReference("title"),
                     new SearchIndexFieldReference("heading"),
                     new SearchIndexFieldReference("department"),
@@ -51,6 +52,7 @@ public class KnowledgeService : IKnowledgeService
                     new SearchIndexFieldReference("quick_code"),
                     new SearchIndexFieldReference("version"),
                     new SearchIndexFieldReference("content"),
+                    new SearchIndexFieldReference("summary"),
                     // page_number/chunk_index — needed for query-time neighboring-page
                     // expansion in ChunkNeighborExpander (page-boundary continuations).
                     new SearchIndexFieldReference("page_number"),
