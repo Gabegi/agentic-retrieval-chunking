@@ -28,7 +28,7 @@ A RAG pipeline for Cordaan's internal Dutch-language document corpus (protocols,
 dotnet test src/RagApp.Evaluation.Tests/RagApp.Evaluation.Tests.csproj -c Release --filter "TestCategory=golden"
 ```
 
-Requires `SEARCH_ENDPOINT`, `OPENAI_ENDPOINT`, `OPENAI_GPT_DEPLOYMENT`, etc. as environment variables (see `RagEvaluationTests.Env`/`Defaults` for the full list and dev fallbacks) and an Azure identity with Search/OpenAI access.
+Requires `SEARCH_ENDPOINT`, `OPENAI_ENDPOINT`, `OPENAI_GPT_DEPLOYMENT`, etc. as environment variables (see `src/RagApp.Evaluation.Tests/.env.example` for the full list and dev values) and an Azure identity with Search/OpenAI access.
 
 ## CI
 

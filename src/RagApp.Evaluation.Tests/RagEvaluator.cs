@@ -1,5 +1,6 @@
 using System.ClientModel;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.NLP;
@@ -24,6 +25,13 @@ public sealed class RagEvaluator
     // GPT-4.1 list pricing (USD per 1 M tokens) — update when model changes.
     private const double InputUsdPerMToken  = 2.00;
     private const double OutputUsdPerMToken = 8.00;
+
+    // ExpectedSources carries free-text notes ("SharePoint: ...") alongside Zenya document
+    // URLs — the document GUID embedded in those URLs is the only part that reliably lines
+    // up with Citation.DocumentId, so that's what gets matched against.
+    private static readonly Regex DocumentIdPattern = new(
+        @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+        RegexOptions.Compiled);
 
     private readonly GroundednessEvaluator _groundedness = new();
     private readonly RelevanceEvaluator   _relevance    = new();
@@ -124,7 +132,26 @@ public sealed class RagEvaluator
             Equivalence:  equivalenceResult.Get<NumericMetric>(EquivalenceEvaluator.EquivalenceMetricName)?.Value ?? 0,
             Retrieval: retrievalResult.Get<NumericMetric>(RetrievalEvaluator.RetrievalMetricName)?.Value ?? 0,
             F1:        f1,
+            CitationMatch: ComputeCitationMatch(testQuery.ExpectedSources, result.Citations),
             Timestamp:    DateTimeOffset.UtcNow);
+    }
+
+    // Fraction of document IDs found in ExpectedSources that also appear in the chunks the
+    // RAG call actually cited — the cheapest, most deterministic retrieval signal available.
+    // Returns -1 (not scorable) when ExpectedSources carries no document ID at all, e.g. a
+    // free-text SharePoint note or an "Onbekend" known-gap scenario.
+    private static double ComputeCitationMatch(string expectedSources, IReadOnlyList<ProtocolsIndexer.Models.Citation> citations)
+    {
+        var expectedIds = DocumentIdPattern.Matches(expectedSources)
+            .Select(m => m.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (expectedIds.Count == 0) return -1;
+
+        var citedIds = citations.Select(c => c.DocumentId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var matched  = expectedIds.Count(id => citedIds.Contains(id));
+        return matched / (double)expectedIds.Count;
     }
 
     // Retries a judge LLM call on 429, honouring the retry-after-ms header when present,

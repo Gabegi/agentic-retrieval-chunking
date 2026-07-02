@@ -2,6 +2,7 @@ using System.Text.Json;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using Azure.Search.Documents;
+using Azure.Search.Documents.KnowledgeBases;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.AI;
 using ProtocolsIndexer.Configuration;
@@ -62,7 +63,9 @@ public class RagEvaluationTests
         await knowledgeService.EnsureKnowledgeBaseAsync();
 
         var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
-        _ragService = new AgenticRagQueryService(config, credential, searchClient);
+        var kbClient = new KnowledgeBaseRetrievalClient(new Uri(config.SearchEndpoint), config.KnowledgeBaseName, credential);
+        var neighborExpander = new ChunkNeighborExpander(searchClient);
+        _ragService = new AgenticRagQueryService(config, kbClient, neighborExpander);
         _evaluator = new RagEvaluator(judgeClient);
         _writer = new EvalResultWriter(container, executionId: $"{DateTime.UtcNow:yyyyMMddTHHmmss}");
     }
@@ -80,7 +83,7 @@ public class RagEvaluationTests
 
         Console.WriteLine(
             $"[{row.ScenarioName}] G={row.Groundedness:F1} R={row.Relevance:F1} C={row.Coherence:F1} Eq={row.Equivalence:F1} " +
-            $"Ret={row.Retrieval:F1} F1={row.F1:F2}  " +
+            $"Ret={row.Retrieval:F1} F1={row.F1:F2} Cite={row.CitationMatch:F2}  " +
             $"{row.LatencyMs}ms  ${row.CostUsd:F4}  in={row.InputTokens} out={row.OutputTokens}  ok={row.Succeeded}");
 
         Assert.IsTrue(row.Succeeded,
@@ -103,23 +106,10 @@ public class RagEvaluationTests
             ?.Where(q => !string.IsNullOrWhiteSpace(q.Query))
             .ToList() ?? [];
 
-    private static readonly Dictionary<string, string> Defaults = new()
-    {
-        ["SEARCH_ENDPOINT"]              = "https://srch-rag-chunking-dev.search.windows.net",
-        ["OPENAI_ENDPOINT"]              = "https://oai-chuking-agentic-rag.openai.azure.com/",
-        ["OPENAI_EMBEDDING_DEPLOYMENT"]  = "text-embedding-3-large",
-        ["OPENAI_GPT_DEPLOYMENT"]        = "querying",
-        ["OPENAI_GPT_MODEL_NAME"]        = "gpt-4.1",
-        ["OPENAI_EVAL_DEPLOYMENT"]       = "gpt-5-eval",
-        ["SEARCH_INDEX_NAME"]            = "protocols",
-        ["STORAGE_ACCOUNT_URL"]          = "https://staccountchunkingrag.blob.core.windows.net",
-        ["STORAGE_CONTAINER"]            = "test-results",
-        ["KNOWLEDGE_SOURCE_NAME"]        = "protocols-knowledge-source",
-        ["KNOWLEDGE_BASE_NAME"]          = "protocols-knowledge-base",
-    };
-
+    // Resource names/endpoints are environment-specific and documented in .env.example
+    // (not secrets, but subscription-specific values that rot quickly if baked into source).
     private static string Env(string name) =>
         Environment.GetEnvironmentVariable(name)
-        ?? (Defaults.TryGetValue(name, out var val) ? val
-            : throw new InvalidOperationException($"Missing required env var: {name}"));
+        ?? throw new InvalidOperationException(
+            $"Missing required env var: {name}. See .env.example for the full list of required variables.");
 }

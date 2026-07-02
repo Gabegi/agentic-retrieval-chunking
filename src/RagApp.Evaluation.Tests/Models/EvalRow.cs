@@ -30,6 +30,7 @@ public record EvalRow(
     double          Equivalence,        // 1-5  LLM — same meaning as expected answer?
     double       Retrieval,          // 1-5  LLM — was the right context fetched?  (re-enable with Retrieval)
     double       F1,                 // 0-1  NLP — token overlap vs expected answer (re-enable with F1)
+    double       CitationMatch,      // 0-1  deterministic — fraction of ExpectedSources doc IDs present in Citations; -1 if ExpectedSources has no matchable doc ID
 
     DateTimeOffset Timestamp)
 {
@@ -53,5 +54,6 @@ public record EvalRow(
         Equivalence: 0,
         Retrieval: 0,  // re-enable with Retrieval
         F1: 0,         // re-enable with F1
+        CitationMatch: 0,
         Timestamp: DateTimeOffset.UtcNow);
 }
