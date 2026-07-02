@@ -57,6 +57,10 @@ public class ProtocolDocument
     [JsonIgnore] public bool IsCoherent  => StartsClean && EndsClean;
 
     // Content already includes the section heading (prepended by extraction services),
-    // so keyword and vector signals are aligned.
-    [JsonIgnore] public string EmbeddingText => Content;
+    // so keyword and vector signals are aligned. Summary lives in its own searchable/
+    // semantic field (not in Content) so it doesn't repeat inside the stored text, but it's
+    // folded in here so the vector embedding still carries that curated signal too — the
+    // same benefit the summary field gives BM25/semantic ranking.
+    [JsonIgnore] public string EmbeddingText =>
+        string.IsNullOrWhiteSpace(Summary) ? Content : $"{Summary}\n\n{Content}";
 }
