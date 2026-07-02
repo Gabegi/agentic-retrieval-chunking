@@ -22,13 +22,13 @@ variable "openai_gpt_model_name" {
 }
 
 variable "openai_extraction_deployment" {
-  description = "Name of the Azure OpenAI deployment used for protocol field extraction (gpt-4o-mini — temporarily swapped from gpt-4.1 pending TPM quota approval)"
+  description = "Name of the Azure OpenAI gpt-4.1 deployment used for protocol field extraction"
   type        = string
   default     = "gpt-41-extraction"
 }
 
 variable "openai_eval_deployment" {
-  description = "Name of the Azure OpenAI deployment used as the LLM judge in evaluation tests (gpt-4.1-mini — temporarily swapped from gpt-4o pending TPM quota approval)"
+  description = "Name of the Azure OpenAI gpt-4o deployment used as the LLM judge in evaluation tests"
   type        = string
   default     = "gpt-5-eval"
 }
