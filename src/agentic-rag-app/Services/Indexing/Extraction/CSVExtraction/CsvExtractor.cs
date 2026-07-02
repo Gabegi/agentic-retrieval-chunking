@@ -54,6 +54,16 @@ public static class CsvExtractor
         return value;
     }
 
+    // "VERSION.REVISION" (e.g. "7.0"). REVISION isn't in the required-columns list — if it's
+    // missing/unparseable, fall back to bare VERSION rather than failing the whole row over it.
+    private static string FormatVersion(CsvReader csv)
+    {
+        var version = csv.GetField("VERSION") ?? "";
+        if (string.IsNullOrWhiteSpace(version))
+            return "";
+        return int.TryParse(csv.GetField("REVISION"), out var revision) ? $"{version}.{revision}" : version;
+    }
+
     public static ExtractionResult<PageRecord> ExtractPages(Stream stream)
     {
         var result = new ExtractionResult<PageRecord>();
@@ -146,7 +156,7 @@ public static class CsvExtractor
                     DocumentId        = RequireDocumentId(csv),
                     DocumentTypeName  = csv.GetField("DOCUMENT_TYPE_NAME") ?? "",
                     Summary           = csv.GetField("SUMMARY") ?? "",
-                    Version           = csv.GetField("VERSION") ?? "",
+                    Version           = FormatVersion(csv),
                     CheckDateRaw      = csv.GetField("CHECK_DATE") ?? "",
                     AttentionFlagsRaw = csv.GetField("ATTENTION_REQUIRED_FLAGS") ?? "",
                     Active            = !bool.TryParse(csv.GetField("ACTIVE"), out var active) || active,  // unparseable/missing → assume active

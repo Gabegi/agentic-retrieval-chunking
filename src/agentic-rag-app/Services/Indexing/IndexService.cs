@@ -78,7 +78,7 @@ public class IndexService : IIndexService
                 new SimpleField("last_modified_date", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
                 // From CHECK_DATE — the next review/expiry date. Lets the RAG layer flag or exclude stale protocols.
                 new SimpleField("check_date",         SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
-                // Populate as VERSION.REVISION (e.g. "7.0") — REVISION was previously dropped entirely.
+                // Populated as VERSION.REVISION (e.g. "7.0") by CsvExtractor.FormatVersion.
                 new SimpleField("version",            SearchFieldDataType.String)         { IsFilterable = true },
                 new SimpleField("page_number",        SearchFieldDataType.Int32),
                 new SimpleField("chunk_index",        SearchFieldDataType.Int32),

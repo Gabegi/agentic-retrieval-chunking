@@ -85,6 +85,7 @@ public class AgenticRagQueryService : IRagQueryService
             TotalTokens:        inputTokens + outputTokens,
             Temperature:        null, MaxOutputTokens: null, TopP: null, TopK: null,
             FrequencyPenalty:   null, PresencePenalty: null, Seed: null,
-            ResponseFormat:     null, StopSequences: null);
+            ResponseFormat:     null, StopSequences: null,
+            Citations:          citations);
     }
 }

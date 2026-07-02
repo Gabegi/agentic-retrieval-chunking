@@ -118,6 +118,7 @@ public class RagQueryService : IRagQueryService
             PresencePenalty:   options.PresencePenalty,
             Seed:              options.Seed,
             ResponseFormat:    options.ResponseFormat?.ToString(),
-            StopSequences:     options.StopSequences is { Count: > 0 } s ? [.. s] : null);
+            StopSequences:     options.StopSequences is { Count: > 0 } s ? [.. s] : null,
+            Citations:         []);   // parked path — not wired up to build real citations
     }
 }

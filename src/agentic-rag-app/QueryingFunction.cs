@@ -76,6 +76,13 @@ public class QueryingFunction
         await response.WriteAsJsonAsync(new
         {
             answer    = result.Answer,
+            sources   = result.Citations.Select(c => new
+            {
+                document_id   = c.DocumentId,
+                title         = c.Title,
+                quick_code    = c.QuickCode,
+                relative_path = c.RelativePath,
+            }),
             telemetry = new
             {
                 latency_ms    = result.LatencyMs,
