@@ -49,7 +49,7 @@ stages:
 
   # Runs on PRs and on push to either branch: init, validate, plan
   - stage: Plan
-    displayName: 'Validate & Plan ($(envName))'
+    displayName: 'Validate & Plan (${{ variables.envName }})'
     jobs:
       - job: terraform_plan
         steps:
