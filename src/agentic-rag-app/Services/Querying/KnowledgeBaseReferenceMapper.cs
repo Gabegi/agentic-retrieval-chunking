@@ -26,15 +26,19 @@ public static class KnowledgeBaseReferenceMapper
             r.SourceData.TryGetValue("summary", out var summaryRaw);
             r.SourceData.TryGetValue("page_number", out var pageRaw);
             r.SourceData.TryGetValue("chunk_index", out var chunkIndexRaw);
+            r.SourceData.TryGetValue("quick_code", out var quickCodeRaw);
+            r.SourceData.TryGetValue("relative_path", out var relativePathRaw);
 
             chunks.Add(new RetrievedChunk(
-                Id:         AsText(idRaw) ?? "",
-                DocumentId: AsText(docIdRaw) ?? "",
-                Page:       AsInt(pageRaw),
-                ChunkIndex: AsInt(chunkIndexRaw),
-                Title:      AsText(titleRaw),
-                Summary:    AsText(summaryRaw),
-                Content:    content));
+                Id:           AsText(idRaw) ?? "",
+                DocumentId:   AsText(docIdRaw) ?? "",
+                Page:         AsInt(pageRaw),
+                ChunkIndex:   AsInt(chunkIndexRaw),
+                Title:        AsText(titleRaw),
+                Summary:      AsText(summaryRaw),
+                Content:      content,
+                QuickCode:    AsText(quickCodeRaw),
+                RelativePath: AsText(relativePathRaw)));
         }
         return chunks;
     }

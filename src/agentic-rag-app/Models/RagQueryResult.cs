@@ -24,4 +24,5 @@ public record RagQueryResult(
     float?                 PresencePenalty,
     long?                  Seed,
     string?                ResponseFormat,
-    IReadOnlyList<string>? StopSequences);
+    IReadOnlyList<string>? StopSequences,
+    IReadOnlyList<Citation> Citations);

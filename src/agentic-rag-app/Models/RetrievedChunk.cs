@@ -1,6 +1,9 @@
 namespace ProtocolsIndexer.Models;
 
-public sealed record RetrievedChunk(string Id, string DocumentId, int Page, int ChunkIndex, string? Title, string? Summary, string Content)
+public sealed record RetrievedChunk(
+    string Id, string DocumentId, int Page, int ChunkIndex,
+    string? Title, string? Summary, string Content,
+    string? QuickCode = null, string? RelativePath = null)
 {
     public string ToContextText()
     {
