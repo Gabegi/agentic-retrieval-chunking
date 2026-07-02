@@ -95,12 +95,14 @@ public class IndexingFunction
         }
         catch (Exception ex)
         {
-            error = ex.Message;
+            error = ex.ToString();
         }
 
-        if (_reportWriter.IsEnabled)
-            await context.CallActivityAsync("SaveIndexReportActivity",
-                BuildReport(context, startedAt, input, extractResults, chunkResults, embedResults, success, error));
+        // Always call the activity — checking _reportWriter.IsEnabled here would be an
+        // injected-dependency read inside orchestrator code, which Durable Functions'
+        // determinism rules warn against. The activity itself is the right place to check.
+        await context.CallActivityAsync("SaveIndexReportActivity",
+            BuildReport(context, startedAt, input, extractResults, chunkResults, embedResults, success, error));
 
         if (!success)
             throw new InvalidOperationException(error ?? "Indexing pipeline failed");
@@ -184,6 +186,8 @@ public class IndexingFunction
     [Function("SaveIndexReportActivity")]
     public async Task SaveIndexReportActivity([ActivityTrigger] IndexRunReport report, FunctionContext context)
     {
+        if (!_reportWriter.IsEnabled) return;
+
         await _reportWriter.WriteIndexReportAsync(report, context.CancellationToken);
         _logger.LogInformation(
             "Index run report saved — instance={InstanceId}, docs={Docs}, chunks={Chunks}, success={Success}",
