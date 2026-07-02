@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using Azure.Core;
-using Azure.Search.Documents;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using ProtocolsIndexer.Configuration;
@@ -21,12 +19,14 @@ public class AgenticRagQueryService : IRagQueryService
     private readonly ChunkNeighborExpander        _neighborExpander;
     private readonly IndexerConfig                _config;
 
-    public AgenticRagQueryService(IndexerConfig config, TokenCredential credential, SearchClient searchClient)
+    public AgenticRagQueryService(
+        IndexerConfig                  config,
+        KnowledgeBaseRetrievalClient   client,
+        ChunkNeighborExpander          neighborExpander)
     {
-        _client = new KnowledgeBaseRetrievalClient(
-            new Uri(config.SearchEndpoint), config.KnowledgeBaseName, credential);
-        _neighborExpander = new ChunkNeighborExpander(searchClient);
-        _config = config;
+        _client           = client;
+        _neighborExpander = neighborExpander;
+        _config           = config;
     }
 
     public async Task<RagQueryResult> AskAsync(string question, CancellationToken ct = default)
