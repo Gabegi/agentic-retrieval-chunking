@@ -32,7 +32,7 @@ resource "azurerm_cognitive_deployment" "embedding" {
   }
 
   sku {
-    name     = "Standard"
+    name     = "GlobalStandard"
     capacity = 350
   }
 }
@@ -48,7 +48,7 @@ resource "azurerm_cognitive_deployment" "querying" {
   }
 
   sku {
-    name     = "Standard"
+    name     = "GlobalStandard"
     capacity = 10
   }
 }
@@ -64,7 +64,7 @@ resource "azurerm_cognitive_deployment" "extraction" {
   }
 
   sku {
-    name     = "Standard"
+    name     = "GlobalStandard"
     capacity = 40
   }
 }
@@ -81,7 +81,7 @@ resource "azurerm_cognitive_deployment" "evaluation" {
   }
 
   sku {
-    name     = "Standard"
+    name     = "GlobalStandard"
     capacity = 10
   }
 }
