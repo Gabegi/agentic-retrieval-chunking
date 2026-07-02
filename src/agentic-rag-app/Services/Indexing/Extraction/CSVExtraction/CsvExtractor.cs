@@ -94,6 +94,7 @@ public static class CsvExtractor
                     PageIndex       = ParsePageIndex(csv),
                     PageContent     = csv.GetField("PAGE_CONTENT") ?? "",
                     Language        = csv.GetField("LANGUAGE") ?? "",
+                    RelativePath    = csv.GetField("RELATIVE_PATH") ?? "",
                 });
             }
             catch (Exception ex)

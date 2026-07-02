@@ -11,6 +11,7 @@ public class JoinedPageRecord
     public int    PageIndex       { get; set; }
     public string PageContent     { get; set; } = "";
     public string Language        { get; set; } = "";
+    public string RelativePath    { get; set; } = "";
 
     // from IndexRecord
     public string DocumentTypeName  { get; set; } = "";
