@@ -36,7 +36,7 @@ data "azurerm_resource_group" "ai" {
   name = "cor-cap-ai-${local.env}-${local.region}-${local.instance}"
 }
 
-data "azurerm_ai_services" "foundry" {
+data "azurerm_cognitive_account" "foundry" {
   name                = "cor-ais-cap-${local.env}-${local.region}-${local.instance}"
   resource_group_name = data.azurerm_resource_group.ai.name
 }
@@ -46,13 +46,11 @@ data "azurerm_application_insights" "foundry" {
   resource_group_name = data.azurerm_resource_group.ai.name
 }
 
-data "azurerm_private_endpoint" "ai_services" {
-  name                = "cor-pep-ais-cap-${local.env}-${local.region}-${local.instance}"
-  resource_group_name = data.azurerm_resource_group.ai.name
-}
-
+# No data source exists for azurerm_private_endpoint - it's resource-only in
+# this provider. The PE's NIC is readable directly since its name is
+# deterministic ("<private endpoint name>_nic").
 data "azurerm_network_interface" "ai_services_pe" {
-  name                = "${data.azurerm_private_endpoint.ai_services.name}_nic"
+  name                = "cor-pep-ais-cap-${local.env}-${local.region}-${local.instance}_nic"
   resource_group_name = data.azurerm_resource_group.ai.name
 }
 
