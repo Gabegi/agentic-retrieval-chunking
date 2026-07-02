@@ -24,12 +24,12 @@ accordingly.
 | gpt-5.5 | 2026-04-24 | GenerallyAvailable | **0 quota available** - needs a quota request first | 2027-04-24 | 0 / 0 |
 | gpt-4o | 2024-11-20 | Deprecating | Confirmed allowed (our `evaluation` deployment uses it) | 2026-10-01 | 60 / 450 |
 | gpt-4o-mini | 2024-07-18 | Deprecating | Untested | 2026-10-01 | 0 / 2000 |
-| gpt-4.1 | 2025-04-14 | Deprecating | **Blocked (confirmed)** - `ServiceModelDeprecating` | 2026-10-14 | not offered |
-| gpt-4.1-mini | 2025-04-14 | Deprecating | Untested, likely blocked too | 2026-10-14 | not offered |
-| gpt-4.1-nano | 2025-04-14 | Deprecating | Untested, likely blocked too | 2026-10-14 | not offered |
+| gpt-4.1 | 2025-04-14 | Deprecating | **Blocked (confirmed)** - `ServiceModelDeprecating`, despite 1000 K TPM quota still reserved | 2026-10-14 | 0 / 1000 |
+| gpt-4.1-mini | 2025-04-14 | Deprecating | Untested, likely blocked too | 2026-10-14 | 0 / 5000 |
+| gpt-4.1-nano | 2025-04-14 | Deprecating | Untested, likely blocked too | 2026-10-14 | 0 / 5000 |
 | o1 | 2024-12-17 | Deprecating | Untested - retires in ~2 weeks | 2026-07-15 | 0 / 500 |
 | o3-mini | 2025-01-31 | Deprecating | Untested | 2026-08-02 | 0 / 500 |
-| o4-mini | 2025-04-16 | Deprecating | Untested | 2026-10-16 | 0 / 1000 |
+| o4-mini | 2025-04-16 | Deprecating | Untested - has quota, but so did gpt-4.1 before it got blocked; don't trust quota presence as a deployability signal for `Deprecating` models | 2026-10-16 | 0 / 1000 |
 | text-embedding-3-large | 1 | GenerallyAvailable | Confirmed allowed (our `embedding` deployment uses it) | 2027-04-15 | 350 / 1000 |
 | text-embedding-3-small | 1 | GenerallyAvailable | Untested, no reason to expect issues | 2027-04-15 | 0 / 1000 |
 | text-embedding-ada-002 | 2 | GenerallyAvailable | Untested, no reason to expect issues | 2027-04-15 | 0 / 1000 |

@@ -60,10 +60,12 @@ resource "azurerm_cognitive_deployment" "evaluation" {
   name                 = var.openai_eval_deployment
   cognitive_account_id = data.azurerm_cognitive_account.foundry.id
 
+  # Deliberately a different model/version from "querying"/"extraction"
+  # (gpt-5.4) to avoid self-preference bias in eval scores.
   model {
     format  = "OpenAI"
-    name    = "gpt-5.4"
-    version = "2026-03-05"
+    name    = "gpt-5.1"
+    version = "2025-11-13"
   }
 
   sku {
