@@ -92,6 +92,7 @@ public sealed class ChunkNeighborExpander
                 Page:       hit.Document.GetInt32("page_number") ?? 0,
                 ChunkIndex: hit.Document.GetInt32("chunk_index") ?? 0,
                 Title:      null,
+                Summary:    null,   // already surfaced once on the original matched chunk for this document
                 Content:    content));
         }
         return result;

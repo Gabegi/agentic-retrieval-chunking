@@ -23,6 +23,7 @@ public static class KnowledgeBaseReferenceMapper
             r.SourceData.TryGetValue("id", out var idRaw);
             r.SourceData.TryGetValue("document_id", out var docIdRaw);
             r.SourceData.TryGetValue("title", out var titleRaw);
+            r.SourceData.TryGetValue("summary", out var summaryRaw);
             r.SourceData.TryGetValue("page_number", out var pageRaw);
             r.SourceData.TryGetValue("chunk_index", out var chunkIndexRaw);
 
@@ -32,6 +33,7 @@ public static class KnowledgeBaseReferenceMapper
                 Page:       AsInt(pageRaw),
                 ChunkIndex: AsInt(chunkIndexRaw),
                 Title:      AsText(titleRaw),
+                Summary:    AsText(summaryRaw),
                 Content:    content));
         }
         return chunks;
