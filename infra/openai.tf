@@ -52,10 +52,18 @@ resource "azurerm_cognitive_deployment" "extraction" {
   name                 = var.openai_extraction_deployment
   cognitive_account_id = azurerm_cognitive_account.openai.id
 
+  # gpt-4o-mini instead of gpt-4.1 — extraction has no KB query-planning constraint,
+  # so it's free to use a cheaper/smaller model to reduce TPM quota pressure.
+  # Swap back once gpt-4.1 quota is approved:
+  # model {
+  #   format  = "OpenAI"
+  #   name    = "gpt-4.1"
+  #   version = "2025-04-14"
+  # }
   model {
     format  = "OpenAI"
-    name    = "gpt-4.1"
-    version = "2025-04-14"
+    name    = "gpt-4o-mini"
+    version = "2024-07-18"
   }
 
   sku {
@@ -69,10 +77,17 @@ resource "azurerm_cognitive_deployment" "evaluation" {
   name                 = var.openai_eval_deployment
   cognitive_account_id = azurerm_cognitive_account.openai.id
 
+  # gpt-4.1-mini instead of gpt-4o — judge model has no KB query-planning constraint either.
+  # Swap back once gpt-4o quota is approved:
+  # model {
+  #   format  = "OpenAI"
+  #   name    = "gpt-4o"
+  #   version = "2024-11-20"
+  # }
   model {
     format  = "OpenAI"
-    name    = "gpt-4o"
-    version = "2024-11-20"
+    name    = "gpt-4.1-mini"
+    version = "2025-04-14"
   }
 
   sku {
