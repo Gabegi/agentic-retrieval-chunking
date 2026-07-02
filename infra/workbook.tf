@@ -9,7 +9,7 @@ resource "azurerm_application_insights_workbook" "main" {
   data_json = jsonencode({
     version = "Notebook/1.0"
     items = [
-      # ── Section: Azure AI Search ──────────────────────────────────────────
+      # ── Section: Azure AI Search ─────────────a─────────────────────────────
       {
         type = 1
         content = { json = "## Azure AI Search" }

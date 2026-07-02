@@ -7,41 +7,48 @@ namespace ProtocolsIndexer.Services;
 
 public class ExtractionService : IExtractionService
 {
-    private readonly IExtractionOrchestrator    _extractor;
-    private readonly IIndexDocumentService      _indexDocumentService;
-    private readonly ILogger<ExtractionService> _logger;
+    private readonly IReadOnlyList<IExtractionOrchestrator> _extractors;
+    private readonly IIndexDocumentService                  _indexDocumentService;
+    private readonly ILogger<ExtractionService>             _logger;
 
     public ExtractionService(
-        IExtractionOrchestrator    extractor,
-        IIndexDocumentService      indexDocumentService,
-        ILogger<ExtractionService> logger)
+        IEnumerable<IExtractionOrchestrator> extractors,
+        IIndexDocumentService                indexDocumentService,
+        ILogger<ExtractionService>           logger)
     {
-        _extractor            = extractor;
+        _extractors           = extractors.ToList();
         _indexDocumentService = indexDocumentService;
         _logger               = logger;
     }
 
     public async Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionResults Stats)> ExtractAsync(
-        CancellationToken ct = default)
+        string source, bool forceReindex, CancellationToken ct = default)
     {
-        var diff = await ExtractAndDiffAsync(ct);
+        var extractor = _extractors.FirstOrDefault(e => string.Equals(e.Source, source, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException(
+                $"No extraction orchestrator registered for source '{source}'. Known sources: {string.Join(", ", _extractors.Select(e => e.Source))}");
+
+        var diff = await ExtractAndDiffAsync(extractor, forceReindex, ct);
         EmitMetrics(diff);
         return (diff.ToProcess, BuildStats(diff));
     }
 
     // 1. Call the source extractor, diff results against the current index state
-    private async Task<DiffResult> ExtractAndDiffAsync(CancellationToken ct)
+    private async Task<DiffResult> ExtractAndDiffAsync(IExtractionOrchestrator extractor, bool forceReindex, CancellationToken ct)
     {
-        var output       = await _extractor.ExtractDocumentsAsync(ct);
+        var output       = await extractor.ExtractDocumentsAsync(ct);
         var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
 
-        var toProcess = new List<ExtractionDocument>();
-        var toDelete  = new List<string>();
-        var newCount  = 0;
-        var updated   = 0;
+        var toProcess      = new List<ExtractionDocument>();
+        var toDeleteChunks = new List<string>();
+        var seenSourceIds  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var newCount       = 0;
+        var updated        = 0;
 
         foreach (var doc in output.Docs)
         {
+            seenSourceIds.Add(doc.SourceId);
+
             if (!indexedDates.TryGetValue(doc.SourceId, out var indexedDate))
             {
                 toProcess.Add(doc);
@@ -49,29 +56,39 @@ public class ExtractionService : IExtractionService
                 continue;
             }
 
-            var modifiedStr = doc.Metadata.GetValueOrDefault("last_modified_date");
-            if (DateTimeOffset.TryParse(modifiedStr, out var modifiedDate) && modifiedDate <= indexedDate)
-                continue;
+            if (!forceReindex)
+            {
+                var modifiedStr = doc.Metadata.GetValueOrDefault("last_modified_date");
+                if (DateTimeOffset.TryParse(modifiedStr, out var modifiedDate) && modifiedDate <= indexedDate)
+                    continue;
+            }
 
-            toDelete.Add(doc.SourceId);
+            toDeleteChunks.Add(doc.SourceId);
             toProcess.Add(doc);
             updated++;
         }
 
+        // Docs that were previously indexed but no longer appear in the source — withdrawn/removed
+        // upstream. Their chunks must be deleted, not just skipped, or they keep getting retrieved.
+        var removedSourceIds = indexedDates.Keys.Where(id => !seenSourceIds.Contains(id)).ToList();
+        toDeleteChunks.AddRange(removedSourceIds);
+
         var skipped = output.Docs.Count - toProcess.Count;
         var chunksRemoved = 0;
 
-        if (toDelete.Count > 0)
+        if (toDeleteChunks.Count > 0)
         {
-            _logger.LogInformation("Deleting stale chunks for {Count} updated documents", toDelete.Count);
-            chunksRemoved = await _indexDocumentService.DeleteDocumentsAsync(toDelete, ct);
+            _logger.LogInformation(
+                "Deleting stale chunks for {Updated} updated and {Removed} removed documents",
+                updated, removedSourceIds.Count);
+            chunksRemoved = await _indexDocumentService.DeleteDocumentsAsync(toDeleteChunks, ct);
         }
 
         _logger.LogInformation(
-            "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Skipped} skipped",
-            _extractor.Source, newCount, updated, skipped);
+            "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped",
+            extractor.Source, newCount, updated, removedSourceIds.Count, skipped);
 
-        return new DiffResult(output, toProcess, toDelete, newCount, updated, skipped, chunksRemoved);
+        return new DiffResult(output, toProcess, removedSourceIds, newCount, updated, skipped, chunksRemoved);
     }
 
     // 2. Emit instrumentation metrics from the diff result
@@ -81,11 +98,8 @@ public class ExtractionService : IExtractionService
         Instrumentation.DocsSkipped.Add(diff.Skipped);
         Instrumentation.DocsNew.Add(diff.NewCount);
         Instrumentation.DocsUpdated.Add(diff.Updated);
-        Instrumentation.DocsDeleted.Add(diff.ToDelete.Count);
+        Instrumentation.DocsDeleted.Add(diff.RemovedSourceIds.Count);
         Instrumentation.ChunksRemoved.Add(diff.ChunksRemoved);
-        Instrumentation.ValidationIssues.Add(diff.Output.ValidationErrors + diff.Output.ValidationWarnings);
-        Instrumentation.StaleDocs.Add(diff.Output.StaleDocCount);
-        Instrumentation.DocsWithoutHeadings.Add(diff.Output.DocsWithoutHeadings);
     }
 
     // 3. Assemble ExtractionResults to return to the activity
@@ -94,7 +108,7 @@ public class ExtractionService : IExtractionService
         DocsSkipped:            diff.Skipped,
         DocsNew:                diff.NewCount,
         DocsUpdated:            diff.Updated,
-        DocsDeleted:            diff.ToDelete.Count,
+        DocsDeleted:            diff.RemovedSourceIds.Count,
         ChunksRemoved:          diff.ChunksRemoved,
         ValidationErrors:       diff.Output.ValidationErrors,
         ValidationWarnings:     diff.Output.ValidationWarnings,
@@ -111,7 +125,7 @@ public class ExtractionService : IExtractionService
     private record DiffResult(
         ExtractionOutput         Output,
         List<ExtractionDocument> ToProcess,
-        List<string>             ToDelete,
+        List<string>             RemovedSourceIds,
         int                      NewCount,
         int                      Updated,
         int                      Skipped,
