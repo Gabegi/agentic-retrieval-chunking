@@ -35,7 +35,11 @@ resource "azurerm_storage_account" "data" {
 
   public_network_access_enabled   = false
   allow_nested_items_to_be_public = false
-  shared_access_key_enabled       = false # access via Azure AD / RBAC only
+  # shared_access_key_enabled left at its default (true): disabling it would
+  # require the deploying identity to have Storage Blob Data Contributor
+  # (data-plane RBAC, separate from Contributor) before Terraform can manage
+  # containers via storage_use_azuread, which risks an RBAC-propagation race
+  # on a fresh apply. Revisit once that identity's data-plane access is set up.
 
   blob_properties {
     delete_retention_policy {
