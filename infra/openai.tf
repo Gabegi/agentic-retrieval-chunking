@@ -1,7 +1,12 @@
 resource "azurerm_cognitive_account" "openai" {
-  name                  = "oai-chuking-agentic-rag"
-  resource_group_name   = azurerm_resource_group.main.name
-  location              = azurerm_resource_group.main.location
+  name                = "oai-chuking-agentic-rag"
+  resource_group_name = azurerm_resource_group.main.name
+  # Pinned to westeurope (independent of the resource group's eastus location) —
+  # the subscription has 0 TPM quota for gpt-4.1/gpt-4o and 0 App Service P1v3
+  # quota in eastus. Search/Storage/Function App stay in eastus; only this
+  # account (and its deployments below) move. Cross-region calls from the
+  # Function App to this endpoint work fine, just with a bit more latency.
+  location              = "westeurope"
   kind                  = "OpenAI"
   sku_name              = "S0"
   custom_subdomain_name = "oai-chuking-agentic-rag"
