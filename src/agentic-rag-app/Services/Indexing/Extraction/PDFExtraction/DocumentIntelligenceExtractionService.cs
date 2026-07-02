@@ -11,11 +11,13 @@ public class DocumentIntelligenceExtractionService : IPdfExtractionService
     public string Name => "Document Intelligence";
 
     private readonly DocumentIntelligenceClient _client;
+    private readonly IChunkingStrategy          _chunkingStrategy;
     private const decimal CostPerPage = 0.001m;
 
-    public DocumentIntelligenceExtractionService(DocumentIntelligenceClient client)
+    public DocumentIntelligenceExtractionService(DocumentIntelligenceClient client, IChunkingStrategy chunkingStrategy)
     {
-        _client = client;
+        _client           = client;
+        _chunkingStrategy = chunkingStrategy;
     }
 
     public async Task<ExtractionRun> ExtractAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default)
@@ -48,10 +50,10 @@ public class DocumentIntelligenceExtractionService : IPdfExtractionService
                     || string.IsNullOrWhiteSpace(current.Content)
                     || current.Content.Split(' ').Length < 5) return;
 
-                foreach (var part in ChunkingUtils.SplitContent(current.Content))
+                foreach (var part in _chunkingStrategy.Chunk(current.Content))
                 {
                     // Prepend heading into content so keyword and vector signals align
-                    var fullContent = current.Heading != null ? $"{current.Heading}\n\n{part}" : part;
+                    var fullContent = current.Heading != null ? $"{current.Heading}\n\n{part.Content}" : part.Content;
                     run.Chunks.Add(new ProtocolDocument
                     {
                         Id         = ChunkingUtils.SafeKey(blobName, chunkIndex),
