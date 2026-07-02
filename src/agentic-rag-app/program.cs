@@ -23,6 +23,28 @@ var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
     .ConfigureServices((ctx, services) =>
     {
+        // Fail fast with a named list of missing settings, rather than letting a missing
+        // value surface later as an obscure NullReferenceException or UriFormatException.
+        var requiredKeys = new[]
+        {
+            "SEARCH_ENDPOINT",
+            "OPENAI_ENDPOINT",
+            "OPENAI_EMBEDDING_DEPLOYMENT",
+            "OPENAI_GPT_DEPLOYMENT",
+            "OPENAI_GPT_MODEL_NAME",
+            "STORAGE_ACCOUNT_URL",
+            "SEARCH_INDEX_NAME",
+            "KNOWLEDGE_SOURCE_NAME",
+            "KNOWLEDGE_BASE_NAME",
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "AzureWebJobsStorage:accountName",
+        };
+        var missingKeys = requiredKeys.Where(k => string.IsNullOrWhiteSpace(ctx.Configuration[k])).ToList();
+        if (missingKeys.Count > 0)
+            throw new InvalidOperationException(
+                $"Missing required app setting(s): {string.Join(", ", missingKeys)}. " +
+                "Set these in local.settings.json (local) or the Function App configuration (deployed).");
+
         var config = new IndexerConfig
         {
             SearchEndpoint               = ctx.Configuration["SEARCH_ENDPOINT"]!,

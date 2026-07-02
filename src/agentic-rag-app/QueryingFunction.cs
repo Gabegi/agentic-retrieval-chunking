@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
@@ -26,7 +27,19 @@ public class QueryingFunction
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "query")] HttpRequestData req,
         FunctionContext context)
     {
-        var body = await req.ReadFromJsonAsync<QueryRequest>();
+        QueryRequest? body;
+        try
+        {
+            body = await req.ReadFromJsonAsync<QueryRequest>();
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Query request body was not valid JSON");
+            var malformed = req.CreateResponse(HttpStatusCode.BadRequest);
+            await malformed.WriteStringAsync("Request body must be valid JSON matching { \"question\": string }");
+            return malformed;
+        }
+
         if (string.IsNullOrWhiteSpace(body?.Question))
         {
             var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -34,63 +47,73 @@ public class QueryingFunction
             return bad;
         }
 
-        var timestamp = DateTimeOffset.UtcNow;
-        var result    = await _ragService.AskAsync(body.Question, context.CancellationToken);
-
-        _logger.LogInformation(
-            "Query telemetry: {LatencyMs}ms, in={In} tokens, out={Out} tokens",
-            result.LatencyMs, result.InputTokens, result.OutputTokens);
-
-        if (_reportWriter.IsEnabled)
-            await _reportWriter.WriteQueryReportAsync(new QueryRunReport(
-                RunId:              result.ConversationId,
-                Timestamp:          timestamp,
-                Question:           body.Question,
-                Answer:             result.Answer,
-                RetrievedContext:   result.RetrievedContext,
-                SystemInstructions: result.SystemInstructions,
-                ChunksRetrieved:    result.ChunksRetrieved,
-                OperationName:      result.OperationName,
-                ProviderName:       result.ProviderName,
-                ServerAddress:      result.ServerAddress,
-                ServerPort:         result.ServerPort,
-                ConversationId:     result.ConversationId,
-                Model:              result.Model,
-                FinishReason:       result.FinishReason,
-                LatencyMs:          result.LatencyMs,
-                InputTokens:        result.InputTokens,
-                OutputTokens:       result.OutputTokens,
-                TotalTokens:        result.TotalTokens,
-                Temperature:        result.Temperature,
-                MaxOutputTokens:    result.MaxOutputTokens,
-                TopP:               result.TopP,
-                TopK:               result.TopK,
-                FrequencyPenalty:   result.FrequencyPenalty,
-                PresencePenalty:    result.PresencePenalty,
-                Seed:               result.Seed,
-                ResponseFormat:     result.ResponseFormat,
-                StopSequences:      result.StopSequences),
-                context.CancellationToken);
-
-        var response = req.CreateResponse(HttpStatusCode.OK);
-        await response.WriteAsJsonAsync(new
+        try
         {
-            answer    = result.Answer,
-            sources   = result.Citations.Select(c => new
+            var timestamp = DateTimeOffset.UtcNow;
+            var result    = await _ragService.AskAsync(body.Question, context.CancellationToken);
+
+            _logger.LogInformation(
+                "Query telemetry: {LatencyMs}ms, in={In} tokens, out={Out} tokens",
+                result.LatencyMs, result.InputTokens, result.OutputTokens);
+
+            if (_reportWriter.IsEnabled)
+                await _reportWriter.WriteQueryReportAsync(new QueryRunReport(
+                    RunId:              result.ConversationId,
+                    Timestamp:          timestamp,
+                    Question:           body.Question,
+                    Answer:             result.Answer,
+                    RetrievedContext:   result.RetrievedContext,
+                    SystemInstructions: result.SystemInstructions,
+                    ChunksRetrieved:    result.ChunksRetrieved,
+                    OperationName:      result.OperationName,
+                    ProviderName:       result.ProviderName,
+                    ServerAddress:      result.ServerAddress,
+                    ServerPort:         result.ServerPort,
+                    ConversationId:     result.ConversationId,
+                    Model:              result.Model,
+                    FinishReason:       result.FinishReason,
+                    LatencyMs:          result.LatencyMs,
+                    InputTokens:        result.InputTokens,
+                    OutputTokens:       result.OutputTokens,
+                    TotalTokens:        result.TotalTokens,
+                    Temperature:        result.Temperature,
+                    MaxOutputTokens:    result.MaxOutputTokens,
+                    TopP:               result.TopP,
+                    TopK:               result.TopK,
+                    FrequencyPenalty:   result.FrequencyPenalty,
+                    PresencePenalty:    result.PresencePenalty,
+                    Seed:               result.Seed,
+                    ResponseFormat:     result.ResponseFormat,
+                    StopSequences:      result.StopSequences),
+                    context.CancellationToken);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
             {
-                document_id   = c.DocumentId,
-                title         = c.Title,
-                quick_code    = c.QuickCode,
-                relative_path = c.RelativePath,
-            }),
-            telemetry = new
-            {
-                latency_ms    = result.LatencyMs,
-                input_tokens  = result.InputTokens,
-                output_tokens = result.OutputTokens
-            }
-        });
-        return response;
+                answer    = result.Answer,
+                sources   = result.Citations.Select(c => new
+                {
+                    document_id   = c.DocumentId,
+                    title         = c.Title,
+                    quick_code    = c.QuickCode,
+                    relative_path = c.RelativePath,
+                }),
+                telemetry = new
+                {
+                    latency_ms    = result.LatencyMs,
+                    input_tokens  = result.InputTokens,
+                    output_tokens = result.OutputTokens
+                }
+            });
+            return response;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Query failed");
+            var error = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await error.WriteStringAsync("An error occurred while processing the query.");
+            return error;
+        }
     }
 
     private sealed record QueryRequest(string Question);

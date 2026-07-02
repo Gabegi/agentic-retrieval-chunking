@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Azure.Core" Version="1.56.0" />
+    <PackageReference Include="Azure.Identity" Version="1.*" />
+    <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.*" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.22.2" />
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
+    <PackageReference Include="PdfPig" Version="0.1.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.*" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.*" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.*" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\agentic-rag-app\ProtocolsIndexer.csproj" />
+  </ItemGroup>
+</Project>

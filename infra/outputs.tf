@@ -68,6 +68,11 @@ output "resource_group_name" {
   description = "Name of the main resource group"
 }
 
+output "storage_account_name" {
+  value       = azurerm_storage_account.documents.name
+  description = "Name of the documents storage account (used for firewall rules in CI)"
+}
+
 output "document_intelligence_endpoint" {
   value       = azurerm_cognitive_account.document_intelligence.endpoint
   description = "DOCUMENT_INTELLIGENCE_ENDPOINT for extraction comparison"
