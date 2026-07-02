@@ -63,11 +63,12 @@ public static class PipelineValidator
         // per-page total for unmatched docs before comparing.
         var unmatchedDocIds    = joinResult.Errors.Select(e => e.DocumentId).ToHashSet();
         var unmatchedPageCount = pagesExtraction.Records.Count(p => unmatchedDocIds.Contains(p.DocumentId));
-        if (joinResult.Joined.Count + unmatchedPageCount != pagesExtraction.Records.Count)
+        if (joinResult.Joined.Count + unmatchedPageCount + joinResult.InactivePagesSkipped
+                != pagesExtraction.Records.Count)
             reconciliation.Add(
                 $"Parse->Join mismatch: {pagesExtraction.Records.Count} pages extracted, but " +
-                $"{joinResult.Joined.Count} joined + {unmatchedPageCount} on unmatched docs = " +
-                $"{joinResult.Joined.Count + unmatchedPageCount}.");
+                $"{joinResult.Joined.Count} joined + {unmatchedPageCount} unmatched + " +
+                $"{joinResult.InactivePagesSkipped} inactive-skipped.");
 
         // Join -> Clean: every joined record is processed exactly once.
         if (cleanResult.Records.Count + cleanResult.Errors.Count != joinResult.Joined.Count)
