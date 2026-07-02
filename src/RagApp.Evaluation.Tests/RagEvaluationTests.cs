@@ -26,7 +26,7 @@ public class RagEvaluationTests
     private const double MinGroundedness = 3.0;
 
     [ClassInitialize]
-    public static Task ClassInit(TestContext context)
+    public static async Task ClassInit(TestContext context)
     {
         var credential = new DefaultAzureCredential();
 
@@ -58,11 +58,24 @@ public class RagEvaluationTests
             .Build();
 
         var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
-        _ragService = new RagQueryService(ragChatClient, searchClient, config);
+
+        // RAG_MODE=agentic → knowledge base (agentic retrieval); anything else → classic one-shot hybrid.
+        if (string.Equals(Environment.GetEnvironmentVariable("RAG_MODE"), "agentic", StringComparison.OrdinalIgnoreCase))
+        {
+            var knowledgeService = new KnowledgeService(config, credential,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<KnowledgeService>.Instance);
+            await knowledgeService.EnsureKnowledgeSourceAsync();
+            await knowledgeService.EnsureKnowledgeBaseAsync();
+
+            _ragService = new AgenticRagQueryService(config, credential);
+        }
+        else
+        {
+            _ragService = new RagQueryService(ragChatClient, searchClient, config);
+        }
+
         _evaluator = new RagEvaluator(judgeClient);
         _writer = new EvalResultWriter(container, executionId: $"{DateTime.UtcNow:yyyyMMddTHHmmss}");
-
-        return Task.CompletedTask;
     }
 
     [TestMethod]

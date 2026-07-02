@@ -7,6 +7,9 @@ jobs:
   evaluate:
     runs-on: [self-hosted]
     environment: prod
+    strategy:
+      matrix:
+        RAG_MODE: [classic, agentic]
     steps:
       - uses: actions/checkout@v4
 
