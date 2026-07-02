@@ -105,6 +105,7 @@ var host = new HostBuilder()
         // Extractors — add new IExtractionOrchestrator implementations here to support new sources
         services.AddSingleton<IExtractionOrchestrator>(sp => new CsvExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documentscsv"),
+            sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
             sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
 
         // RAG pipeline
