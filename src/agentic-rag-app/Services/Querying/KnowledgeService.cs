@@ -50,6 +50,7 @@ public class KnowledgeService : IKnowledgeService
                     new SearchIndexFieldReference("heading"),
                     new SearchIndexFieldReference("department"),
                     new SearchIndexFieldReference("quick_code"),
+                    new SearchIndexFieldReference("relative_path"),
                     new SearchIndexFieldReference("version"),
                     new SearchIndexFieldReference("content"),
                     new SearchIndexFieldReference("summary"),
