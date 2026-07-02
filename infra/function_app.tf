@@ -33,7 +33,14 @@ resource "azurerm_service_plan" "func_indexer" {
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   os_type             = "Windows"
-  sku_name            = "P1v3"
+  # EP1 (Elastic Premium) instead of P1v3 — the subscription has 0 quota for
+  # P1v3 VMs in eastus, and App Service Plan quota isn't self-service
+  # checkable/requestable (no az CLI/API path found, unlike OpenAI TPM quota).
+  # EP1 draws from a different compute family than P1v3, so it may not hit the
+  # same wall, and unlike Consumption (Y1) it has no function timeout cap and
+  # supports always_on, so it doesn't trade away long-running indexing runs.
+  # Swap back to "P1v3" once P1v3 quota is granted, if preferred.
+  sku_name = "EP1"
 
   tags = {
     project     = "agentic-rag-chunking"
