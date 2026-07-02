@@ -72,11 +72,12 @@ public static class PipelineValidator
                 $"{joinResult.InactivePagesSkipped} inactive-skipped.");
 
         // Join -> Clean: every joined record is processed exactly once.
-        if (cleanResult.Records.Count + cleanResult.Errors.Count != joinResult.Joined.Count)
+        if (cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
+                != joinResult.Joined.Count)
             reconciliation.Add(
                 $"Join->Clean mismatch: {joinResult.Joined.Count} joined, but " +
-                $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored = " +
-                $"{cleanResult.Records.Count + cleanResult.Errors.Count}.");
+                $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored + " +
+                $"{cleanResult.DuplicatePagesSkipped} duplicate-skipped.");
 
         // 3. Magnitude shift vs a previous run, if supplied.
         if (previousRunCleanedCount is int previous && previous > 0)
