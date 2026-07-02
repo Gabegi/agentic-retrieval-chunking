@@ -46,8 +46,8 @@ resource "azurerm_cognitive_deployment" "extraction" {
 
   model {
     format  = "OpenAI"
-    name    = "gpt-4.1"
-    version = "2025-04-14"
+    name    = "gpt-5.4"
+    version = "2026-03-05"
   }
 
   sku {
