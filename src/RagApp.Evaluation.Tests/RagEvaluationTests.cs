@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Azure.AI.OpenAI;
 using Azure.Identity;
-using Azure.Search.Documents;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.AI;
 using ProtocolsIndexer.Configuration;
@@ -48,7 +47,6 @@ public class RagEvaluationTests
         var container = new BlobServiceClient(new Uri(config.StorageAccountUrl), credential)
             .GetBlobContainerClient(config.StorageContainer);
 
-        IChatClient ragChatClient = openAi.GetChatClient(config.OpenAiGptDeployment).AsIChatClient();
         // Cap output tokens so Azure's TPM estimate is prompt+500 instead of prompt+model-default (~4096).
         // Scoring evaluators emit a score + brief explanation; they never need more than ~300 tokens.
         IChatClient judgeClient = openAi.GetChatClient(Env("OPENAI_EVAL_DEPLOYMENT"))
@@ -57,23 +55,12 @@ public class RagEvaluationTests
             .ConfigureOptions(o => o.MaxOutputTokens ??= 500)
             .Build();
 
-        var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
+        var knowledgeService = new KnowledgeService(config, credential,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<KnowledgeService>.Instance);
+        await knowledgeService.EnsureKnowledgeSourceAsync();
+        await knowledgeService.EnsureKnowledgeBaseAsync();
 
-        // RAG_MODE=agentic → knowledge base (agentic retrieval); anything else → classic one-shot hybrid.
-        if (string.Equals(Environment.GetEnvironmentVariable("RAG_MODE"), "agentic", StringComparison.OrdinalIgnoreCase))
-        {
-            var knowledgeService = new KnowledgeService(config, credential,
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<KnowledgeService>.Instance);
-            await knowledgeService.EnsureKnowledgeSourceAsync();
-            await knowledgeService.EnsureKnowledgeBaseAsync();
-
-            _ragService = new AgenticRagQueryService(config, credential);
-        }
-        else
-        {
-            _ragService = new RagQueryService(ragChatClient, searchClient, config);
-        }
-
+        _ragService = new AgenticRagQueryService(config, credential);
         _evaluator = new RagEvaluator(judgeClient);
         _writer = new EvalResultWriter(container, executionId: $"{DateTime.UtcNow:yyyyMMddTHHmmss}");
     }
