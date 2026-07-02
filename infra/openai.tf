@@ -6,6 +6,9 @@ resource "azurerm_cognitive_account" "openai" {
   # quota in eastus. Search/Storage/Function App stay in eastus; only this
   # account (and its deployments below) move. Cross-region calls from the
   # Function App to this endpoint work fine, just with a bit more latency.
+  # Deployments below use GlobalStandard (not Standard — that tier isn't
+  # offered for these models in westeurope) since it had the most available
+  # quota; note GlobalStandard doesn't guarantee EU-only processing.
   location              = "westeurope"
   kind                  = "OpenAI"
   sku_name              = "S0"
