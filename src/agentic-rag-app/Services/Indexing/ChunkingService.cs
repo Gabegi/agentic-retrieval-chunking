@@ -35,10 +35,17 @@ public class ChunkingService : IChunkingService
     {
         var result           = new List<ProtocolDocument>();
         int globalChunkIndex = 0;
+        string? previousSourceId = null;
 
         foreach (var doc in docs.OrderBy(d => d.SourceId).ThenBy(d => d.Ordinal))
         {
-            var title  = doc.Metadata.GetValueOrDefault("title") ?? "";
+            var title       = doc.Metadata.GetValueOrDefault("title") ?? "";
+            var summary     = doc.Metadata.GetValueOrDefault("summary") ?? "";
+            // Group-transition check rather than doc.Ordinal == 0 — nothing guarantees
+            // PAGE_INDEX is 0-based in the source CSV, so this works regardless of the
+            // actual starting value.
+            var isFirstPage = doc.SourceId != previousSourceId;
+            previousSourceId = doc.SourceId;
             var chunks = ChunkAsync(doc.Content);
 
             foreach (var chunk in chunks)
@@ -46,8 +53,15 @@ public class ChunkingService : IChunkingService
                 // Prepend the document title so every chunk — including short continuation
                 // pages with no query-term overlap on their own — benefits from the parent
                 // document's identity in both BM25 and vector scoring.
-                var body    = chunk.Heading != null ? $"{chunk.Heading}\n\n{chunk.Content}" : chunk.Content;
-                var content = string.IsNullOrEmpty(title) ? body : $"{title}\n\n{body}";
+                var body = chunk.Heading != null ? $"{chunk.Heading}\n\n{chunk.Content}" : chunk.Content;
+
+                // The Zenya summary is a curated "what is this document for" line — prime
+                // semantic-ranking material, but once per document is enough.
+                var header = isFirstPage && chunk.Index == 0 && !string.IsNullOrWhiteSpace(summary)
+                    ? $"{title}\n{summary}"
+                    : title;
+
+                var content = string.IsNullOrEmpty(header) ? body : $"{header}\n\n{body}";
 
                 result.Add(new ProtocolDocument
                 {
