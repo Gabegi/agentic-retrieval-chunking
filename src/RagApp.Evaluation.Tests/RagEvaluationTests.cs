@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Azure.AI.OpenAI;
 using Azure.Identity;
+using Azure.Search.Documents;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.AI;
 using ProtocolsIndexer.Configuration;
@@ -60,7 +61,8 @@ public class RagEvaluationTests
         await knowledgeService.EnsureKnowledgeSourceAsync();
         await knowledgeService.EnsureKnowledgeBaseAsync();
 
-        _ragService = new AgenticRagQueryService(config, credential);
+        var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
+        _ragService = new AgenticRagQueryService(config, credential, searchClient);
         _evaluator = new RagEvaluator(judgeClient);
         _writer = new EvalResultWriter(container, executionId: $"{DateTime.UtcNow:yyyyMMddTHHmmss}");
     }
