@@ -152,7 +152,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             ValidationErrors:       errors,
             ValidationWarnings:     warnings,
             ReconciliationProblems: report.ReconciliationProblems.Count,
-            StaleDocCount:          staleDocCount,
+            StaleDocCount:          report.StaleDocCount,
             DocsWithoutHeadings:    report.DocumentsNeedingFallbackChunking.Count,
             MissingTitleCount:      missingTitle,
             MissingVersionCount:    missingVersion,
