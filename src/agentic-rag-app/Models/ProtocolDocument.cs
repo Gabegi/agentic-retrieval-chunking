@@ -31,6 +31,9 @@ public class ProtocolDocument
     [JsonPropertyName("content")]
     public string Content { get; set; } = "";
 
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+
     [JsonPropertyName("heading")]
     public string? Heading { get; set; }
 
