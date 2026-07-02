@@ -63,7 +63,7 @@ public static class DataCleaner
         var text = WebUtility.HtmlDecode(raw);
         text = text.Replace("\r\n", "\n");             // normalize before any \n-dependent regex
         text = CordaanBoilerplate.Replace(text, "");
-        text = ImagePlaceholder.Replace(text, "[image]");
+        text = ImagePlaceholder.Replace(text, "");
         text = ExcessBlankLines.Replace(text, "\n\n");
         return text.Trim();
     }
