@@ -77,16 +77,51 @@ resource "azurerm_storage_container" "state" {
   container_access_type = "private"
 }
 
-resource "azurerm_private_endpoint" "stfunc" {
-  name                = "cor-pep-stfunc-cap-${local.env}-${local.region}-${local.instance}"
+# Azure Storage only permits one group Id per private endpoint for this
+# account ("OnlyOneGroupIdPermitted... first-party resource"), so blob/queue/
+# table each need their own private endpoint rather than one bundled PE.
+resource "azurerm_private_endpoint" "stfunc_blob" {
+  name                = "cor-pep-stfunc-blob-cap-${local.env}-${local.region}-${local.instance}"
   location            = var.location
   resource_group_name = data.azurerm_resource_group.data.name
   subnet_id           = data.azurerm_subnet.pe.id
 
   private_service_connection {
-    name                           = "cor-pep-stfunc-cap-${local.env}-${local.region}-${local.instance}-psc"
+    name                           = "cor-pep-stfunc-blob-cap-${local.env}-${local.region}-${local.instance}-psc"
     private_connection_resource_id = azurerm_storage_account.func.id
-    subresource_names              = ["blob", "queue", "table"]
+    subresource_names              = ["blob"]
+    is_manual_connection           = false
+  }
+
+  tags = local.common_tags
+}
+
+resource "azurerm_private_endpoint" "stfunc_queue" {
+  name                = "cor-pep-stfunc-queue-cap-${local.env}-${local.region}-${local.instance}"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.data.name
+  subnet_id           = data.azurerm_subnet.pe.id
+
+  private_service_connection {
+    name                           = "cor-pep-stfunc-queue-cap-${local.env}-${local.region}-${local.instance}-psc"
+    private_connection_resource_id = azurerm_storage_account.func.id
+    subresource_names              = ["queue"]
+    is_manual_connection           = false
+  }
+
+  tags = local.common_tags
+}
+
+resource "azurerm_private_endpoint" "stfunc_table" {
+  name                = "cor-pep-stfunc-table-cap-${local.env}-${local.region}-${local.instance}"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.data.name
+  subnet_id           = data.azurerm_subnet.pe.id
+
+  private_service_connection {
+    name                           = "cor-pep-stfunc-table-cap-${local.env}-${local.region}-${local.instance}-psc"
+    private_connection_resource_id = azurerm_storage_account.func.id
+    subresource_names              = ["table"]
     is_manual_connection           = false
   }
 

@@ -1,14 +1,19 @@
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_key_vault" "main" {
-  name                = "cor-kv-cap-${local.env}-${local.region}-${local.instance}"
+  # Instance bumped to 002: "...-001" collides with an orphaned soft-deleted
+  # vault (different RG, deleted 2026-06-24, purge-protected until
+  # 2026-09-22) - names must be globally unique per region+sub even while
+  # soft-deleted, and recovery only targets the original RG. Reclaim "001"
+  # after the scheduled purge date if it matters.
+  name                = "cor-kv-cap-${local.env}-${local.region}-002"
   location            = var.location
   resource_group_name = data.azurerm_resource_group.data.name
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = "standard"
 
-  enable_rbac_authorization = true
-  purge_protection_enabled  = true
+  rbac_authorization_enabled = true
+  purge_protection_enabled   = true
 
   public_network_access_enabled = false
 

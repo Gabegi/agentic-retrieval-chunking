@@ -42,3 +42,27 @@ variable "openai_eval_deployment" {
   description = "Deployment name for the gpt-4o model used for evaluation"
   default     = "gpt-4o-eval"
 }
+
+variable "openai_gpt_model_name" {
+  type        = string
+  description = "Human-readable model family name for the query/extraction GPT deployment (distinct from the deployment name)"
+  default     = "gpt-5.4"
+}
+
+variable "search_index_name" {
+  type        = string
+  description = "Name of the Azure AI Search index used by the indexing/query pipeline"
+  default     = "protocols-index"
+}
+
+variable "knowledge_source_name" {
+  type        = string
+  description = "Name of the Azure AI Search knowledge source"
+  default     = "protocols-knowledge-source"
+}
+
+variable "knowledge_base_name" {
+  type        = string
+  description = "Name of the Azure AI Search knowledge base"
+  default     = "protocols-knowledge-base"
+}
