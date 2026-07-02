@@ -29,7 +29,23 @@ public static class CsvJoiner
         {
             if (indexByDocId.TryGetValue(page.DocumentId, out var indexRecord))
             {
+                // Matched an index record regardless of Active status — otherwise an
+                // inactive-but-paged doc would fall into SkippedIndexRecords below and get
+                // mislabeled as "no pages" when it's actually just excluded for being inactive.
                 matchedDocIds.Add(page.DocumentId);
+
+                if (!indexRecord.Active)
+                {
+                    result.CountInactivePageSkipped();
+                    if (alreadyErrored.Add(page.DocumentId))   // reuse the per-doc dedup set
+                        result.AddDataQualityWarning(new JoinError
+                        {
+                            DocumentId = page.DocumentId,
+                            Message    = "Document is marked inactive in the index — pages skipped.",
+                        });
+                    continue;
+                }
+
                 result.AddJoined(new JoinedPageRecord
                 {
                     DocumentId        = page.DocumentId,
