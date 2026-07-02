@@ -52,6 +52,13 @@ public class AgenticRagQueryService : IRagQueryService
         var chunks         = await _neighborExpander.ExpandAsync(initialChunks, ct);
         sw.Stop();
 
+        // One citation per distinct document among the direct hits — neighbor-expansion
+        // pages never introduce a new document, only new pages of ones already here.
+        var citations = initialChunks
+            .GroupBy(c => c.DocumentId)
+            .Select(g => new Citation(g.Key, g.First().Title, g.First().QuickCode, g.First().RelativePath))
+            .ToList();
+
         var answer = string.Join("\n", result.Response
             .SelectMany(m => m.Content)
             .OfType<KnowledgeBaseMessageTextContent>()
