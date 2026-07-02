@@ -19,8 +19,8 @@ public record EvalRow(
 
     // Performance
     long            LatencyMs,
-    int             InputTokens,
-    int             OutputTokens,
+    long            InputTokens,
+    long            OutputTokens,
     double          CostUsd,            // (InputTokens × inputPrice + OutputTokens × outputPrice) / 1M
 
     // Scores
