@@ -53,6 +53,7 @@ public static class DataCleaner
                     LastModified     = ParseDateTime(page.LastModifiedRaw, "yyyyMMddHHmmss", page.DocumentId, "LastModifiedRaw"),
                     PageIndex        = page.PageIndex,
                     PageContent      = content,
+                    Language         = page.Language.Trim(),
                     DocumentTypeName = page.DocumentTypeName.Trim(),
                     Summary          = page.Summary.Trim(),
                     Version          = page.Version.Trim(),

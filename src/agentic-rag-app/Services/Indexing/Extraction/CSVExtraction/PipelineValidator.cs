@@ -125,6 +125,12 @@ public static class PipelineValidator
                 }
             }
 
+            if (!string.IsNullOrEmpty(record.Language) &&
+                !record.Language.StartsWith("nl", StringComparison.OrdinalIgnoreCase))
+                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
+                    DocumentId = record.DocumentId,
+                    Message    = $"Page {record.PageIndex}: language '{record.Language}' — nl.microsoft analyzer will tokenize this poorly." });
+
             // Check each table block independently — a page can legitimately contain
             // multiple tables of different widths; checking the whole page at once
             // would flag that as "inconsistent" when both tables are individually fine.
