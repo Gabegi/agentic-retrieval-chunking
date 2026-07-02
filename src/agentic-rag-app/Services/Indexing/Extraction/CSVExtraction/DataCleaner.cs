@@ -54,6 +54,7 @@ public static class DataCleaner
                     PageIndex        = page.PageIndex,
                     PageContent      = content,
                     Language         = page.Language.Trim(),
+                    RelativePath     = page.RelativePath.Trim(),
                     DocumentTypeName = page.DocumentTypeName.Trim(),
                     Summary          = page.Summary.Trim(),
                     Version          = page.Version.Trim(),

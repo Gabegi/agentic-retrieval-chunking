@@ -10,6 +10,7 @@ public class CleanedPageRecord
     public int           PageIndex        { get; set; }
     public string        PageContent      { get; set; } = "";
     public string        Language         { get; set; } = "";
+    public string        RelativePath     { get; set; } = "";
 
     public string        DocumentTypeName { get; set; } = "";
     public string        Summary          { get; set; } = "";

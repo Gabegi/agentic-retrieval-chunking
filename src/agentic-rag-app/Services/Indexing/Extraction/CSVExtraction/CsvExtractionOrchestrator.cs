@@ -132,6 +132,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
                     ["folder_path"]        = r.FolderPath,
                     ["document_type"]      = r.DocumentTypeName,
                     ["summary"]            = r.Summary,
+                    ["relative_path"]      = r.RelativePath,
                 }))
             .ToList();
 

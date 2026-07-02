@@ -56,6 +56,7 @@ public static class CsvJoiner
                     PageIndex         = page.PageIndex,
                     PageContent       = page.PageContent,
                     Language          = page.Language,
+                    RelativePath      = page.RelativePath,
                     DocumentTypeName  = indexRecord.DocumentTypeName,
                     Summary           = indexRecord.Summary,
                     Version           = indexRecord.Version,
