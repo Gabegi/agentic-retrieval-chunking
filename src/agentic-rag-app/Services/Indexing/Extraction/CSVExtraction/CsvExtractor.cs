@@ -12,13 +12,29 @@ public static class CsvExtractor
         Delimiter         = ",",
         HasHeaderRecord   = true,
         MissingFieldFound = null,
+        BadDataFound      = null,   // malformed fields become row-level errors below, not exceptions
     };
 
-    private static CsvReader OpenCsv(Stream stream)
+    // csv.Read() itself can throw on rows the parser can't recover from; a bounded
+    // failure streak distinguishes "one broken row" from "this is not a CSV" and
+    // prevents looping forever if the parser can't advance past a corrupt region.
+    private const int MaxConsecutiveReadFailures = 25;
+
+    private static CsvReader OpenCsv(Stream stream, params string[] requiredColumns)
     {
         var csv = new CsvReader(new StreamReader(stream), Config);
         csv.Read();
         csv.ReadHeader();
+
+        // One clear failure beats 11k identical "DOCUMENT_ID is missing" row errors.
+        var missing = requiredColumns
+            .Where(c => csv.HeaderRecord is null
+                     || !csv.HeaderRecord.Contains(c, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (missing.Count > 0)
+            throw new InvalidOperationException(
+                $"CSV header is missing required column(s): {string.Join(", ", missing)}.");
+
         return csv;
     }
 
