@@ -57,11 +57,30 @@ public static class CsvExtractor
     public static ExtractionResult<PageRecord> ExtractPages(Stream stream)
     {
         var result = new ExtractionResult<PageRecord>();
-        using var csv = OpenCsv(stream);
-        int rowNumber = 1;
+        using var csv = OpenCsv(stream,
+            "DOCUMENT_ID", "TITLE", "QUICK_CODE", "FOLDER_MINI_FULL_PATH",
+            "LAST_MODIFIED_DATETIME", "PAGE_INDEX", "PAGE_CONTENT");
 
-        while (csv.Read())
+        int rowNumber = 1, failureStreak = 0;
+        while (true)
         {
+            bool hasRow;
+            try
+            {
+                hasRow = csv.Read();
+                failureStreak = 0;
+            }
+            catch (Exception ex)
+            {
+                rowNumber++;
+                result.AddError(new ExtractionError { RowNumber = rowNumber, Message = $"Unreadable CSV row: {ex.Message}" });
+                if (++failureStreak >= MaxConsecutiveReadFailures)
+                    throw new InvalidOperationException(
+                        $"{MaxConsecutiveReadFailures} consecutive unreadable rows around row {rowNumber} — input is not parseable CSV.", ex);
+                continue;
+            }
+            if (!hasRow) break;
+
             rowNumber++;
             try
             {
@@ -93,11 +112,30 @@ public static class CsvExtractor
     public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream)
     {
         var result = new ExtractionResult<IndexRecord>();
-        using var csv = OpenCsv(stream);
-        int rowNumber = 1;
+        using var csv = OpenCsv(stream,
+            "DOCUMENT_ID", "DOCUMENT_TYPE_NAME", "SUMMARY", "VERSION",
+            "CHECK_DATE", "ATTENTION_REQUIRED_FLAGS");
 
-        while (csv.Read())
+        int rowNumber = 1, failureStreak = 0;
+        while (true)
         {
+            bool hasRow;
+            try
+            {
+                hasRow = csv.Read();
+                failureStreak = 0;
+            }
+            catch (Exception ex)
+            {
+                rowNumber++;
+                result.AddError(new ExtractionError { RowNumber = rowNumber, Message = $"Unreadable CSV row: {ex.Message}" });
+                if (++failureStreak >= MaxConsecutiveReadFailures)
+                    throw new InvalidOperationException(
+                        $"{MaxConsecutiveReadFailures} consecutive unreadable rows around row {rowNumber} — input is not parseable CSV.", ex);
+                continue;
+            }
+            if (!hasRow) break;
+
             rowNumber++;
             try
             {
@@ -109,6 +147,7 @@ public static class CsvExtractor
                     Version           = csv.GetField("VERSION") ?? "",
                     CheckDateRaw      = csv.GetField("CHECK_DATE") ?? "",
                     AttentionFlagsRaw = csv.GetField("ATTENTION_REQUIRED_FLAGS") ?? "",
+                    Active            = !bool.TryParse(csv.GetField("ACTIVE"), out var active) || active,  // unparseable/missing → assume active
                 });
             }
             catch (Exception ex)
