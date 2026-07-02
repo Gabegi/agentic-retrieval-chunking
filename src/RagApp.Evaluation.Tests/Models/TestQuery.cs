@@ -7,4 +7,5 @@ public record TestQuery(
     string ExpectedAnswer,  // Antwoord
     string ExpectedSources, // Bronnen
     string Difficulty,      // Lastigheid — Low/Medium/High (or blank)
-    string Value);          // Waarde — business-case notes; not used in scoring, just carried for docs
+    string Value,           // Waarde — business-case notes; not used in scoring, just carried for docs
+    bool   AnswerableFromCorpus = true);  // false = known corpus gap: expect abstention, skip F1
