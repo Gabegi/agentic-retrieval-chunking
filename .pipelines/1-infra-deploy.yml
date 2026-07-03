@@ -55,6 +55,24 @@ stages:
         steps:
           - checkout: self
 
+          # Temporary, read-only: find the private DNS zone(s) the platform
+          # team's Policy-based zone links were supposed to attach to our
+          # private endpoints (docs/platform-team-dns-verzoek.md). Our own
+          # accounts can't see these zones, but this service connection's SP
+          # apparently can. Remove this step once we've captured the zone
+          # resource IDs and wired up private_dns_zone_group in Terraform.
+          - task: AzureCLI@2
+            displayName: 'DIAGNOSTIC: list private DNS zones'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "--- subscriptions this SP can see ---"
+                az account list -o table
+                echo "--- zones in the default (current) subscription ---"
+                az network private-dns zone list -o table
+
           - script: |
               TF_VERSION="1.15.7"
               curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
