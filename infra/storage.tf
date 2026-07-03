@@ -22,8 +22,24 @@ resource "azurerm_storage_account" "func" {
   account_kind             = "StorageV2"
   min_tls_version          = "TLS1_2"
 
-  public_network_access_enabled   = false
+  # file is deliberately NOT private-endpoint-only (see removed
+  # azurerm_private_endpoint.stfunc_file below): the content share needs the
+  # missing privatelink.file.core.windows.net DNS zone group that the
+  # platform team hasn't wired up yet (tracked in
+  # docs/platform-team-dns-verzoek.md). Any private endpoint on a subresource
+  # forces its public hostname into a CNAME to the (unreachable) privatelink
+  # zone, which broke Kudu's content-share mount entirely. Trusted-service
+  # bypass is Microsoft's documented pattern for exactly this case - the
+  # Functions platform is on the trusted list, so it can still reach the
+  # share even with public access closed to everyone else. Revert to
+  # private-endpoint-only once the zone group exists.
+  public_network_access_enabled   = true
   allow_nested_items_to_be_public = false
+
+  network_rules {
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+  }
 
   tags = local.common_tags
 }
@@ -132,21 +148,29 @@ resource "azurerm_private_endpoint" "stfunc_table" {
   tags = local.common_tags
 }
 
-resource "azurerm_private_endpoint" "stfunc_file" {
-  name                = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.data.name
-  subnet_id           = data.azurerm_subnet.pe.id
-
-  private_service_connection {
-    name                           = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}-psc"
-    private_connection_resource_id = azurerm_storage_account.func.id
-    subresource_names              = ["file"]
-    is_manual_connection           = false
-  }
-
-  tags = local.common_tags
-}
+# Commented out, not deleted: this PE is what broke the content-share mount
+# (see the comment on azurerm_storage_account.func above / the
+# public_network_access_enabled + network_rules exception on that resource).
+# Any private endpoint on the "file" subresource forces its public hostname
+# into a CNAME to privatelink.file.core.windows.net, which has no route
+# without a DNS zone group the platform team hasn't attached yet (tracked in
+# docs/platform-team-dns-verzoek.md). Re-enable this once that's fixed, and
+# revert azurerm_storage_account.func back to private-endpoint-only.
+# resource "azurerm_private_endpoint" "stfunc_file" {
+#   name                = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}"
+#   location            = var.location
+#   resource_group_name = data.azurerm_resource_group.data.name
+#   subnet_id           = data.azurerm_subnet.pe.id
+#
+#   private_service_connection {
+#     name                           = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}-psc"
+#     private_connection_resource_id = azurerm_storage_account.func.id
+#     subresource_names              = ["file"]
+#     is_manual_connection           = false
+#   }
+#
+#   tags = local.common_tags
+# }
 
 resource "azurerm_private_endpoint" "stdata" {
   name                = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}"
