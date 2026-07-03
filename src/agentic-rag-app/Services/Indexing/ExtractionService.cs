@@ -25,17 +25,17 @@ public class ExtractionService : IExtractionService
     }
 
     public async Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionResults Stats)> ExtractAsync(
-        bool forceReindex, CancellationToken ct = default)
+        bool forceReindex, bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
-        var diff = await ExtractAndDiffAsync(forceReindex, ct);
+        var diff = await ExtractAndDiffAsync(forceReindex, overrideMagnitudeCheck, ct);
         EmitMetrics(diff);
         return (diff.ToProcess, BuildStats(diff));
     }
 
     // 1. Call the source extractor, diff results against the current index state
-    private async Task<DiffResult> ExtractAndDiffAsync(bool forceReindex, CancellationToken ct)
+    private async Task<DiffResult> ExtractAndDiffAsync(bool forceReindex, bool overrideMagnitudeCheck, CancellationToken ct)
     {
-        var output       = await _extractor.ExtractDocumentsAsync(ct);
+        var output       = await _extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
         var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
 
         var toProcess      = new List<ExtractionDocument>();
