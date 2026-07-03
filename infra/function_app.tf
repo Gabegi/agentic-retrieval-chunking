@@ -27,6 +27,12 @@ resource "azurerm_windows_function_app" "indexer" {
   storage_uses_managed_identity  = true
   virtual_network_subnet_id      = azurerm_subnet.app.id
   public_network_access_enabled  = false
+  # storage_uses_managed_identity only covers AzureWebJobsStorage/Durable
+  # Functions (blob/queue/table). The EP1 plan's content share still needs a
+  # key-based connection string - Azure Files/SMB has no managed-identity
+  # auth path - plus WEBSITE_CONTENTOVERVNET so the platform reaches it via
+  # the private endpoint (azurerm_private_endpoint.stfunc_file in storage.tf)
+  # instead of the now-blocked public endpoint.
 
   identity {
     type = "SystemAssigned"
