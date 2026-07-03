@@ -8,9 +8,12 @@
 #     function_app.tf).
 #   - data: source documents, chunks, reports, and saved intermediate state
 #     for the indexing/query pipeline (blob only, organized by container).
-# Both are private-endpoint-only (no public network access); DNS resolution
-# for the privatelink zones is centrally managed (see AskUserQuestion answer
-# in conversation - platform team owns Policy-based zone links).
+# Both were designed private-endpoint-only, with DNS for the privatelink
+# zones centrally managed by the platform team (Policy-based zone links).
+# That DNS wiring isn't attached yet (docs/platform-team-dns-verzoek.md), so
+# both accounts currently run on public endpoint + trusted-service-bypass
+# firewall rules instead, as a temporary stand-in - see the per-resource
+# comments below. Revert both to private-endpoint-only once that's fixed.
 # ---------------------------------------------------------------------------
 
 resource "azurerm_storage_account" "func" {
