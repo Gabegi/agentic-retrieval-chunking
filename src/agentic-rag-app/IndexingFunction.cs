@@ -291,3 +291,4 @@ public class IndexingFunction
 public record IndexRequest(string Source, bool ForceReindex, bool OverrideMagnitudeCheck = false);
 public record ExtractRequest(string Source, bool ForceReindex, bool OverrideMagnitudeCheck, string OutputBlob);
 public record ChunkRequest(string InputBlob, string OutputBlob);
+public record EmbedUploadRequest(string ChunksBlob, IReadOnlyList<string> StaleDocumentIds);
