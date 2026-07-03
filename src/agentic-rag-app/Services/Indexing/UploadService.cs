@@ -42,6 +42,7 @@ public class UploadService : IUploadService
             if (orphanedChunkIds.Count > 0)
                 chunksRemoved = await _indexDocumentService.DeleteChunksByIdAsync(orphanedChunkIds, ct);
 
+            Instrumentation.ChunksRemoved.Add(chunksRemoved);
             _logger.LogInformation(
                 "Stale-chunk cleanup for {DocCount} document(s) — {Removed} orphaned chunk(s) deleted",
                 staleDocumentIds.Count, chunksRemoved);
