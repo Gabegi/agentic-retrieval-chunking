@@ -16,7 +16,7 @@
     <PackageReference Include="Azure.Storage.Queues" Version="12.21.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.OpenTelemetry" Version="1.2.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="1.17.5" />
-    <PackageReference Include="Azure.Core" Version="1.56.0" />
+    <PackageReference Include="Azure.Core" Version="1.59.0" />
     <PackageReference Include="Azure.Identity" Version="1.*" />
     <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.*" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.22.2" />
