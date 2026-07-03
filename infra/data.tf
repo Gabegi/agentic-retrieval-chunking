@@ -59,3 +59,61 @@ data "azurerm_network_interface" "ai_services_pe" {
 data "azurerm_resource_group" "data" {
   name = "cor-cap-data-${local.env}-${local.region}-${local.instance}"
 }
+
+# --- Private DNS zones (hub, owned by platform team) -----------------------
+# Confirmed via the diagnostic step in 1-infra-deploy.yml (subscription
+# cor-connectivity-prd, RG cor-connectivity-dns-prd-we-001). This is the
+# *complete* zone list in that RG - there is no queue/table/search.windows.net
+# zone at all, so stfunc_queue/stfunc_table/search private endpoints have no
+# zone to attach to yet (a bigger ask than the others - the zone itself would
+# need to be created, not just linked). None of these 7 zones has a virtual
+# network link to our VNet (cor-vnet-cap-dev-we-001) either - see
+# docs/platform-team-dns-verzoek.md. Adding these data sources doesn't fix
+# DNS by itself; it gets the zone IDs into code for when the VNet link and
+# private_dns_zone_group wiring happen.
+
+data "azurerm_private_dns_zone" "azurewebsites" {
+  provider            = azurerm.hub
+  name                = "privatelink.azurewebsites.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "blob" {
+  provider            = azurerm.hub
+  name                = "privatelink.blob.core.windows.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "file" {
+  provider            = azurerm.hub
+  name                = "privatelink.file.core.windows.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "vaultcore" {
+  provider            = azurerm.hub
+  name                = "privatelink.vaultcore.azure.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+# Not currently consumed by any private endpoint in this repo (the Foundry
+# account is referenced via data.azurerm_cognitive_account.foundry, managed
+# elsewhere) - captured here since the diagnostic surfaced them, in case
+# they're needed later.
+data "azurerm_private_dns_zone" "cognitiveservices" {
+  provider            = azurerm.hub
+  name                = "privatelink.cognitiveservices.azure.com"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "openai" {
+  provider            = azurerm.hub
+  name                = "privatelink.openai.azure.com"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "services_ai" {
+  provider            = azurerm.hub
+  name                = "privatelink.services.ai.azure.com"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}

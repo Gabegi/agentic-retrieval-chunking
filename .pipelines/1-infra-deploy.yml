@@ -79,6 +79,29 @@ stages:
                   az network private-dns link vnet list -g cor-connectivity-dns-prd-we-001 -z "$z" --query "[].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
                 done
 
+          # Temporary, read-only: cor-connectivity-prd is a PRODUCTION hub -
+          # worth confirming whether there's a separate dev-scoped
+          # connectivity subscription this SP can also see (or should be
+          # using instead), and what this SP's full access footprint is so
+          # we're not guessing from subscription-list visibility alone
+          # (a subscription with zero role assignments for this SP simply
+          # won't show up in `az account list`, so that alone can't prove a
+          # dev hub doesn't exist).
+          - task: AzureCLI@2
+            displayName: 'DIAGNOSTIC: full SP access footprint'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "--- subscriptions this SP can see (any role, any scope) ---"
+                az account list -o table
+                echo "--- all role assignments for this SP, across every scope it can enumerate ---"
+                SP_ID=$(az account show --query user.name -o tsv)
+                az role assignment list --assignee "$SP_ID" --all -o table
+                echo "--- management groups visible to this SP, if any ---"
+                az account management-group list -o table
+
           - script: |
               TF_VERSION="1.15.7"
               curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip

@@ -44,9 +44,33 @@ zone die aan de VNet gekoppeld is. Resolutie valt dan terug op het publieke endp
 het storage account, en dat staat dicht (`public_network_access_enabled = false`) —
 vandaar dat de content share niet mount en Kudu crasht.
 
-We hebben in dit subscription (`cor-cap-dev`) en in `cor-cap-prd` geen private DNS zones
-kunnen vinden (`az network private-dns zone list` geeft niets terug), dus die zones +
-policy-koppeling zitten kennelijk in een subscription die wij niet kunnen inzien/beheren.
+We hebben in `cor-cap-dev` en `cor-cap-prd` geen private DNS zones kunnen vinden - die
+zitten in een subscription die wij zelf niet kunnen inzien. Via de deploy-identity
+(service principal achter de OIDC service connection) konden we ze wel vinden: subscription
+`cor-connectivity-prd` (`c8e46005-ce0e-4be5-9ded-0178e19fbe28`), resource group
+`cor-connectivity-dns-prd-we-001`. Die identity heeft daar blijkbaar al Reader-achtige
+rechten (kon zones + vnet-links listen), maar wij persoonlijk niet.
+
+Twee bevindingen die de scope van dit verzoek groter maken dan we dachten:
+
+1. **Geen van de 7 zones in die RG is gelinkt aan onze VNet** (`cor-vnet-cap-dev-we-001`,
+   resource group `cor-cap-network-dev-we-001`). Elke zone heeft wel een vaste kern van
+   3 andere VNets gelinkt (`cor-vnet-connectivity-prd-we-001`,
+   `cor-vnet-management-prd-we-001`, `IAAS-VNET`), plus soms extra (bv. `blob` ook aan
+   `cor-vnet-ccc-dev-we-001` en `cor-vnet-data-prd-we-001`; `file` juist alléén aan
+   `cor-vnet-workplace-prd-we-001`). Onze VNet staat nergens tussen. Zonder vnet-link
+   helpt een zone group op onze private endpoints niet - de VNet moet sowieso gelinkt
+   worden aan elke zone die we nodig hebben.
+2. **Er bestaat geen `privatelink.queue.core.windows.net`, `privatelink.table.core.windows.net`
+   of `privatelink.search.windows.net` zone in die RG.** Voor `cor-pep-stfunc-queue-*`,
+   `cor-pep-stfunc-table-*` en `cor-pep-srch-*` is dit dus geen kwestie van linken, maar
+   van de zone zelf eerst aanmaken.
+
+Volledige zone-lijst in `cor-connectivity-dns-prd-we-001` op dit moment: `privatelink.
+azurewebsites.net`, `privatelink.blob.core.windows.net`,
+`privatelink.cognitiveservices.azure.com`, `privatelink.file.core.windows.net`,
+`privatelink.openai.azure.com`, `privatelink.services.ai.azure.com`,
+`privatelink.vaultcore.azure.net`.
 
 ## Gevraagde actie
 
