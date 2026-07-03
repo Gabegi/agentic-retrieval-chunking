@@ -67,6 +67,7 @@ public class UploadService : IUploadService
         return new UploadResult(
             DocsUploaded:                  succeeded,
             DocsFailed:                    failed,
+            ChunksRemoved:                 chunksRemoved,
             IndexDocumentCountSnapshot:    indexDocCount,
             IndexStorageSizeBytesSnapshot: indexStorageBytes,
             RedFlags:                      redFlags);
