@@ -54,7 +54,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             .UploadAsync(BinaryData.FromString(json), overwrite: true, ct);
     }
 
-    public async Task<ExtractionOutput> ExtractDocumentsAsync(CancellationToken ct = default)
+    public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
         using var pagesStream = new MemoryStream();
         using var indexStream = new MemoryStream();
@@ -77,19 +77,34 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         foreach (var warning in report.MagnitudeWarnings)
             _logger.LogWarning("{Warning}", warning);
 
+        // A magnitude-only failure can be deliberately let through by the caller; error-rate
+        // and reconciliation failures never are, regardless of overrideMagnitudeCheck.
+        var magnitudeOverrideApplied = !report.Passed && overrideMagnitudeCheck && report.PassedExcludingMagnitude;
+        var effectivePassed          = report.Passed || magnitudeOverrideApplied;
+
+        if (magnitudeOverrideApplied)
+            _logger.LogWarning(
+                "VALIDATION OVERRIDE APPLIED — magnitude-shift gate bypassed by explicit operator request. " +
+                "{Cleaned} records this run. Warnings: {Warnings}",
+                cleanResult.Records.Count, string.Join(" | ", report.MagnitudeWarnings));
+
         _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
-            report.Passed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
+            effectivePassed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
 
         foreach (var issue in report.Issues)
             _logger.Log(
                 issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
                 "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
 
-        if (!report.Passed)
+        if (!effectivePassed)
             throw new InvalidOperationException(
-                $"CSV validation failed ({report.ReconciliationProblems.Count} reconciliation problem(s)) — aborting extraction.");
+                $"CSV validation failed ({report.ReconciliationProblems.Count} reconciliation problem(s), " +
+                $"{report.MagnitudeWarnings.Count} magnitude warning(s)) — aborting extraction.");
 
-        await SaveRunStateAsync(cleanResult.Records.Count, ct);   // only after a passing run
+        // Whether passed normally or via override, this becomes the new baseline - an
+        // override run resets the magnitude check so the NEXT run is auto-gated again
+        // instead of comparing against the same stale count.
+        await SaveRunStateAsync(cleanResult.Records.Count, ct);
 
         // Emit validation metrics
         var errors   = report.Issues.Count(i => i.Severity == "Error");
