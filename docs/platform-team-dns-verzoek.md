@@ -24,8 +24,8 @@ Exception has been thrown by the target of an invocation.
 
 ## Root cause (bevestigd)
 
-Geen van de private endpoints op `corstfunccapdevwe` heeft een private DNS zone group
-gekoppeld — gecheckt via de ARM API, niet alleen via de statische `customDnsConfigs`
+Geen van de private endpoints in `cor-cap-data-dev-we-001` heeft een private DNS zone
+group gekoppeld — gecheckt via de ARM API, niet alleen via de statische `customDnsConfigs`
 snapshot:
 
 ```bash
