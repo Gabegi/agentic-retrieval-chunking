@@ -161,10 +161,11 @@ resource "azurerm_private_endpoint" "stfunc_file" {
 }
 
 resource "azurerm_private_endpoint" "stdata" {
-  name                = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.data.name
-  subnet_id           = data.azurerm_subnet.pe.id
+  name                          = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}"
+  location                      = var.location
+  resource_group_name           = data.azurerm_resource_group.data.name
+  subnet_id                     = data.azurerm_subnet.pe.id
+  custom_network_interface_name = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}_nic"
 
   private_service_connection {
     name                           = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}-psc"
