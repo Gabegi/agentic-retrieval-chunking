@@ -61,11 +61,10 @@ public class IndexingFunction
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
         [DurableClient] DurableTaskClient client)
     {
-        var source       = req.Query["source"] ?? "csv";
         var forceReindex = req.Query["force"] == "true";
 
-        var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("IndexingOrchestrator", new IndexRequest(source, forceReindex));
-        _logger.LogInformation("Indexing started — source '{Source}', instance {InstanceId}", source, instanceId);
+        var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("IndexingOrchestrator", new IndexRequest(forceReindex));
+        _logger.LogInformation("Indexing started — instance {InstanceId}", instanceId);
         return client.CreateCheckStatusResponse(req, instanceId);
     }
 
