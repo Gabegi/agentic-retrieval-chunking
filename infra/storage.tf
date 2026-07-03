@@ -37,23 +37,13 @@ resource "azurerm_storage_account" "data" {
   account_kind             = "StorageV2"
   min_tls_version          = "TLS1_2"
 
-  # Public access is scoped to specific client IPs (network_rules below) so
-  # documents can be uploaded directly without VPN/private-endpoint
-  # connectivity. Everything else in this landing zone stays private-endpoint
-  # only; revisit this exception once jump-box/VPN access is available.
-  public_network_access_enabled   = true
+  public_network_access_enabled   = false
   allow_nested_items_to_be_public = false
   # shared_access_key_enabled left at its default (true): disabling it would
   # require the deploying identity to have Storage Blob Data Contributor
   # (data-plane RBAC, separate from Contributor) before Terraform can manage
   # containers via storage_use_azuread, which risks an RBAC-propagation race
   # on a fresh apply. Revisit once that identity's data-plane access is set up.
-
-  network_rules {
-    default_action = "Deny"
-    bypass         = ["AzureServices"]
-    ip_rules       = ["62.194.97.137"]
-  }
 
   blob_properties {
     delete_retention_policy {
