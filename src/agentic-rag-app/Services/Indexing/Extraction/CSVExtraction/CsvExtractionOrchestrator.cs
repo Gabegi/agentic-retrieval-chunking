@@ -54,7 +54,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             .UploadAsync(BinaryData.FromString(json), overwrite: true, ct);
     }
 
-    public async Task<ExtractionOutput> ExtractDocumentsAsync(CancellationToken ct = default)
+    public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
         using var pagesStream = new MemoryStream();
         using var indexStream = new MemoryStream();
