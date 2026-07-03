@@ -68,26 +68,20 @@ public class ExtractionService : IExtractionService
         }
 
         // Docs that were previously indexed but no longer appear in the source — withdrawn/removed
-        // upstream. Their chunks must be deleted, not just skipped, or they keep getting retrieved.
+        // upstream. Their chunks are stale the same way an updated doc's old chunks are - not
+        // deleted here, just flagged. Deletion happens after the replacement content (for updated
+        // docs) is safely re-embedded and re-uploaded, so a failure later in the pipeline never
+        // leaves a document with no chunks at all - see UploadService.UploadDocumentsAsync.
         var removedSourceIds = indexedDates.Keys.Where(id => !seenSourceIds.Contains(id)).ToList();
         toDeleteChunks.AddRange(removedSourceIds);
 
         var skipped = output.Docs.Count - toProcess.Count;
-        var chunksRemoved = 0;
-
-        if (toDeleteChunks.Count > 0)
-        {
-            _logger.LogInformation(
-                "Deleting stale chunks for {Updated} updated and {Removed} removed documents",
-                updated, removedSourceIds.Count);
-            chunksRemoved = await _indexDocumentService.DeleteDocumentsAsync(toDeleteChunks, ct);
-        }
 
         _logger.LogInformation(
             "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped",
             _extractor.Source, newCount, updated, removedSourceIds.Count, skipped);
 
-        return new DiffResult(_extractor.Source, output, toProcess, removedSourceIds, newCount, updated, skipped, chunksRemoved);
+        return new DiffResult(_extractor.Source, output, toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
     }
 
     // 2. Emit instrumentation metrics from the diff result
@@ -98,7 +92,6 @@ public class ExtractionService : IExtractionService
         Instrumentation.DocsNew.Add(diff.NewCount);
         Instrumentation.DocsUpdated.Add(diff.Updated);
         Instrumentation.DocsDeleted.Add(diff.RemovedSourceIds.Count);
-        Instrumentation.ChunksRemoved.Add(diff.ChunksRemoved);
     }
 
     // 3. Assemble ExtractionResults to return to the activity
@@ -109,7 +102,7 @@ public class ExtractionService : IExtractionService
         DocsNew:                diff.NewCount,
         DocsUpdated:            diff.Updated,
         DocsDeleted:            diff.RemovedSourceIds.Count,
-        ChunksRemoved:          diff.ChunksRemoved,
+        StaleDocumentIds:       diff.StaleDocumentIds,
         ValidationErrors:       diff.Output.ValidationErrors,
         ValidationWarnings:     diff.Output.ValidationWarnings,
         ReconciliationProblems: diff.Output.ReconciliationProblems,
