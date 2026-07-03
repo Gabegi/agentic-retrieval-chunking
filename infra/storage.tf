@@ -8,12 +8,17 @@
 #     function_app.tf).
 #   - data: source documents, chunks, reports, and saved intermediate state
 #     for the indexing/query pipeline (blob only, organized by container).
-# Both were designed private-endpoint-only, with DNS for the privatelink
-# zones centrally managed by the platform team (Policy-based zone links).
-# That DNS wiring isn't attached yet (docs/platform-team-dns-verzoek.md), so
-# both accounts currently run on public endpoint + trusted-service-bypass
-# firewall rules instead, as a temporary stand-in - see the per-resource
-# comments below. Revert both to private-endpoint-only once that's fixed.
+# Both are private-endpoint-only (no public network access); DNS resolution
+# for the privatelink zones is centrally managed by the platform team
+# (Policy-based zone links). That DNS wiring isn't attached yet
+# (docs/platform-team-dns-verzoek.md), which currently blocks the Function
+# App from reaching either account - and blocks the content-share mount
+# specifically. We tried a public-endpoint + trusted-service-bypass
+# workaround for both; reverted it (SMB/445 for the file share likely also
+# needs a hub-firewall egress rule beyond just the storage account's own
+# firewall, and opening the accounts up don't fix that, so it wasn't a
+# viable path). Nothing to do here until the platform team attaches the
+# zone group.
 # ---------------------------------------------------------------------------
 
 resource "azurerm_storage_account" "func" {
@@ -25,24 +30,8 @@ resource "azurerm_storage_account" "func" {
   account_kind             = "StorageV2"
   min_tls_version          = "TLS1_2"
 
-  # file is deliberately NOT private-endpoint-only (see removed
-  # azurerm_private_endpoint.stfunc_file below): the content share needs the
-  # missing privatelink.file.core.windows.net DNS zone group that the
-  # platform team hasn't wired up yet (tracked in
-  # docs/platform-team-dns-verzoek.md). Any private endpoint on a subresource
-  # forces its public hostname into a CNAME to the (unreachable) privatelink
-  # zone, which broke Kudu's content-share mount entirely. Trusted-service
-  # bypass is Microsoft's documented pattern for exactly this case - the
-  # Functions platform is on the trusted list, so it can still reach the
-  # share even with public access closed to everyone else. Revert to
-  # private-endpoint-only once the zone group exists.
-  public_network_access_enabled   = true
+  public_network_access_enabled   = false
   allow_nested_items_to_be_public = false
-
-  network_rules {
-    default_action = "Deny"
-    bypass         = ["AzureServices"]
-  }
 
   tags = local.common_tags
 }
@@ -56,24 +45,13 @@ resource "azurerm_storage_account" "data" {
   account_kind             = "StorageV2"
   min_tls_version          = "TLS1_2"
 
-  # Same exception as azurerm_storage_account.func, same reason: the blob PE
-  # (azurerm_private_endpoint.stdata, commented out below) forces a CNAME to
-  # privatelink.blob.core.windows.net with no DNS zone group attached yet
-  # (docs/platform-team-dns-verzoek.md), which blocked the Function App from
-  # reaching this account at all. Trusted-service bypass unblocks it in the
-  # meantime; revert to private-endpoint-only once the zone group exists.
-  public_network_access_enabled   = true
+  public_network_access_enabled   = false
   allow_nested_items_to_be_public = false
   # shared_access_key_enabled left at its default (true): disabling it would
   # require the deploying identity to have Storage Blob Data Contributor
   # (data-plane RBAC, separate from Contributor) before Terraform can manage
   # containers via storage_use_azuread, which risks an RBAC-propagation race
   # on a fresh apply. Revisit once that identity's data-plane access is set up.
-
-  network_rules {
-    default_action = "Deny"
-    bypass         = ["AzureServices"]
-  }
 
   blob_properties {
     delete_retention_policy {
@@ -162,48 +140,34 @@ resource "azurerm_private_endpoint" "stfunc_table" {
   tags = local.common_tags
 }
 
-# Commented out, not deleted: this PE is what broke the content-share mount
-# (see the comment on azurerm_storage_account.func above / the
-# public_network_access_enabled + network_rules exception on that resource).
-# Any private endpoint on the "file" subresource forces its public hostname
-# into a CNAME to privatelink.file.core.windows.net, which has no route
-# without a DNS zone group the platform team hasn't attached yet (tracked in
-# docs/platform-team-dns-verzoek.md). Re-enable this once that's fixed, and
-# revert azurerm_storage_account.func back to private-endpoint-only.
-# resource "azurerm_private_endpoint" "stfunc_file" {
-#   name                = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}"
-#   location            = var.location
-#   resource_group_name = data.azurerm_resource_group.data.name
-#   subnet_id           = data.azurerm_subnet.pe.id
-#
-#   private_service_connection {
-#     name                           = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}-psc"
-#     private_connection_resource_id = azurerm_storage_account.func.id
-#     subresource_names              = ["file"]
-#     is_manual_connection           = false
-#   }
-#
-#   tags = local.common_tags
-# }
+resource "azurerm_private_endpoint" "stfunc_file" {
+  name                = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.data.name
+  subnet_id           = data.azurerm_subnet.pe.id
 
-# Commented out, not deleted: same DNS zone-group gap as stfunc_file above -
-# this PE was blocking the Function App from reaching corstdatacapdevwe at
-# all (401/network-unreachable, not an auth problem - see
-# docs/platform-team-dns-verzoek.md). Re-enable once the platform team
-# attaches the privatelink.blob.core.windows.net zone group, and revert
-# azurerm_storage_account.data back to private-endpoint-only.
-# resource "azurerm_private_endpoint" "stdata" {
-#   name                = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}"
-#   location            = var.location
-#   resource_group_name = data.azurerm_resource_group.data.name
-#   subnet_id           = data.azurerm_subnet.pe.id
-#
-#   private_service_connection {
-#     name                           = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}-psc"
-#     private_connection_resource_id = azurerm_storage_account.data.id
-#     subresource_names              = ["blob"]
-#     is_manual_connection           = false
-#   }
-#
-#   tags = local.common_tags
-# }
+  private_service_connection {
+    name                           = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}-psc"
+    private_connection_resource_id = azurerm_storage_account.func.id
+    subresource_names              = ["file"]
+    is_manual_connection           = false
+  }
+
+  tags = local.common_tags
+}
+
+resource "azurerm_private_endpoint" "stdata" {
+  name                = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.data.name
+  subnet_id           = data.azurerm_subnet.pe.id
+
+  private_service_connection {
+    name                           = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}-psc"
+    private_connection_resource_id = azurerm_storage_account.data.id
+    subresource_names              = ["blob"]
+    is_manual_connection           = false
+  }
+
+  tags = local.common_tags
+}

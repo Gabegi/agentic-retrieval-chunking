@@ -37,11 +37,16 @@ resource "azurerm_windows_function_app" "indexer" {
   # storage_uses_managed_identity only covers AzureWebJobsStorage/Durable
   # Functions (blob/queue/table). The EP1 plan's content share still needs a
   # key-based connection string - Azure Files/SMB has no managed-identity
-  # auth path. The content share reaches the storage account over its public
-  # endpoint (trusted-service bypass, see azurerm_storage_account.func in
-  # storage.tf) rather than a private endpoint, so WEBSITE_CONTENTOVERVNET is
-  # deliberately NOT set here - it would force vnet routing toward a
-  # subresource that no longer has a private endpoint.
+  # auth path - plus WEBSITE_CONTENTOVERVNET so the platform reaches it via
+  # the private endpoint (azurerm_private_endpoint.stfunc_file in storage.tf)
+  # instead of the public endpoint. This is currently broken (see
+  # docs/platform-team-dns-verzoek.md) - the DNS zone group for that private
+  # endpoint isn't attached yet, so the content-share mount fails. We tried a
+  # public-endpoint + trusted-service-bypass workaround; reverted it, since
+  # Azure Files mounts over SMB (445), and the VNet's vnet_route_all_enabled
+  # forces that through the hub firewall too - opening the storage account
+  # alone doesn't help if that firewall blocks 445 outbound. Nothing to do
+  # here until the platform team attaches the zone group.
 
   identity {
     type = "SystemAssigned"
@@ -69,8 +74,8 @@ resource "azurerm_windows_function_app" "indexer" {
     # Durable Functions managed-identity auth - no connection string needed
     "AzureWebJobsStorage__accountName" = azurerm_storage_account.func.name
     "AzureWebJobsStorage__credential"  = "managedidentity"
-    # Content share: key-based, over the public endpoint (see note above
-    # azurerm_windows_function_app.indexer) - no WEBSITE_CONTENTOVERVNET.
+    # Content share: key-based (see note above azurerm_windows_function_app.indexer)
+    "WEBSITE_CONTENTOVERVNET"                  = "1"
     "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING" = azurerm_storage_account.func.primary_connection_string
     "WEBSITE_CONTENTSHARE"                     = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
     "ProtocolsStorage__blobServiceUri"         = azurerm_storage_account.data.primary_blob_endpoint
