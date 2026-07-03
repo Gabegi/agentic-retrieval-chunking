@@ -1,0 +1,101 @@
+[
+  {
+    "Name": "speczorg-elv-zorg-aanbod",
+    "Department": "Specialistische zorg",
+    "Query": "Wat voor ELV zorg biedt Cordaan?",
+    "ExpectedAnswer": "Bij Cordaan bieden we ELV Hoog Complex (ELV-HC) en ELV Palliatief Terminale Zorg (ELV-PTZ). In Berkenstede wordt specialistische ELV-HC geboden aan mensen met cognitieve problematiek.",
+    "ExpectedSources": "https://cordaan.zenya.work/Portal/#/document/61d9f7dd-5753-44b2-b7f6-2601d9b2e956?SourceItemID=61d9f7dd-5753-44b2-b7f6-2601d9b2e956&ContentTypeID=1; https://www.wijcordaan.nl/umbraco/weten-vinden/eerstelijns-verblijf/",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "wlz-inschrijven-gemeente-verhuizing",
+    "Department": "WLZ",
+    "Query": "Ik ben net verhuisd naar een Cordaan locatie. Hoe kan ik me inschrijven bij de gemeente?",
+    "ExpectedAnswer": "De zorgadministratie kan een client inschrijven bij de Gemeente. Stuur dan een mail naar zavv@cordaan.nl met naam en clientnummer vermeld.",
+    "ExpectedSources": "https://www.wijcordaan.nl/umbraco/weten-vinden/cli%C3%ABnt-inschrijven-in-gemeente-van-woonlocatie/; SharePoint: checklist, wat te regelen rondom verhuizing",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "wlz-aanvraag-via-ciz",
+    "Department": "WLZ",
+    "Query": "Hoe vraag ik WLZ aan?",
+    "ExpectedAnswer": "Een WLZ aanvraag indienen gaat via het CIZ. Hun telefoonnummer is 088-7891000. De huisarts kan hier ook in ondersteunen.",
+    "ExpectedSources": "SharePoint: Contactpersonenlijst, telefoonlijst intern",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "thuiszorg-eigen-bijdrage-vpt-mpt",
+    "Department": "Thuiszorg",
+    "Query": "Wat moet ik zelf betalen voor VPT/MPT zorg?",
+    "ExpectedAnswer": "De eigen bijdrage verschilt per persoon en kan je bereken op de website van CAK of je kunt ze bellen naar 0800-1925. In het kort, betaalt Cordaan bij VPT de voeding, telefoon en schoonmaak. Bij MPT kan Cordaan voor de was zorgen als het hulp is die vanuit de Wlz wordt geboden.",
+    "ExpectedSources": "https://cordaan.zenya.work/Portal/#/document/cf278f16-0a50-43c0-898c-71a7fdc597f3?SourceItemID=cf278f16-0a50-43c0-898c-71a7fdc597f3&ContentTypeID=1; https://cordaan.zenya.work/Portal/#/document/de477e81-b43e-49dc-bd8e-72784ef16229?SourceItemID=de477e81-b43e-49dc-bd8e-72784ef16229&ContentTypeID=1; https://cordaan.zenya.work/Portal/#/document/296ae523-3a5f-4689-8602-76c3016c7418?SourceItemID=296ae523-3a5f-4689-8602-76c3016c7418&ContentTypeID=1",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "wlz-zorg-met-wlz-indicatie",
+    "Department": "WLZ",
+    "Query": "Wat voor zorg kan ik krijgen met een Wlz indicatie?",
+    "ExpectedAnswer": "Overzicht Wlz-zorg: verblijf in een zorginstelling (thuis wonen is ook mogelijk), begeleiding, verpleging en verzorging, geneeskundige zorg en (paramedische) behandeling in verband met de ziekte, beperking of stoornis, hulpmiddelen, huishoudelijke hulp (soms), vervoer naar de plaats waar de begeleiding, behandeling en verzorging plaatsvindt.",
+    "ExpectedSources": "https://cordaan.zenya.work/Portal/#/document/cf278f16-0a50-43c0-898c-71a7fdc597f3?SourceItemID=cf278f16-0a50-43c0-898c-71a7fdc597f3&ContentTypeID=1",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "wlz-huisdier-meenemen-locatie",
+    "Department": "WLZ",
+    "Query": "Mag ik mijn huisdier meenemen bij de verhuizing?",
+    "ExpectedAnswer": "Verschilt per locatie. Neem contact op met de contactpersoon van jouw locatie.",
+    "ExpectedSources": "SharePoint: locatie info excel",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "wlz-wachttijd-locatie",
+    "Department": "WLZ",
+    "Query": "Hoe lang is de wachttijd voor locatie x?",
+    "ExpectedAnswer": "Verschilt per locatie.",
+    "ExpectedSources": "SharePoint: wachttijden excel",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "thuiszorg-zorgmoment-niet-gekomen",
+    "Department": "Thuiszorg",
+    "Query": "Ik heb een zorgmoment vandaag, maar die is nog niet gekomen. Wat nu?",
+    "ExpectedAnswer": "Bel naar wijkteam en vraag naar de wijkverpleegkundige.",
+    "ExpectedSources": "SharePoint: contactpersonen v&v excel; https://www.cordaan.nl/ouderenzorg/zorg-thuis/",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "wlz-telefoonnummer-buitenveldert",
+    "Department": "WLZ",
+    "Query": "Wat is het telefoonnummer van Buitenveldert?",
+    "ExpectedAnswer": "020-5046000",
+    "ExpectedSources": "SharePoint: Contactpersonenlijst",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "algemeen-zorg-asielzoekers",
+    "Department": "Algemeen",
+    "Query": "Wat voor zorg kunnen asielzoekers krijgen?",
+    "ExpectedAnswer": "Cordaan heeft een overeenkomst met DSW/RMA voor het declareren van verblijfzorg (Wlz), ELV-, Wmo- en Zvw-zorg. Maar het verschilt per persoon en per situatie. Gebruik hiervoor de beslisboom van het OLVG.",
+    "ExpectedSources": "https://www.wijcordaan.nl/umbraco/weten-vinden/financieringsvormen-zorg/#onverzvreemd9",
+    "Difficulty": "",
+    "Value": ""
+  },
+  {
+    "Name": "wlz-tijdelijke-zorg-wlz-indicatie",
+    "Department": "WLZ",
+    "Query": "Wat zijn de mogelijkheden voor tijdelijke zorg met een WLZ indicatie?",
+    "ExpectedAnswer": "Antwoord onbekend",
+    "ExpectedSources": "Onbekend",
+    "Difficulty": "",
+    "Value": ""
+  }
+]
