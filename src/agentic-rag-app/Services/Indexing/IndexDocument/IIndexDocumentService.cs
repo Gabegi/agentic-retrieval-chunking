@@ -6,7 +6,12 @@ public interface IIndexDocumentService
 {
     Task<Dictionary<string, DateTimeOffset>> GetIndexedDocumentDatesAsync(CancellationToken ct = default);
     Task<(int Succeeded, int Failed)> UpsertDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default);
-    Task<int> DeleteDocumentsAsync(IEnumerable<string> documentIds, CancellationToken ct = default);
+
+    // The two halves of what used to be one "delete everything for these documents" call.
+    // Split so a caller can diff the result against a "keep" set (e.g. chunks just
+    // re-uploaded) before deciding what's actually stale - see UploadService.
+    Task<IReadOnlyList<string>> GetChunkIdsForDocumentsAsync(IEnumerable<string> documentIds, CancellationToken ct = default);
+    Task<int> DeleteChunksByIdAsync(IEnumerable<string> chunkIds, CancellationToken ct = default);
 
     // Whole-index aggregates (document count, storage size) — see IndexDocumentService for detail.
     Task<(long DocumentCount, long StorageSizeBytes)> GetStatisticsAsync(CancellationToken ct = default);
