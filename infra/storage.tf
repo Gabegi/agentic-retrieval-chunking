@@ -183,18 +183,24 @@ resource "azurerm_private_endpoint" "stfunc_table" {
 #   tags = local.common_tags
 # }
 
-resource "azurerm_private_endpoint" "stdata" {
-  name                = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.data.name
-  subnet_id           = data.azurerm_subnet.pe.id
-
-  private_service_connection {
-    name                           = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}-psc"
-    private_connection_resource_id = azurerm_storage_account.data.id
-    subresource_names              = ["blob"]
-    is_manual_connection           = false
-  }
-
-  tags = local.common_tags
-}
+# Commented out, not deleted: same DNS zone-group gap as stfunc_file above -
+# this PE was blocking the Function App from reaching corstdatacapdevwe at
+# all (401/network-unreachable, not an auth problem - see
+# docs/platform-team-dns-verzoek.md). Re-enable once the platform team
+# attaches the privatelink.blob.core.windows.net zone group, and revert
+# azurerm_storage_account.data back to private-endpoint-only.
+# resource "azurerm_private_endpoint" "stdata" {
+#   name                = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}"
+#   location            = var.location
+#   resource_group_name = data.azurerm_resource_group.data.name
+#   subnet_id           = data.azurerm_subnet.pe.id
+#
+#   private_service_connection {
+#     name                           = "cor-pep-stdata-cap-${local.env}-${local.region}-${local.instance}-psc"
+#     private_connection_resource_id = azurerm_storage_account.data.id
+#     subresource_names              = ["blob"]
+#     is_manual_connection           = false
+#   }
+#
+#   tags = local.common_tags
+# }
