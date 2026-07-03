@@ -37,9 +37,11 @@ resource "azurerm_windows_function_app" "indexer" {
   # storage_uses_managed_identity only covers AzureWebJobsStorage/Durable
   # Functions (blob/queue/table). The EP1 plan's content share still needs a
   # key-based connection string - Azure Files/SMB has no managed-identity
-  # auth path - plus WEBSITE_CONTENTOVERVNET so the platform reaches it via
-  # the private endpoint (azurerm_private_endpoint.stfunc_file in storage.tf)
-  # instead of the now-blocked public endpoint.
+  # auth path. The content share reaches the storage account over its public
+  # endpoint (trusted-service bypass, see azurerm_storage_account.func in
+  # storage.tf) rather than a private endpoint, so WEBSITE_CONTENTOVERVNET is
+  # deliberately NOT set here - it would force vnet routing toward a
+  # subresource that no longer has a private endpoint.
 
   identity {
     type = "SystemAssigned"
