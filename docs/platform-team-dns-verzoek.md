@@ -50,25 +50,36 @@ policy-koppeling zitten kennelijk in een subscription die wij niet kunnen inzien
 
 ## Gevraagde actie
 
-Kunnen jullie controleren en zo nodig remediëren dat er een private DNS zone group
-gekoppeld is voor onderstaande private endpoints, tegen de juiste
-`privatelink.<subresource>.core.windows.net` zone, gelinkt aan VNet
-`cor-vnet-cap-dev-we-001` (resource group `cor-cap-network-dev-we-001`)?
+We hebben **alle** private endpoints in deze resource group nagelopen (niet alleen de
+blokkerende) — geen enkele heeft een private DNS zone group gekoppeld
+(`az network private-endpoint dns-zone-group list` geeft voor elke hieronder `[]` terug).
+Kunnen jullie deze allemaal controleren en remediëren tegen de juiste
+`privatelink.<subresource>.<service>` zone, gelinkt aan VNet `cor-vnet-cap-dev-we-001`
+(resource group `cor-cap-network-dev-we-001`)?
 
-| Private endpoint | Subresource | Resource ID |
-|---|---|---|
-| `cor-pep-stfunc-file-cap-dev-we-001` | file | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stfunc-file-cap-dev-we-001` |
-| `cor-pep-stfunc-blob-cap-dev-we-001` | blob | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stfunc-blob-cap-dev-we-001` |
-| `cor-pep-stfunc-queue-cap-dev-we-001` | queue | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stfunc-queue-cap-dev-we-001` |
-| `cor-pep-stfunc-table-cap-dev-we-001` | table | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stfunc-table-cap-dev-we-001` |
+| Private endpoint | Target resource | Subresource | Zone group aanwezig? | Resource ID |
+|---|---|---|---|---|
+| `cor-pep-stfunc-file-cap-dev-we-001` | `corstfunccapdevwe` (storage) | file | Nee | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stfunc-file-cap-dev-we-001` |
+| `cor-pep-stfunc-blob-cap-dev-we-001` | `corstfunccapdevwe` (storage) | blob | Nee | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stfunc-blob-cap-dev-we-001` |
+| `cor-pep-stfunc-queue-cap-dev-we-001` | `corstfunccapdevwe` (storage) | queue | Nee | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stfunc-queue-cap-dev-we-001` |
+| `cor-pep-stfunc-table-cap-dev-we-001` | `corstfunccapdevwe` (storage) | table | Nee | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stfunc-table-cap-dev-we-001` |
+| `cor-pep-stdata-cap-dev-we-001` | `corstdatacapdevwe` (storage) | blob | Nee | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-stdata-cap-dev-we-001` |
+| `cor-pep-func-cap-dev-we-001` | `cor-func-idx-cap-dev-we-001` (Function App) | sites | Nee | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-func-cap-dev-we-001` |
+| `cor-pep-srch-cap-dev-we-001` | `cor-srch-cap-dev-we-001` (AI Search) | searchService | Nee | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-srch-cap-dev-we-001` |
+| `cor-pep-kv-cap-dev-we-001` | Key Vault (`azurerm_key_vault.main`) | vault | Nee | `/subscriptions/b61f3453-5d67-4125-b9dd-ff5458c590bf/resourceGroups/cor-cap-data-dev-we-001/providers/Microsoft.Network/privateEndpoints/cor-pep-kv-cap-dev-we-001` |
 
-`file` is het blokkerende endpoint (zie hierboven), maar `blob`/`queue`/`table` staan er
-net zo bij en zijn nog niet end-to-end getest — graag in één keer meenemen.
+`file` op `corstfunccapdevwe` is het endpoint dat nu concreet de deploy blokkeert (zie
+hierboven), de rest is nog niet end-to-end getest vanuit de Function App maar heeft
+dezelfde ontbrekende koppeling — graag in één keer meenemen zodat we niet steeds opnieuw
+tegen deze fout aanlopen zodra er weer een pad wordt aangesproken.
 
-Zelfde vraag geldt straks voor de overige private endpoints in deze resource group
-(storage account `corstdatacapdevwe`, Function App zelf, Search, Key Vault) zodra we die
-paden daadwerkelijk gebruiken - nu nog niet bevestigd stuk of heel, maar waarschijnlijk
-hetzelfde probleem.
+Let op: dit is de lijst van vandaag. Er komen op korte termijn nog private endpoints bij
+(o.a. voor een App Service, zie de uitgecommentarieerde `azurerm_private_endpoint.api` in
+`app_service.tf`), dus we verwachten dat dit vaker terugkomt zolang de policy-koppeling
+niet automatisch/betrouwbaar loopt. Fijn als jullie ook kunnen aangeven of dit normaal
+gesproken vanzelf (met vertraging) gebeurt via policy-remediation, of dat het altijd een
+handmatige stap aan jullie kant is na het aanmaken van een nieuw private endpoint - dan
+weten wij wanneer we moeten wachten versus escaleren.
 
 Laat het weten als jullie iets anders nodig hebben (bv. toegang tot de subscription/RG
 waar de zones staan) om dit te verifiëren.
