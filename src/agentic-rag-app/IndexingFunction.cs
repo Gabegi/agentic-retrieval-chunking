@@ -120,7 +120,8 @@ public class IndexingFunction
         try
         {
             await _indexService.EnsureIndexAsync();
-            var (docs, stats) = await _extractionService.ExtractAsync(req.Source, req.ForceReindex, context.CancellationToken);
+            var (docs, stats) = await _extractionService.ExtractAsync(
+                req.Source, req.ForceReindex, req.OverrideMagnitudeCheck, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
             _logger.LogInformation("Extracted {Count} docs → {Blob}", docs.Count, req.OutputBlob);
             return stats;
