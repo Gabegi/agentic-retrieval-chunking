@@ -94,7 +94,6 @@ public class ExtractionService : IExtractionService
         Instrumentation.DocsNew.Add(diff.NewCount);
         Instrumentation.DocsUpdated.Add(diff.Updated);
         Instrumentation.DocsDeleted.Add(diff.RemovedSourceIds.Count);
-        Instrumentation.ChunksRemoved.Add(diff.ChunksRemoved);
     }
 
     // 3. Assemble ExtractionResults to return to the activity
@@ -104,7 +103,7 @@ public class ExtractionService : IExtractionService
         DocsNew:                diff.NewCount,
         DocsUpdated:            diff.Updated,
         DocsDeleted:            diff.RemovedSourceIds.Count,
-        ChunksRemoved:          diff.ChunksRemoved,
+        StaleDocumentIds:       diff.StaleDocumentIds,
         ValidationErrors:       diff.Output.ValidationErrors,
         ValidationWarnings:     diff.Output.ValidationWarnings,
         ReconciliationProblems: diff.Output.ReconciliationProblems,
@@ -121,8 +120,8 @@ public class ExtractionService : IExtractionService
         ExtractionOutput         Output,
         List<ExtractionDocument> ToProcess,
         List<string>             RemovedSourceIds,
+        List<string>             StaleDocumentIds,
         int                      NewCount,
         int                      Updated,
-        int                      Skipped,
-        int                      ChunksRemoved);
+        int                      Skipped);
 }
