@@ -19,14 +19,14 @@ resource "azurerm_service_plan" "func" {
 }
 
 resource "azurerm_windows_function_app" "indexer" {
-  name                           = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
-  resource_group_name            = data.azurerm_resource_group.data.name
-  location                       = var.location
-  service_plan_id                = azurerm_service_plan.func.id
-  storage_account_name           = azurerm_storage_account.func.name
-  storage_uses_managed_identity  = true
-  virtual_network_subnet_id      = azurerm_subnet.app.id
-  public_network_access_enabled  = false
+  name                          = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
+  resource_group_name           = data.azurerm_resource_group.data.name
+  location                      = var.location
+  service_plan_id               = azurerm_service_plan.func.id
+  storage_account_name          = azurerm_storage_account.func.name
+  storage_uses_managed_identity = true
+  virtual_network_subnet_id     = azurerm_subnet.app.id
+  public_network_access_enabled = false
   # storage_uses_managed_identity only covers AzureWebJobsStorage/Durable
   # Functions (blob/queue/table). The EP1 plan's content share still needs a
   # key-based connection string - Azure Files/SMB has no managed-identity
@@ -59,20 +59,20 @@ resource "azurerm_windows_function_app" "indexer" {
     "AzureWebJobsStorage__accountName" = azurerm_storage_account.func.name
     "AzureWebJobsStorage__credential"  = "managedidentity"
     # Content share: key-based (see note above azurerm_windows_function_app.indexer)
-    "WEBSITE_CONTENTOVERVNET"                 = "1"
+    "WEBSITE_CONTENTOVERVNET"                  = "1"
     "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING" = azurerm_storage_account.func.primary_connection_string
     "WEBSITE_CONTENTSHARE"                     = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
-    "ProtocolsStorage__blobServiceUri" = azurerm_storage_account.data.primary_blob_endpoint
-    "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.data.primary_blob_endpoint
-    "SEARCH_ENDPOINT"                  = "https://${azurerm_search_service.main.name}.search.windows.net"
-    "OPENAI_ENDPOINT"                  = data.azurerm_cognitive_account.foundry.endpoint
-    "OPENAI_EMBEDDING_DEPLOYMENT"      = var.openai_embedding_deployment
-    "OPENAI_GPT_DEPLOYMENT"            = var.openai_gpt_deployment
-    "OPENAI_GPT_MODEL_NAME"            = var.openai_gpt_model_name
-    "OPENAI_EXTRACTION_DEPLOYMENT"     = var.openai_extraction_deployment
-    "SEARCH_INDEX_NAME"                = var.search_index_name
-    "KNOWLEDGE_SOURCE_NAME"            = var.knowledge_source_name
-    "KNOWLEDGE_BASE_NAME"              = var.knowledge_base_name
+    "ProtocolsStorage__blobServiceUri"         = azurerm_storage_account.data.primary_blob_endpoint
+    "STORAGE_ACCOUNT_URL"                      = azurerm_storage_account.data.primary_blob_endpoint
+    "SEARCH_ENDPOINT"                          = "https://${azurerm_search_service.main.name}.search.windows.net"
+    "OPENAI_ENDPOINT"                          = data.azurerm_cognitive_account.foundry.endpoint
+    "OPENAI_EMBEDDING_DEPLOYMENT"              = var.openai_embedding_deployment
+    "OPENAI_GPT_DEPLOYMENT"                    = var.openai_gpt_deployment
+    "OPENAI_GPT_MODEL_NAME"                    = var.openai_gpt_model_name
+    "OPENAI_EXTRACTION_DEPLOYMENT"             = var.openai_extraction_deployment
+    "SEARCH_INDEX_NAME"                        = var.search_index_name
+    "KNOWLEDGE_SOURCE_NAME"                    = var.knowledge_source_name
+    "KNOWLEDGE_BASE_NAME"                      = var.knowledge_base_name
   }
 
   tags = local.common_tags
