@@ -11,7 +11,9 @@ public record ExtractionResults(
     int DocsNew,
     int DocsUpdated,
     int DocsDeleted,
-    int ChunksRemoved,
+    // Document IDs (updated + removed) whose stale chunks still need cleanup. Carried forward
+    // to EmbedAndUploadActivity rather than deleted here - see ExtractionService.ExtractAndDiffAsync.
+    IReadOnlyList<string> StaleDocumentIds,
     int ValidationErrors,
     int ValidationWarnings,
     int ReconciliationProblems,
