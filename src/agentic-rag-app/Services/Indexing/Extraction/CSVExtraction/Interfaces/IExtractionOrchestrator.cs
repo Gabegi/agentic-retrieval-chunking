@@ -7,5 +7,9 @@ namespace ProtocolsIndexer.Services;
 public interface IExtractionOrchestrator
 {
     string Source { get; }  // e.g. "csv", "pdf"
-    Task<ExtractionOutput> ExtractDocumentsAsync(CancellationToken ct = default);
+
+    // overrideMagnitudeCheck: bypasses ONLY the magnitude-shift validation gate (a large,
+    // legitimate import/removal), never the error-rate or reconciliation checks - those
+    // indicate genuinely malformed data and must always block.
+    Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default);
 }
