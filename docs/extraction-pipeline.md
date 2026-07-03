@@ -88,18 +88,53 @@ Only reached if validation passed. Every document in this run is compared
 against what's currently indexed (by last-modified date) and classified:
 
 - **New** — not indexed yet → goes on to chunking/embedding.
-- **Updated** — modified since it was last indexed → its old chunks are
-  deleted and it goes on to be re-chunked/re-embedded.
+- **Updated** — modified since it was last indexed → flagged as *stale*
+  (see below) and goes on to be re-chunked/re-embedded.
 - **Unchanged** — skipped, unless `force=true` was passed.
-- **Removed** — was indexed before, isn't in this run's output at all → its
-  chunks are deleted outright, since a document search should never surface
-  results for something that no longer exists in the source.
+- **Removed** — was indexed before, isn't in this run's output at all →
+  flagged as *stale*, with no replacement content coming.
 
 This is exactly why step 5's validation matters: "removed" is *inferred*
 from absence. If the export were broken and only returned half the real
-documents, every document in the missing half would look "removed" and get
-deleted from the live index — which is precisely the failure mode the
-magnitude-shift check exists to catch.
+documents, every document in the missing half would look "removed" — which
+is precisely the failure mode the magnitude-shift check exists to catch.
+
+**Nothing is deleted from the search index at this point.** This step only
+produces a list of *stale document ids* (updated + removed) and passes it
+forward to the chunk/embed/upload steps. See "Stale-chunk cleanup" below for
+why the deletion itself is deferred to the very end of the pipeline, and
+`docs/chunking-pipeline.md` for what happens to these documents in the
+meantime.
+
+## Stale-chunk cleanup — deferred, not immediate
+
+Deleting a document's old chunks *before* its replacement chunks are ready
+would leave a real gap: if extraction deleted eagerly and a later step
+(chunking, embedding, upload) then failed, that document would have **zero**
+chunks in the index — not stale, just gone — until the next successful run.
+
+To avoid that, cleanup happens last, in `UploadService.UploadDocumentsAsync`,
+only after the new chunks for this run have already been uploaded
+successfully:
+
+1. Every chunk id currently in the index for a stale document id is fetched.
+2. Any id that's part of what was *just* uploaded this run is excluded —
+   re-chunking a document whose content didn't shift enough to change its
+   chunk count typically produces the exact same chunk ids (see
+   `docs/chunking-pipeline.md`), so those get overwritten in place and were
+   never actually stale.
+3. Whatever remains — chunk ids from before that don't correspond to any
+   chunk this run produced — is genuinely orphaned and gets deleted.
+
+A **removed** document has no new chunks at all, so every one of its old
+chunk ids ends up in that "remains" set and gets deleted, same as before.
+An **updated** document only loses the specific old chunk ids that its new
+version no longer produces (e.g. a page that used to split into 3 chunks
+now fits in 2) — the rest were already overwritten in step 2.
+
+If chunking, embedding, or upload fails partway through, this cleanup step
+is never reached — the old chunks stay exactly as they were, stale but
+present, until the next successful run retries the same document.
 
 ## If a run gets blocked
 
