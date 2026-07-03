@@ -103,6 +103,7 @@ public class ExtractionService : IExtractionService
 
     // 3. Assemble ExtractionResults to return to the activity
     private static ExtractionResults BuildStats(DiffResult diff) => new(
+        Source:                 diff.Source,
         DocsToProcess:          diff.ToProcess.Count,
         DocsSkipped:            diff.Skipped,
         DocsNew:                diff.NewCount,
