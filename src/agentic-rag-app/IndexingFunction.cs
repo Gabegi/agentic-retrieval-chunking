@@ -14,13 +14,10 @@ using ProtocolsIndexer.Services;
 
 namespace ProtocolsIndexer;
 
-// Generic indexing entrypoint. Source-agnostic: pass ?source=csv (or pdf, etc.)
-// to select the registered extractor. The pipeline steps are the same for all sources.
-//
-// Source routing:
-// • ?source=csv  → resolves CsvExtractionOrchestrator (Source = "csv")
-// • ?source=pdf  → resolves PdfExtractionOrchestrator (Source = "pdf") once implemented
-// To add a new source: implement IExtractionOrchestrator, set Source, register in program.cs.
+// Generic indexing entrypoint. Exactly one IExtractionOrchestrator is registered in program.cs
+// at a time (currently CsvExtractionOrchestrator) - the pipeline steps here don't know or care
+// which one. To switch source (e.g. to a future PDF extractor), replace that registration;
+// nothing in this file changes.
 //
 // Payload pattern: extracted docs and chunks are written to blob (container: indexing-pipeline,
 // paths: {instanceId}/extracted.json and {instanceId}/chunks.json). Only the blob name string
@@ -64,7 +61,6 @@ public class IndexingFunction
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
         [DurableClient] DurableTaskClient client)
     {
-        var source                 = req.Query["source"] ?? "csv";
         var forceReindex           = req.Query["force"] == "true";
         // Bypasses ONLY the magnitude-shift validation gate - never error-rate/reconciliation
         // checks. Use after confirming in the logs that a large record-count shift is
@@ -72,8 +68,8 @@ public class IndexingFunction
         var overrideMagnitudeCheck = req.Query["overrideMagnitudeCheck"] == "true";
 
         var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
-            "IndexingOrchestrator", new IndexRequest(source, forceReindex, overrideMagnitudeCheck));
-        _logger.LogInformation("Indexing started — source '{Source}', instance {InstanceId}", source, instanceId);
+            "IndexingOrchestrator", new IndexRequest(forceReindex, overrideMagnitudeCheck));
+        _logger.LogInformation("Indexing started — instance {InstanceId}", instanceId);
         return client.CreateCheckStatusResponse(req, instanceId);
     }
 
