@@ -223,7 +223,7 @@ public class IndexingFunction
             InstanceId:              context.InstanceId,
             StartedAt:               startedAt,
             FinishedAt:              context.CurrentUtcDateTime,
-            Source:                  input.Source,
+            Source:                  ext?.Source ?? "unknown",
             ForceReindex:            input.ForceReindex,
             Success:                 success,
             ErrorMessage:            error,
