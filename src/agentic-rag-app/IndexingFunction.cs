@@ -93,7 +93,7 @@ public class IndexingFunction
 
         try
         {
-            extractResults = await context.CallActivityAsync<ExtractionResults>("ExtractActivity",        new ExtractRequest(input.Source, input.ForceReindex, docsBlob));
+            extractResults = await context.CallActivityAsync<ExtractionResults>("ExtractActivity",        new ExtractRequest(input.Source, input.ForceReindex, input.OverrideMagnitudeCheck, docsBlob));
             chunkResults   = await context.CallActivityAsync<ChunkingResults>("ChunkActivity",               new ChunkRequest(docsBlob, chunksBlob));
             embedResults   = await context.CallActivityAsync<EmbedUploadingResults>("EmbedAndUploadActivity", chunksBlob);
             success      = true;
