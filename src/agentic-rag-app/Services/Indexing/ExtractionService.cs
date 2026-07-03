@@ -123,6 +123,7 @@ public class ExtractionService : IExtractionService
         SpotCheckSample:        diff.Output.SpotCheckSample);
 
     private record DiffResult(
+        string                   Source,
         ExtractionOutput         Output,
         List<ExtractionDocument> ToProcess,
         List<string>             RemovedSourceIds,
