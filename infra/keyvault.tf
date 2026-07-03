@@ -21,10 +21,11 @@ resource "azurerm_key_vault" "main" {
 }
 
 resource "azurerm_private_endpoint" "kv" {
-  name                = "cor-pep-kv-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.data.name
-  subnet_id           = data.azurerm_subnet.pe.id
+  name                          = "cor-pep-kv-cap-${local.env}-${local.region}-${local.instance}"
+  location                      = var.location
+  resource_group_name           = data.azurerm_resource_group.data.name
+  subnet_id                     = data.azurerm_subnet.pe.id
+  custom_network_interface_name = "cor-pep-kv-cap-${local.env}-${local.region}-${local.instance}_nic"
 
   private_service_connection {
     name                           = "cor-pep-kv-cap-${local.env}-${local.region}-${local.instance}-psc"
