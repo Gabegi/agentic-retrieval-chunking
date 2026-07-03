@@ -1,4 +1,4 @@
-# Verzoek aan platform team: private DNS zone group ontbreekt op storage private endpoints
+# Verzoek aan platform team: private DNS zone group ontbreekt op alle private endpoints
 
 Context: deploy van de Function App (`cor-func-idx-cap-dev-we-001`, resource group
 `cor-cap-data-dev-we-001`, subscription `cor-cap-dev` /
