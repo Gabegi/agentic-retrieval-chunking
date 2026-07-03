@@ -58,6 +58,10 @@ resource "azurerm_windows_function_app" "indexer" {
     # Durable Functions managed-identity auth - no connection string needed
     "AzureWebJobsStorage__accountName" = azurerm_storage_account.func.name
     "AzureWebJobsStorage__credential"  = "managedidentity"
+    # Content share: key-based (see note above azurerm_windows_function_app.indexer)
+    "WEBSITE_CONTENTOVERVNET"                 = "1"
+    "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING" = azurerm_storage_account.func.primary_connection_string
+    "WEBSITE_CONTENTSHARE"                     = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
     "ProtocolsStorage__blobServiceUri" = azurerm_storage_account.data.primary_blob_endpoint
     "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.data.primary_blob_endpoint
     "SEARCH_ENDPOINT"                  = "https://${azurerm_search_service.main.name}.search.windows.net"
