@@ -154,7 +154,7 @@ and by how much) and you're confident the shift is real — a genuinely large
 batch of new protocols, or a deliberate bulk removal — re-trigger with:
 
 ```
-POST /api/index?source=csv&overrideMagnitudeCheck=true
+POST /api/index?overrideMagnitudeCheck=true
 ```
 
 This bypasses **only** the magnitude-shift check. It does **not** bypass
