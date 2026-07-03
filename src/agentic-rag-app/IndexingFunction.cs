@@ -84,7 +84,7 @@ public class IndexingFunction
 
         try
         {
-            extractResults = await context.CallActivityAsync<ExtractionResults>("ExtractActivity",        new ExtractRequest(input.Source, input.ForceReindex, docsBlob));
+            extractResults = await context.CallActivityAsync<ExtractionResults>("ExtractActivity",        new ExtractRequest(input.ForceReindex, docsBlob));
             chunkResults   = await context.CallActivityAsync<ChunkingResults>("ChunkActivity",               new ChunkRequest(docsBlob, chunksBlob));
             embedResults   = await context.CallActivityAsync<EmbedUploadingResults>("EmbedAndUploadActivity", chunksBlob);
             success      = true;
@@ -111,7 +111,7 @@ public class IndexingFunction
         try
         {
             await _indexService.EnsureIndexAsync();
-            var (docs, stats) = await _extractionService.ExtractAsync(req.Source, req.ForceReindex, context.CancellationToken);
+            var (docs, stats) = await _extractionService.ExtractAsync(req.ForceReindex, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
             _logger.LogInformation("Extracted {Count} docs → {Blob}", docs.Count, req.OutputBlob);
             return stats;
