@@ -120,8 +120,8 @@ public class ExtractionService : IExtractionService
         ExtractionOutput         Output,
         List<ExtractionDocument> ToProcess,
         List<string>             RemovedSourceIds,
+        List<string>             StaleDocumentIds,
         int                      NewCount,
         int                      Updated,
-        int                      Skipped,
-        int                      ChunksRemoved);
+        int                      Skipped);
 }
