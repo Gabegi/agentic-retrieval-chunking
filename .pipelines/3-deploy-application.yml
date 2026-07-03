@@ -49,6 +49,31 @@ stages:
 
           # Same OIDC service connection as 1-infra-deploy.yml - no separate
           # secrets/credentials to manage for app deploys.
+          #
+          # The Function App denies public traffic by default (see
+          # function_app.tf) and this hosted agent has no VNet access, so we
+          # open a scoped Allow rule for this runner's own IP on the SCM
+          # site just for the duration of the deploy, then remove it -
+          # narrower window than leaving the app open, but not as clean as a
+          # self-hosted agent living inside the VNet.
+          - task: AzureCLI@2
+            displayName: 'Open SCM firewall for this runner'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                RUNNER_IP=$(curl -fsSL https://api.ipify.org)
+                echo "##vso[task.setvariable variable=runnerIp]$RUNNER_IP"
+                az functionapp config access-restriction add \
+                  --resource-group $(functionAppRg) \
+                  --name $(functionAppName) \
+                  --rule-name "AzDoRunnerTemp" \
+                  --action Allow \
+                  --ip-address "$RUNNER_IP/32" \
+                  --priority 100 \
+                  --scm-site true
+
           - task: AzureCLI@2
             displayName: 'Deploy to Function App'
             inputs:
@@ -60,3 +85,17 @@ stages:
                   --resource-group $(functionAppRg) \
                   --name $(functionAppName) \
                   --src $(Build.ArtifactStagingDirectory)/protocol-indexer.zip
+
+          - task: AzureCLI@2
+            displayName: 'Close SCM firewall for this runner'
+            condition: always()
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az functionapp config access-restriction remove \
+                  --resource-group $(functionAppRg) \
+                  --name $(functionAppName) \
+                  --rule-name "AzDoRunnerTemp" \
+                  --scm-site true
