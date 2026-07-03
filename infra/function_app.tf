@@ -26,7 +26,14 @@ resource "azurerm_windows_function_app" "indexer" {
   storage_account_name          = azurerm_storage_account.func.name
   storage_uses_managed_identity = true
   virtual_network_subnet_id     = azurerm_subnet.app.id
-  public_network_access_enabled = false
+  # Deny-by-default public access (no ip_restriction/scm_ip_restriction rules
+  # managed here), so the private endpoint stays the only stable path in.
+  # The app-deploy pipeline runs on a Microsoft-hosted agent with no VNet
+  # access, so it opens a scoped Allow rule on the SCM site for its own
+  # runner IP via `az functionapp config access-restriction add`
+  # immediately before the zip deploy, then removes it again immediately
+  # after - see 3-deploy-application.yml.
+  public_network_access_enabled = true
   # storage_uses_managed_identity only covers AzureWebJobsStorage/Durable
   # Functions (blob/queue/table). The EP1 plan's content share still needs a
   # key-based connection string - Azure Files/SMB has no managed-identity
@@ -46,6 +53,8 @@ resource "azurerm_windows_function_app" "indexer" {
     always_on                              = true
     vnet_route_all_enabled                 = true
     application_insights_connection_string = data.azurerm_application_insights.foundry.connection_string
+    ip_restriction_default_action          = "Deny"
+    scm_ip_restriction_default_action      = "Deny"
 
     cors {
       allowed_origins = ["https://portal.azure.com"]
