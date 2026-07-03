@@ -106,6 +106,16 @@ resource "azurerm_private_endpoint" "stfunc_blob" {
     is_manual_connection           = false
   }
 
+  # Commented out until the platform team links cor-vnet-cap-dev-we-001 to
+  # privatelink.blob.core.windows.net (docs/platform-team-dns-verzoek.md) -
+  # the zone group alone won't resolve without that link, and we haven't
+  # confirmed this deploy identity even has write access to attach it
+  # (read-only confirmed so far).
+  # private_dns_zone_group {
+  #   name                 = "default"
+  #   private_dns_zone_ids = [data.azurerm_private_dns_zone.blob.id]
+  # }
+
   tags = local.common_tags
 }
 
@@ -122,6 +132,11 @@ resource "azurerm_private_endpoint" "stfunc_queue" {
     subresource_names              = ["queue"]
     is_manual_connection           = false
   }
+
+  # No private_dns_zone_group here yet: privatelink.queue.core.windows.net
+  # doesn't exist in the hub at all (cor-connectivity-dns-prd-we-001) - the
+  # platform team needs to create the zone first, not just link/attach it
+  # (docs/platform-team-dns-verzoek.md).
 
   tags = local.common_tags
 }
@@ -140,6 +155,11 @@ resource "azurerm_private_endpoint" "stfunc_table" {
     is_manual_connection           = false
   }
 
+  # No private_dns_zone_group here yet: privatelink.table.core.windows.net
+  # doesn't exist in the hub at all (cor-connectivity-dns-prd-we-001) - the
+  # platform team needs to create the zone first, not just link/attach it
+  # (docs/platform-team-dns-verzoek.md).
+
   tags = local.common_tags
 }
 
@@ -157,6 +177,14 @@ resource "azurerm_private_endpoint" "stfunc_file" {
     is_manual_connection           = false
   }
 
+  # Commented out until the platform team links cor-vnet-cap-dev-we-001 to
+  # privatelink.file.core.windows.net (docs/platform-team-dns-verzoek.md) -
+  # this is the zone that's actually blocking the content-share mount today.
+  # private_dns_zone_group {
+  #   name                 = "default"
+  #   private_dns_zone_ids = [data.azurerm_private_dns_zone.file.id]
+  # }
+
   tags = local.common_tags
 }
 
@@ -173,6 +201,16 @@ resource "azurerm_private_endpoint" "stdata" {
     subresource_names              = ["blob"]
     is_manual_connection           = false
   }
+
+  # Commented out until the platform team links cor-vnet-cap-dev-we-001 to
+  # privatelink.blob.core.windows.net (docs/platform-team-dns-verzoek.md) -
+  # the zone group alone won't resolve without that link, and we haven't
+  # confirmed this deploy identity even has write access to attach it
+  # (read-only confirmed so far).
+  # private_dns_zone_group {
+  #   name                 = "default"
+  #   private_dns_zone_ids = [data.azurerm_private_dns_zone.blob.id]
+  # }
 
   tags = local.common_tags
 }
