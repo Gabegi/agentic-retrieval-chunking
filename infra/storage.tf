@@ -1,7 +1,11 @@
 # ---------------------------------------------------------------------------
 # Two storage accounts in the existing data RG:
 #   - func: AzureWebJobsStorage + Durable Functions task hub state for the
-#     indexing Function App (needs blob, queue, and table).
+#     indexing Function App (needs blob, queue, and table), plus the file
+#     share used for the Function App's WEBSITE_CONTENTAZUREFILECONNECTIONSTRING
+#     content share (Elastic Premium always needs one; Azure Files/SMB has no
+#     managed-identity auth, so this piece stays key-based - see
+#     function_app.tf).
 #   - data: source documents, chunks, reports, and saved intermediate state
 #     for the indexing/query pipeline (blob only, organized by container).
 # Both are private-endpoint-only (no public network access); DNS resolution
@@ -122,6 +126,22 @@ resource "azurerm_private_endpoint" "stfunc_table" {
     name                           = "cor-pep-stfunc-table-cap-${local.env}-${local.region}-${local.instance}-psc"
     private_connection_resource_id = azurerm_storage_account.func.id
     subresource_names              = ["table"]
+    is_manual_connection           = false
+  }
+
+  tags = local.common_tags
+}
+
+resource "azurerm_private_endpoint" "stfunc_file" {
+  name                = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.data.name
+  subnet_id           = data.azurerm_subnet.pe.id
+
+  private_service_connection {
+    name                           = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}-psc"
+    private_connection_resource_id = azurerm_storage_account.func.id
+    subresource_names              = ["file"]
     is_manual_connection           = false
   }
 
