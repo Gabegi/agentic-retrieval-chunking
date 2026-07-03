@@ -22,21 +22,22 @@ public class ExtractionService : IExtractionService
     }
 
     public async Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionResults Stats)> ExtractAsync(
-        string source, bool forceReindex, CancellationToken ct = default)
+        string source, bool forceReindex, bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
         var extractor = _extractors.FirstOrDefault(e => string.Equals(e.Source, source, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException(
                 $"No extraction orchestrator registered for source '{source}'. Known sources: {string.Join(", ", _extractors.Select(e => e.Source))}");
 
-        var diff = await ExtractAndDiffAsync(extractor, forceReindex, ct);
+        var diff = await ExtractAndDiffAsync(extractor, forceReindex, overrideMagnitudeCheck, ct);
         EmitMetrics(diff);
         return (diff.ToProcess, BuildStats(diff));
     }
 
     // 1. Call the source extractor, diff results against the current index state
-    private async Task<DiffResult> ExtractAndDiffAsync(IExtractionOrchestrator extractor, bool forceReindex, CancellationToken ct)
+    private async Task<DiffResult> ExtractAndDiffAsync(
+        IExtractionOrchestrator extractor, bool forceReindex, bool overrideMagnitudeCheck, CancellationToken ct)
     {
-        var output       = await extractor.ExtractDocumentsAsync(ct);
+        var output       = await extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
         var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
 
         var toProcess      = new List<ExtractionDocument>();
