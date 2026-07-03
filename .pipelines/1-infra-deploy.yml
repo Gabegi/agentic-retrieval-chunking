@@ -59,8 +59,10 @@ stages:
           # team's Policy-based zone links were supposed to attach to our
           # private endpoints (docs/platform-team-dns-verzoek.md). Our own
           # accounts can't see these zones, but this service connection's SP
-          # apparently can. Remove this step once we've captured the zone
-          # resource IDs and wired up private_dns_zone_group in Terraform.
+          # apparently can - confirmed they live in the cor-connectivity-prd
+          # hub subscription, cor-connectivity-dns-prd-we-001 RG. Remove this
+          # step once we've captured the zone resource IDs and wired up
+          # private_dns_zone_group in Terraform.
           - task: AzureCLI@2
             displayName: 'DIAGNOSTIC: list private DNS zones'
             inputs:
@@ -68,10 +70,14 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "--- subscriptions this SP can see ---"
-                az account list -o table
-                echo "--- zones in the default (current) subscription ---"
-                az network private-dns zone list -o table
+                az account set --subscription c8e46005-ce0e-4be5-9ded-0178e19fbe28
+                echo "--- all zones in cor-connectivity-dns-prd-we-001 ---"
+                az network private-dns zone list -g cor-connectivity-dns-prd-we-001 --query "[].{name:name, id:id}" -o table
+                echo "--- vnet links on each zone (confirm our vnet isn't already linked) ---"
+                for z in $(az network private-dns zone list -g cor-connectivity-dns-prd-we-001 --query "[].name" -o tsv); do
+                  echo "zone: $z"
+                  az network private-dns link vnet list -g cor-connectivity-dns-prd-we-001 -z "$z" --query "[].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+                done
 
           - script: |
               TF_VERSION="1.15.7"

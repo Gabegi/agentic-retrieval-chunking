@@ -93,10 +93,11 @@ resource "azurerm_storage_container" "state" {
 # account ("OnlyOneGroupIdPermitted... first-party resource"), so blob/queue/
 # table each need their own private endpoint rather than one bundled PE.
 resource "azurerm_private_endpoint" "stfunc_blob" {
-  name                = "cor-pep-stfunc-blob-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.data.name
-  subnet_id           = data.azurerm_subnet.pe.id
+  name                          = "cor-pep-stfunc-blob-cap-${local.env}-${local.region}-${local.instance}"
+  location                      = var.location
+  resource_group_name           = data.azurerm_resource_group.data.name
+  subnet_id                     = data.azurerm_subnet.pe.id
+  custom_network_interface_name = "cor-pep-stfunc-blob-cap-${local.env}-${local.region}-${local.instance}_nic"
 
   private_service_connection {
     name                           = "cor-pep-stfunc-blob-cap-${local.env}-${local.region}-${local.instance}-psc"
@@ -109,10 +110,11 @@ resource "azurerm_private_endpoint" "stfunc_blob" {
 }
 
 resource "azurerm_private_endpoint" "stfunc_queue" {
-  name                = "cor-pep-stfunc-queue-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.data.name
-  subnet_id           = data.azurerm_subnet.pe.id
+  name                          = "cor-pep-stfunc-queue-cap-${local.env}-${local.region}-${local.instance}"
+  location                      = var.location
+  resource_group_name           = data.azurerm_resource_group.data.name
+  subnet_id                     = data.azurerm_subnet.pe.id
+  custom_network_interface_name = "cor-pep-stfunc-queue-cap-${local.env}-${local.region}-${local.instance}_nic"
 
   private_service_connection {
     name                           = "cor-pep-stfunc-queue-cap-${local.env}-${local.region}-${local.instance}-psc"
