@@ -127,10 +127,11 @@ resource "azurerm_private_endpoint" "stfunc_queue" {
 }
 
 resource "azurerm_private_endpoint" "stfunc_table" {
-  name                = "cor-pep-stfunc-table-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.data.name
-  subnet_id           = data.azurerm_subnet.pe.id
+  name                          = "cor-pep-stfunc-table-cap-${local.env}-${local.region}-${local.instance}"
+  location                      = var.location
+  resource_group_name           = data.azurerm_resource_group.data.name
+  subnet_id                     = data.azurerm_subnet.pe.id
+  custom_network_interface_name = "cor-pep-stfunc-table-cap-${local.env}-${local.region}-${local.instance}_nic"
 
   private_service_connection {
     name                           = "cor-pep-stfunc-table-cap-${local.env}-${local.region}-${local.instance}-psc"
@@ -143,10 +144,11 @@ resource "azurerm_private_endpoint" "stfunc_table" {
 }
 
 resource "azurerm_private_endpoint" "stfunc_file" {
-  name                = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.data.name
-  subnet_id           = data.azurerm_subnet.pe.id
+  name                          = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}"
+  location                      = var.location
+  resource_group_name           = data.azurerm_resource_group.data.name
+  subnet_id                     = data.azurerm_subnet.pe.id
+  custom_network_interface_name = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}_nic"
 
   private_service_connection {
     name                           = "cor-pep-stfunc-file-cap-${local.env}-${local.region}-${local.instance}-psc"
