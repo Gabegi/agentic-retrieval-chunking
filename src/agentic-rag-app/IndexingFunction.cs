@@ -286,6 +286,6 @@ public class IndexingFunction
         _pipelineContainer.GetBlobClient(blobPath).DeleteIfExistsAsync(cancellationToken: ct);
 }
 
-public record IndexRequest(string Source, bool ForceReindex);
+public record IndexRequest(string Source, bool ForceReindex, bool OverrideMagnitudeCheck = false);
 public record ExtractRequest(string Source, bool ForceReindex, string OutputBlob);
 public record ChunkRequest(string InputBlob, string OutputBlob);
