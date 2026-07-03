@@ -92,13 +92,12 @@ public class IndexDocumentService : IIndexDocumentService
         return result;
     }
 
-    // Queries all chunk ids for the given document IDs, then submits batch delete actions.
-    // Batches document IDs into groups of 50 to keep OData filter length manageable,
-    // and chunk deletes into batches of 1000 per the push API limit.
-    public async Task<int> DeleteDocumentsAsync(IEnumerable<string> documentIds, CancellationToken ct = default)
+    // Queries all chunk ids currently in the index for the given document IDs. Batches
+    // document IDs into groups of 50 to keep the OData filter length manageable.
+    public async Task<IReadOnlyList<string>> GetChunkIdsForDocumentsAsync(IEnumerable<string> documentIds, CancellationToken ct = default)
     {
         var idList = documentIds.ToList();
-        if (idList.Count == 0) return 0;
+        if (idList.Count == 0) return [];
 
         var chunkIds = new List<string>();
 
@@ -116,14 +115,24 @@ public class IndexDocumentService : IIndexDocumentService
             }
         }
 
-        foreach (var batch in chunkIds.Chunk(1000))
+        return chunkIds;
+    }
+
+    // Submits batch delete actions for exactly the given chunk ids, in batches of 1000
+    // per the push API limit.
+    public async Task<int> DeleteChunksByIdAsync(IEnumerable<string> chunkIds, CancellationToken ct = default)
+    {
+        var idList = chunkIds.ToList();
+        if (idList.Count == 0) return 0;
+
+        foreach (var batch in idList.Chunk(1000))
         {
             var actions = batch.Select(id => IndexDocumentsAction.Delete("id", id));
             await _searchClient.IndexDocumentsAsync(IndexDocumentsBatch.Create(actions.ToArray()), cancellationToken: ct);
         }
 
-        _logger.LogInformation("Deleted {ChunkCount} chunks for {Count} documents", chunkIds.Count, idList.Count);
-        return chunkIds.Count;
+        _logger.LogInformation("Deleted {ChunkCount} chunks", idList.Count);
+        return idList.Count;
     }
 
     // Fetches whole-index aggregates from Azure AI Search (GET .../indexes/{name}/stats):
