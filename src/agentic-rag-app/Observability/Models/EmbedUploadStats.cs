@@ -3,6 +3,8 @@ namespace ProtocolsIndexer.Observability.Reports;
 public record EmbedUploadingResults(
     int   DocsUploaded,
     int   DocsFailed,
+    // Orphaned chunks cleaned up after upload succeeded - see UploadService.UploadDocumentsAsync.
+    int   ChunksRemoved,
     int   ChunksTruncated,
     int   EmbeddingRetries,
     int   VectorDimErrors,
