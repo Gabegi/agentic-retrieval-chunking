@@ -3,6 +3,9 @@ using ProtocolsIndexer.Models;
 namespace ProtocolsIndexer.Observability.Reports;
 
 public record ExtractionResults(
+    // Which extractor ran (IExtractionOrchestrator.Source, e.g. "csv") - reported here rather
+    // than accepted as caller input, since exactly one extractor is registered at a time.
+    string Source,
     int DocsToProcess,
     int DocsSkipped,
     int DocsNew,
