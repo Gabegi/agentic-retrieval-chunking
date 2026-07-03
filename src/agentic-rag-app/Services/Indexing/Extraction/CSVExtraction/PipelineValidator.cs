@@ -176,7 +176,12 @@ public static class PipelineValidator
         var errorCount     = issues.Count(i => i.Severity == "Error") + reconciliation.Count;
         var totalAttempted = pagesExtraction.TotalRows + indexExtraction.TotalRows;
         var errorRate      = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
-        var passed        = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
+        var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
+        // Magnitude shift is a hard gate too - a truncated export (rows silently dropped
+        // upstream) can look perfectly well-formed row-by-row, and the diff step deletes
+        // any previously-indexed document that's "missing" from a bad run. Only an
+        // explicit operator override should be able to proceed past this specific check.
+        var passed        = passedExcludingMagnitude && magnitude.Count == 0;
 
         return new ValidationReport
         {
@@ -196,6 +201,7 @@ public static class PipelineValidator
                 .ToList(),
             StaleDocCount                 = staleDocCount,
             Passed                        = passed,
+            PassedExcludingMagnitude      = passedExcludingMagnitude,
         };
     }
 }
