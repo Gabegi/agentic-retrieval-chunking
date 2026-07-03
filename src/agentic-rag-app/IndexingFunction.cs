@@ -236,7 +236,7 @@ public class IndexingFunction
             DocsNew:                 ext?.DocsNew                 ?? 0,
             DocsUpdated:             ext?.DocsUpdated             ?? 0,
             DocsDeleted:             ext?.DocsDeleted             ?? 0,
-            ChunksRemoved:           ext?.ChunksRemoved           ?? 0,
+            ChunksRemoved:           embed?.ChunksRemoved         ?? 0,
             ValidationErrors:        ext?.ValidationErrors        ?? 0,
             ValidationWarnings:      ext?.ValidationWarnings      ?? 0,
             ReconciliationProblems:  ext?.ReconciliationProblems  ?? 0,
