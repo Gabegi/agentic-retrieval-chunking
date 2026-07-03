@@ -21,11 +21,8 @@ variables:
       - name: functionAppRg
         value: 'cor-cap-data-dev-we-001'
 
-# Self-hosted: the Function App is private-endpoint-only (no public inbound),
-# so a Microsoft-hosted agent has no network path to its SCM/Kudu endpoint.
-# Update the pool name below if your agent isn't registered under "Default".
 pool:
-  name: 'Default'
+  vmImage: 'ubuntu-latest'
 
 stages:
   - stage: Deploy
