@@ -1,23 +1,29 @@
 # CSV extraction pipeline — what it does, step by step
 
-This explains the `csv` extraction path of the indexing Function App
+This explains the extraction path of the indexing Function App
 (`src/agentic-rag-app`), from the raw Zenya export to documents sitting in
 Azure AI Search. It's the first of the three Durable Functions activities
 that make up a full indexing run (`ExtractActivity` → `ChunkActivity` →
 `EmbedAndUploadActivity`) — this doc only covers `ExtractActivity`, since
 that's where the CSV-specific logic (and the validation gate) lives.
 
+Exactly one `IExtractionOrchestrator` is registered at a time
+(`CsvExtractionOrchestrator` today, in `program.cs`) — the pipeline doesn't
+branch on source at request time. Switching to a different source (e.g. a
+future PDF extractor) means swapping that one DI registration, not passing
+a parameter.
+
 ## How to trigger a run
 
 ```
-POST /api/index?source=csv
-POST /api/index?source=csv&force=true                    # reindex every doc, even unchanged ones
-POST /api/index?source=csv&overrideMagnitudeCheck=true    # see "If a run gets blocked" below
+POST /api/index
+POST /api/index?force=true                    # reindex every doc, even unchanged ones
+POST /api/index?overrideMagnitudeCheck=true    # see "If a run gets blocked" below
 ```
 
-`source=csv` is the default, so `POST /api/index` alone also works. This
-starts a Durable Functions orchestration and returns an instance ID you can
-poll for status (standard Durable Functions "check status" response).
+This starts a Durable Functions orchestration and returns an instance ID
+you can poll for status (standard Durable Functions "check status"
+response).
 
 ## The steps
 
