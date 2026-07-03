@@ -14,13 +14,10 @@ using ProtocolsIndexer.Services;
 
 namespace ProtocolsIndexer;
 
-// Generic indexing entrypoint. Source-agnostic: pass ?source=csv (or pdf, etc.)
-// to select the registered extractor. The pipeline steps are the same for all sources.
-//
-// Source routing:
-// • ?source=csv  → resolves CsvExtractionOrchestrator (Source = "csv")
-// • ?source=pdf  → resolves PdfExtractionOrchestrator (Source = "pdf") once implemented
-// To add a new source: implement IExtractionOrchestrator, set Source, register in program.cs.
+// Generic indexing entrypoint. Exactly one IExtractionOrchestrator is registered in program.cs
+// at a time (currently CsvExtractionOrchestrator) - the pipeline steps here don't know or care
+// which one. To switch source (e.g. to a future PDF extractor), replace that registration;
+// nothing in this file changes.
 //
 // Payload pattern: extracted docs and chunks are written to blob (container: indexing-pipeline,
 // paths: {instanceId}/extracted.json and {instanceId}/chunks.json). Only the blob name string
