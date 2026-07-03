@@ -53,13 +53,24 @@ resource "azurerm_storage_account" "data" {
   account_kind             = "StorageV2"
   min_tls_version          = "TLS1_2"
 
-  public_network_access_enabled   = false
+  # Same exception as azurerm_storage_account.func, same reason: the blob PE
+  # (azurerm_private_endpoint.stdata, commented out below) forces a CNAME to
+  # privatelink.blob.core.windows.net with no DNS zone group attached yet
+  # (docs/platform-team-dns-verzoek.md), which blocked the Function App from
+  # reaching this account at all. Trusted-service bypass unblocks it in the
+  # meantime; revert to private-endpoint-only once the zone group exists.
+  public_network_access_enabled   = true
   allow_nested_items_to_be_public = false
   # shared_access_key_enabled left at its default (true): disabling it would
   # require the deploying identity to have Storage Blob Data Contributor
   # (data-plane RBAC, separate from Contributor) before Terraform can manage
   # containers via storage_use_azuread, which risks an RBAC-propagation race
   # on a fresh apply. Revisit once that identity's data-plane access is set up.
+
+  network_rules {
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+  }
 
   blob_properties {
     delete_retention_policy {
