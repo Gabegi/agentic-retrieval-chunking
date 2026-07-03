@@ -157,23 +157,25 @@ public class IndexingFunction
 
     // Step 3 — read ProtocolDocuments, embed then upload to Azure AI Search; return combined stats
     [Function("EmbedAndUploadActivity")]
-    public async Task<EmbedUploadingResults> EmbedAndUploadActivity([ActivityTrigger] string chunksBlobName, FunctionContext context)
+    public async Task<EmbedUploadingResults> EmbedAndUploadActivity([ActivityTrigger] EmbedUploadRequest req, FunctionContext context)
     {
         try
         {
-            var chunks = await ReadBlobAsync<List<ProtocolDocument>>(chunksBlobName, context.CancellationToken);
+            var chunks = await ReadBlobAsync<List<ProtocolDocument>>(req.ChunksBlob, context.CancellationToken);
 
             var sw              = System.Diagnostics.Stopwatch.StartNew();
             var embeddingResult = await _embeddingService.EmbedDocumentsAsync(chunks, context.CancellationToken);
             sw.Stop();
 
-            var uploadResult = await _uploadService.UploadDocumentsAsync(embeddingResult.Documents, context.CancellationToken);
+            var uploadResult = await _uploadService.UploadDocumentsAsync(
+                embeddingResult.Documents, req.StaleDocumentIds, context.CancellationToken);
 
-            await DeleteBlobAsync(chunksBlobName, context.CancellationToken);
+            await DeleteBlobAsync(req.ChunksBlob, context.CancellationToken);
 
             return new EmbedUploadingResults(
                 DocsUploaded:                  uploadResult.DocsUploaded,
                 DocsFailed:                    uploadResult.DocsFailed,
+                ChunksRemoved:                 uploadResult.ChunksRemoved,
                 ChunksTruncated:               embeddingResult.ChunksTruncated,
                 EmbeddingRetries:              embeddingResult.EmbeddingRetries,
                 VectorDimErrors:               embeddingResult.VectorDimErrors,
@@ -184,7 +186,7 @@ public class IndexingFunction
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "EmbedAndUploadActivity failed for '{ChunksBlob}'", chunksBlobName);
+            _logger.LogError(ex, "EmbedAndUploadActivity failed for '{ChunksBlob}'", req.ChunksBlob);
             throw new InvalidOperationException($"EmbedAndUploadActivity failed: {ex.Message}");
         }
     }
