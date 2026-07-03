@@ -6,5 +6,5 @@ namespace ProtocolsIndexer.Services;
 public interface IExtractionService
 {
     Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionResults Stats)> ExtractAsync(
-        string source, bool forceReindex, bool overrideMagnitudeCheck = false, CancellationToken ct = default);
+        bool forceReindex, bool overrideMagnitudeCheck = false, CancellationToken ct = default);
 }

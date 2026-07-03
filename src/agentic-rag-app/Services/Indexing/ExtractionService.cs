@@ -7,37 +7,35 @@ namespace ProtocolsIndexer.Services;
 
 public class ExtractionService : IExtractionService
 {
-    private readonly IReadOnlyList<IExtractionOrchestrator> _extractors;
-    private readonly IIndexDocumentService                  _indexDocumentService;
-    private readonly ILogger<ExtractionService>             _logger;
+    // Exactly one extractor is active at a time - see the registration comment in program.cs.
+    // Switching source (e.g. to a future PDF extractor) means replacing that registration, not
+    // adding branching here.
+    private readonly IExtractionOrchestrator    _extractor;
+    private readonly IIndexDocumentService      _indexDocumentService;
+    private readonly ILogger<ExtractionService> _logger;
 
     public ExtractionService(
-        IEnumerable<IExtractionOrchestrator> extractors,
-        IIndexDocumentService                indexDocumentService,
-        ILogger<ExtractionService>           logger)
+        IExtractionOrchestrator    extractor,
+        IIndexDocumentService      indexDocumentService,
+        ILogger<ExtractionService> logger)
     {
-        _extractors           = extractors.ToList();
-        _indexDocumentService = indexDocumentService;
-        _logger               = logger;
+        _extractor             = extractor;
+        _indexDocumentService  = indexDocumentService;
+        _logger                = logger;
     }
 
     public async Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionResults Stats)> ExtractAsync(
-        string source, bool forceReindex, bool overrideMagnitudeCheck = false, CancellationToken ct = default)
+        bool forceReindex, bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
-        var extractor = _extractors.FirstOrDefault(e => string.Equals(e.Source, source, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException(
-                $"No extraction orchestrator registered for source '{source}'. Known sources: {string.Join(", ", _extractors.Select(e => e.Source))}");
-
-        var diff = await ExtractAndDiffAsync(extractor, forceReindex, overrideMagnitudeCheck, ct);
+        var diff = await ExtractAndDiffAsync(forceReindex, overrideMagnitudeCheck, ct);
         EmitMetrics(diff);
         return (diff.ToProcess, BuildStats(diff));
     }
 
     // 1. Call the source extractor, diff results against the current index state
-    private async Task<DiffResult> ExtractAndDiffAsync(
-        IExtractionOrchestrator extractor, bool forceReindex, bool overrideMagnitudeCheck, CancellationToken ct)
+    private async Task<DiffResult> ExtractAndDiffAsync(bool forceReindex, bool overrideMagnitudeCheck, CancellationToken ct)
     {
-        var output       = await extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
+        var output       = await _extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
         var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
 
         var toProcess      = new List<ExtractionDocument>();
@@ -81,9 +79,9 @@ public class ExtractionService : IExtractionService
 
         _logger.LogInformation(
             "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped",
-            extractor.Source, newCount, updated, removedSourceIds.Count, skipped);
+            _extractor.Source, newCount, updated, removedSourceIds.Count, skipped);
 
-        return new DiffResult(output, toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
+        return new DiffResult(_extractor.Source, output, toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
     }
 
     // 2. Emit instrumentation metrics from the diff result
@@ -98,6 +96,7 @@ public class ExtractionService : IExtractionService
 
     // 3. Assemble ExtractionResults to return to the activity
     private static ExtractionResults BuildStats(DiffResult diff) => new(
+        Source:                 diff.Source,
         DocsToProcess:          diff.ToProcess.Count,
         DocsSkipped:            diff.Skipped,
         DocsNew:                diff.NewCount,
@@ -117,6 +116,7 @@ public class ExtractionService : IExtractionService
         SpotCheckSample:        diff.Output.SpotCheckSample);
 
     private record DiffResult(
+        string                   Source,
         ExtractionOutput         Output,
         List<ExtractionDocument> ToProcess,
         List<string>             RemovedSourceIds,

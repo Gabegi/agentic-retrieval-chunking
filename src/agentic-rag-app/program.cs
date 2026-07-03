@@ -131,7 +131,9 @@ var host = new HostBuilder()
         services.AddSingleton<IChunkingStrategy, ChunkingStrategy1>();
         services.AddSingleton<IChunkingService, ChunkingService>();
 
-        // Extractors — add new IExtractionOrchestrator implementations here to support new sources
+        // Extraction source — exactly one IExtractionOrchestrator is active at a time. To
+        // switch (e.g. to a PDF extractor), replace this registration; ExtractionService takes
+        // whichever IExtractionOrchestrator is registered here, no other change needed.
         services.AddSingleton<IExtractionOrchestrator>(sp => new CsvExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
