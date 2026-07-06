@@ -4,6 +4,7 @@ using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Observability;
+using ProtocolsIndexer.Observability.Reports;
 using System.Text.Json;
 
 namespace ProtocolsIndexer.Services;
@@ -15,6 +16,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
 {
     private readonly BlobContainerClient                _container;
     private readonly BlobContainerClient                _stateContainer;
+    private readonly IRunReportWriter                   _reportWriter;
     private readonly ILogger<CsvExtractionOrchestrator> _logger;
 
     public string Source => "csv";
