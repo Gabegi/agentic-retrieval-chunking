@@ -96,17 +96,9 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
                 issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
                 "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
 
-        if (!effectivePassed)
-            throw new InvalidOperationException(
-                $"CSV validation failed ({report.ReconciliationProblems.Count} reconciliation problem(s), " +
-                $"{report.MagnitudeWarnings.Count} magnitude warning(s)) — aborting extraction.");
-
-        // Whether passed normally or via override, this becomes the new baseline - an
-        // override run resets the magnitude check so the NEXT run is auto-gated again
-        // instead of comparing against the same stale count.
-        await SaveRunStateAsync(cleanResult.Records.Count, ct);
-
-        // Emit validation metrics
+        // Emit validation metrics before the pass/fail gate below - a failed run is
+        // exactly the case these metrics matter most for, and a throw would otherwise
+        // skip every one of them.
         var errors   = report.Issues.Count(i => i.Severity == "Error");
         var warnings = report.Issues.Count(i => i.Severity != "Error");
 
@@ -133,6 +125,16 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
         Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
         Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
+
+        if (!effectivePassed)
+            throw new InvalidOperationException(
+                $"CSV validation failed ({report.ReconciliationProblems.Count} reconciliation problem(s), " +
+                $"{report.MagnitudeWarnings.Count} magnitude warning(s)) — aborting extraction.");
+
+        // Whether passed normally or via override, this becomes the new baseline - an
+        // override run resets the magnitude check so the NEXT run is auto-gated again
+        // instead of comparing against the same stale count.
+        await SaveRunStateAsync(cleanResult.Records.Count, ct);
 
         var extractionDocs = cleanResult.Records
             .Select(r => new ExtractionDocument(
