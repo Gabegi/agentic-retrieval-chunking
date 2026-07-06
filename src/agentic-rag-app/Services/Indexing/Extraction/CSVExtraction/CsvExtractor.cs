@@ -20,12 +20,32 @@ public static class CsvExtractor
     // prevents looping forever if the parser can't advance past a corrupt region.
     private const int MaxConsecutiveReadFailures = 25;
 
+    private static readonly string[] PagesRequiredHeaders;
+    private static readonly string[] IndexRequiredHeaders;
+
+    static CsvExtractor()
+    {
+        PagesRequiredHeaders = new[]
+        {
+            "DOCUMENT_ID", "TITLE", "QUICK_CODE", "FOLDER_MINI_FULL_PATH",
+            "LAST_MODIFIED_DATETIME", "PAGE_INDEX", "PAGE_CONTENT", "RELATIVE_PATH",
+        };
+        IndexRequiredHeaders = new[]
+        {
+            "DOCUMENT_ID", "DOCUMENT_TYPE_NAME", "SUMMARY", "VERSION",
+            "CHECK_DATE", "ATTENTION_REQUIRED_FLAGS",
+        };
+    }
+
+    // Reads zenya_pages.csv row by row into PageRecord objects. Each row is parsed
+    // independently: a row that throws (missing DOCUMENT_ID, bad PAGE_INDEX, etc.) is
+    // recorded as an ExtractionError and skipped, not fatal to the whole file. Only a
+    // run of MaxConsecutiveReadFailures unreadable rows in a row aborts the extraction
+    // (see the failureStreak handling below) - one bad row shouldn't sink 11k good ones.
     public static ExtractionResult<PageRecord> ExtractPages(Stream stream)
     {
         var result = new ExtractionResult<PageRecord>();
-        using var csv = OpenCsv(stream,
-            "DOCUMENT_ID", "TITLE", "QUICK_CODE", "FOLDER_MINI_FULL_PATH",
-            "LAST_MODIFIED_DATETIME", "PAGE_INDEX", "PAGE_CONTENT");
+        using var csv = EnsureHeadersAreCorrect(stream, PagesRequiredHeaders);
 
         int rowNumber = 1, failureStreak = 0;
         while (true)
@@ -33,6 +53,9 @@ public static class CsvExtractor
             bool hasRow;
             try
             {
+                // csv.Read() itself can throw (e.g. a row CsvHelper can't tokenize at
+                // all) - distinct from a row that reads fine but fails validation
+                // below, so it's tracked separately via failureStreak.
                 hasRow = csv.Read();
                 failureStreak = 0;
             }
@@ -50,6 +73,9 @@ public static class CsvExtractor
             rowNumber++;
             try
             {
+                // Missing fields become "" rather than null (MissingFieldFound = null
+                // in Config), except DOCUMENT_ID and PAGE_INDEX which are required
+                // per-row since downstream joining/ordering depends on them.
                 result.AddRecord(new PageRecord
                 {
                     DocumentId      = RequireDocumentId(csv),
@@ -65,6 +91,8 @@ public static class CsvExtractor
             }
             catch (Exception ex)
             {
+                // Row-level failure (RequireDocumentId/ParsePageIndex throwing) - recorded,
+                // then the loop moves on to the next row instead of aborting the file.
                 result.AddError(new ExtractionError
                 {
                     RowNumber  = rowNumber,
@@ -77,17 +105,22 @@ public static class CsvExtractor
         return result;
     }
 
-//  CsvHelper has better parsing features than Microsoft TextFieldParser 
-    private static CsvReader OpenCsv(Stream stream, params string[] requiredColumns)
+    // make sure that the document has the headers we expect
+    //
+    // 1. Construct the CsvReader, call csv.Read() once to advance onto the header row,
+    //    then csv.ReadHeader() to capture that single row into HeaderRecord.
+    // 2. Check that row (once) against requiredHeaders and throw if any are missing.
+    // 3. Return the reader, positioned right after the header, ready for the caller's
+    //    row loop to start calling csv.Read() for data rows.
+    //
+    // So it does two things: open/position the reader, and fail fast on a bad header.
+    private static CsvReader EnsureHeadersAreCorrect(Stream stream, string[] requiredHeaders)
     {
         var csv = new CsvReader(new StreamReader(stream), Config);
-        csv.Read();
-        csv.ReadHeader();
+        csv.Read();       // advance to the header row
+        csv.ReadHeader(); // capture it into HeaderRecord (one-time, not per data row)
 
-        // One clear failure beats 11k identical "DOCUMENT_ID is missing" row errors.
-        // if requiredColumns "DOCUMENT_ID", "TITLE", "QUICK_CODE", "FOLDER_MINI_FULL_PATH",
-        //    "LAST_MODIFIED_DATETIME", "PAGE_INDEX", "PAGE_CONTENT"); are missing then it breaks
-        var missing = requiredColumns
+        var missing = requiredHeaders
             .Where(c => csv.HeaderRecord is null
                      || !csv.HeaderRecord.Contains(c, StringComparer.OrdinalIgnoreCase))
             .ToList();
@@ -98,6 +131,9 @@ public static class CsvExtractor
         return csv;
     }
 
+    // Shared by both ExtractPages and ExtractIndex - DOCUMENT_ID is the join key
+    // CsvJoiner matches pages to index rows on, so an empty one makes the row
+    // useless downstream regardless of which file it came from.
     private static string RequireDocumentId(CsvReader csv)
     {
         var docId = csv.GetField("DOCUMENT_ID") ?? "";
@@ -106,6 +142,8 @@ public static class CsvExtractor
         return docId;
     }
 
+    // PageRecord-only (ExtractIndex has no PAGE_INDEX). Pages need a numeric index
+    // so DataCleaner/output ordering can sort a document's pages correctly.
     private static int ParsePageIndex(CsvReader csv)
     {
         var raw = csv.GetField("PAGE_INDEX");
@@ -124,12 +162,14 @@ public static class CsvExtractor
         return int.TryParse(csv.GetField("REVISION"), out var revision) ? $"{version}.{revision}" : version;
     }
 
+    // Reads zenya_index.csv row by row into IndexRecord objects - the document-level
+    // metadata (title/version/summary/etc.) that CsvJoiner later attaches to every
+    // page of the matching DOCUMENT_ID from ExtractPages. Same per-row error handling
+    // as ExtractPages: a bad row is recorded and skipped, not fatal to the whole file.
     public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream)
     {
         var result = new ExtractionResult<IndexRecord>();
-        using var csv = OpenCsv(stream,
-            "DOCUMENT_ID", "DOCUMENT_TYPE_NAME", "SUMMARY", "VERSION",
-            "CHECK_DATE", "ATTENTION_REQUIRED_FLAGS");
+        using var csv = EnsureHeadersAreCorrect(stream, IndexRequiredHeaders);
 
         int rowNumber = 1, failureStreak = 0;
         while (true)
@@ -154,6 +194,9 @@ public static class CsvExtractor
             rowNumber++;
             try
             {
+                // ACTIVE has no required-column entry - unlike a missing DOCUMENT_ID,
+                // there's a safe default (treat unparseable/absent as active) rather
+                // than a reason to fail the row.
                 result.AddRecord(new IndexRecord
                 {
                     DocumentId        = RequireDocumentId(csv),
