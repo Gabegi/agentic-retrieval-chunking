@@ -122,6 +122,12 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         var (previousCount, previousETag) = await ReadPreviousCleanedCountAsync(ct);
         var report = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
 
+        // Full, uncapped issue list (NotFound/Inactive/Duplicate/SkippedIndexRecords) written
+        // straight to blob - unlike the Issues returned below, this never passes through the
+        // Durable Table Storage-backed activity return, so it isn't subject to the 100-item cap.
+        if (_reportWriter.IsEnabled)
+            await _reportWriter.WriteJoinIssuesAsync(report.Issues, DateTimeOffset.UtcNow, ct);
+
         foreach (var warning in report.MagnitudeWarnings)
             _logger.LogWarning("{Warning}", warning);
 
