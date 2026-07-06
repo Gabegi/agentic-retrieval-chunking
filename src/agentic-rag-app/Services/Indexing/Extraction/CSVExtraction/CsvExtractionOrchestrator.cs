@@ -47,20 +47,53 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     // outside this repo, and it's unclear whether that's a scoped overwrite of the two
     // named CSVs or a wholesale container wipe. Using our own container avoids the state
     // file silently disappearing before it's ever read back.
-    private async Task<int?> ReadPreviousCleanedCountAsync(CancellationToken ct)
+    //
+    // Returns the blob's ETag alongside the count so SaveRunStateAsync can do a
+    // conditional write - nothing serializes concurrent /index calls (see
+    // IndexingFunction.Start, which schedules a fresh orchestration instance per
+    // request with no dedup), so two overlapping runs could otherwise race a
+    // read-then-write and have one silently clobber the other's saved baseline.
+    private async Task<(int? Count, ETag? ETag)> ReadPreviousCleanedCountAsync(CancellationToken ct)
     {
         var blob = _stateContainer.GetBlobClient(StateBlobName);
-        if (!await blob.ExistsAsync(ct)) return null;
-        using var stream = await blob.OpenReadAsync(cancellationToken: ct);
-        var state = await JsonSerializer.DeserializeAsync<RunState>(stream, cancellationToken: ct);
-        return state?.CleanedRecords;
+        if (!await blob.ExistsAsync(ct)) return (null, null);
+
+        try
+        {
+            var download = await blob.DownloadContentAsync(ct);
+            var state    = download.Value.Content.ToObjectFromJson<RunState>();
+            return (state?.CleanedRecords, download.Value.Details.ETag);
+        }
+        catch (JsonException ex)
+        {
+            // A corrupt/partially-written state blob shouldn't brick the whole run -
+            // it just means "no usable baseline", the same as the blob not existing.
+            _logger.LogWarning(ex,
+                "State blob '{Blob}' contains invalid JSON — treating as no previous baseline.", StateBlobName);
+            return (null, null);
+        }
     }
 
-    private async Task SaveRunStateAsync(int cleanedRecords, CancellationToken ct)
+    private async Task SaveRunStateAsync(int cleanedRecords, ETag? previousETag, CancellationToken ct)
     {
-        var json = JsonSerializer.Serialize(new RunState(cleanedRecords));
-        await _stateContainer.GetBlobClient(StateBlobName)
-            .UploadAsync(BinaryData.FromString(json), overwrite: true, ct);
+        var json       = JsonSerializer.Serialize(new RunState(cleanedRecords));
+        var conditions = previousETag is ETag tag
+            ? new BlobRequestConditions { IfMatch = tag }
+            : new BlobRequestConditions { IfNoneMatch = ETag.All };
+
+        try
+        {
+            await _stateContainer.GetBlobClient(StateBlobName)
+                .UploadAsync(BinaryData.FromString(json), new BlobUploadOptions { Conditions = conditions }, ct);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 412)
+        {
+            // Lost a race with another concurrent run's save - not worth failing this
+            // otherwise-successful run over. The next run's magnitude check just
+            // compares against whichever baseline won the race.
+            _logger.LogWarning(
+                "State blob '{Blob}' was updated concurrently — this run's baseline was not saved.", StateBlobName);
+        }
     }
 
     public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
@@ -82,7 +115,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         var joinResult  = CsvJoiner.Join(pagesResult.Records, indexResult.Records);
         var cleanResult = DataCleaner.Clean(joinResult.Joined);
 
-        var previousCount = await ReadPreviousCleanedCountAsync(ct);
+        var (previousCount, previousETag) = await ReadPreviousCleanedCountAsync(ct);
         var report = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
 
         foreach (var warning in report.MagnitudeWarnings)
