@@ -7,14 +7,17 @@ namespace ProtocolsIndexer.Services;
 
 public static class CsvExtractor
 {
+    // Default behavior (no MissingFieldFound/BadDataFound overrides): a ragged row
+    // (fewer fields than the header) or malformed field data throws MissingFieldException/
+    // BadDataException instead of silently reading as null. Both land in the try/catch
+    // blocks that already exist below - during csv.Read() they're caught by
+    // EnsureRowIsReadable, during a later GetField() call they're caught by the
+    // record-building catch - so they're logged as row-level failures and the loop
+    // moves on, the same as any other row-level problem.
     private static readonly CsvConfiguration Config = new(CultureInfo.InvariantCulture)
     {
-        Delimiter         = ",",
-        HasHeaderRecord   = true,
-
-        // Turns off by default the two potential csv.Read Exceptions
-        MissingFieldFound = null,
-        BadDataFound      = null,   // malformed fields become row-level errors below, not exceptions
+        Delimiter       = ",",
+        HasHeaderRecord = true,
     };
 
     // csv.Read() itself can throw on rows the parser can't recover from; a bounded
@@ -52,36 +55,17 @@ public static class CsvExtractor
         var result = new ExtractionResult<PageRecord>();
         using var csv = EnsureHeadersAreCorrect(stream, PagesRequiredHeaders);
 
-        int rowNumber = 1, failureStreak = 0;
-        while (true) // always runs, even if one row fails
+        var rowNumber = 1;
+        while (true)
         {
-            bool hasRow;
-            try
-            {
-                // csv.Read() by default throws 2 exceptions:
-                    // - A row has fewer fields than the header → MissingFieldException
-                    // - A field contains malformed data (e.g. a stray unescaped quote inside an unquoted field) → BadDataException
-                    // Turned off by CsvConfiguration config
-                hasRow = csv.Read(); // keeps going until no rows (false)
-                failureStreak = 0;
-            }
-            catch (Exception ex)
-            {
-                rowNumber++;
-                result.AddError(new ExtractionError { RowNumber = rowNumber, Message = $"Unreadable CSV row: {ex.Message}" });
-                if (++failureStreak >= MaxConsecutiveReadFailures)
-                    throw new InvalidOperationException(
-                        $"{MaxConsecutiveReadFailures} consecutive unreadable rows around row {rowNumber} — input is not parseable CSV.", ex);
-                continue;
-            }
-            if (!hasRow) break;
+            if (!EnsureRowIsReadable(csv, result, ref rowNumber)) break;
 
             rowNumber++;
             try
             {
-                // Missing fields become "" rather than null (MissingFieldFound = null
-                // in Config), except DOCUMENT_ID and PAGE_INDEX which are required
-                // per-row since downstream joining/ordering depends on them.
+                // A ragged row (missing one of these fields entirely) throws
+                // MissingFieldException from GetField() and is caught below, same as
+                // DOCUMENT_ID/PAGE_INDEX failing their own explicit checks.
                 result.AddRecord(new PageRecord
                 {
                     DocumentId      = RequireDocumentId(csv),
@@ -109,6 +93,31 @@ public static class CsvExtractor
         }
 
         return result;
+    }
+
+    // Repeatedly calls csv.Read() until it gets a definitive answer: true (there's a
+    // So what this method actually does is:
+// 1. Call csv.Read() — this performs the real read/tokenize work.
+// 2. If it returns (either true = got a row, or false = EOF) → pass that straight back to the caller, done.
+// 3. If it instead throws — meaning the row was too broken to even tokenize — catch it, log an ExtractionError, and loop back to step 1 to try the next row instead of giving up.
+    private static bool EnsureRowIsReadable<T>(CsvReader csv, ExtractionResult<T> result, ref int rowNumber)
+    {
+        var failureStreak = 0;
+        while (true)
+        {
+            try
+            {
+                return csv.Read(); //  read/tokenize work. either true = got a row, or false = EOF
+            }
+            catch (Exception ex)
+            {
+                rowNumber++;
+                result.AddError(new ExtractionError { RowNumber = rowNumber, Message = $"Unreadable CSV row: {ex.Message}" });
+                if (++failureStreak >= MaxConsecutiveReadFailures)
+                    throw new InvalidOperationException(
+                        $"{MaxConsecutiveReadFailures} consecutive unreadable rows around row {rowNumber} — input is not parseable CSV.", ex);
+            }
+        }
     }
 
     // make sure that the document has the headers we expect
@@ -177,25 +186,10 @@ public static class CsvExtractor
         var result = new ExtractionResult<IndexRecord>();
         using var csv = EnsureHeadersAreCorrect(stream, IndexRequiredHeaders);
 
-        int rowNumber = 1, failureStreak = 0;
+        var rowNumber = 1;
         while (true)
         {
-            bool hasRow;
-            try
-            {
-                hasRow = csv.Read();
-                failureStreak = 0;
-            }
-            catch (Exception ex)
-            {
-                rowNumber++;
-                result.AddError(new ExtractionError { RowNumber = rowNumber, Message = $"Unreadable CSV row: {ex.Message}" });
-                if (++failureStreak >= MaxConsecutiveReadFailures)
-                    throw new InvalidOperationException(
-                        $"{MaxConsecutiveReadFailures} consecutive unreadable rows around row {rowNumber} — input is not parseable CSV.", ex);
-                continue;
-            }
-            if (!hasRow) break;
+            if (!EnsureRowIsReadable(csv, result, ref rowNumber)) break;
 
             rowNumber++;
             try

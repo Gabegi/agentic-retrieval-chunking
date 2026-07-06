@@ -12,10 +12,3 @@ public class ExtractionResult<T>
     internal void AddRecord(T record)              => _records.Add(record);
     internal void AddError(ExtractionError error)  => _errors.Add(error);
 }
-
-public class ExtractionError
-{
-    public int     RowNumber  { get; init; }
-    public string? DocumentId { get; init; }
-    public string  Message    { get; init; } = "";
-}
