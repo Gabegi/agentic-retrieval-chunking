@@ -112,14 +112,13 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
 
         var sourceTag = new KeyValuePair<string, object?>("source", Source);
 
-        if (errors > 0)
-            Instrumentation.ValidationIssues.Add(errors, sourceTag, new("severity", "error"));
-        if (warnings > 0)
-            Instrumentation.ValidationIssues.Add(warnings, sourceTag, new("severity", "warning"));
-
-        if (report.StaleDocCount > 0)
-            Instrumentation.StaleDocs.Add(report.StaleDocCount, sourceTag);
-
+        // Unconditional, not guarded with "> 0": these are counters, and a healthy run
+        // (zero errors/stale docs) should still emit a zero data point. Otherwise a
+        // dashboard/alert can't tell "this metric is healthy at zero" apart from "this
+        // metric stopped reporting entirely".
+        Instrumentation.ValidationIssues.Add(errors,   sourceTag, new("severity", "error"));
+        Instrumentation.ValidationIssues.Add(warnings, sourceTag, new("severity", "warning"));
+        Instrumentation.StaleDocs.Add(report.StaleDocCount, sourceTag);
         Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
 
         // Metadata completeness — count docs missing title, version, department. Title
@@ -131,9 +130,9 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         var missingVersion    = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Version)));
         var missingDepartment = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.FolderPath)));
 
-        if (missingTitle > 0)      Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
-        if (missingVersion > 0)    Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
-        if (missingDepartment > 0) Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
+        Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
+        Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
+        Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
 
         var extractionDocs = cleanResult.Records
             .Select(r => new ExtractionDocument(
