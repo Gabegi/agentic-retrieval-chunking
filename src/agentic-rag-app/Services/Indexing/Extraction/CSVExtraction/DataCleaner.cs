@@ -11,14 +11,22 @@ namespace ProtocolsIndexer.Services;
 // One bad page becomes a CleaningError; it never aborts the whole run.
 public static class DataCleaner
 {
-    // Standalone "cordaan" logo lines only; case-sensitive on purpose —
-    // must never touch "Cordaan" appearing in prose.
+    // Standalone "cordaan"/"CORDAAN" logo lines only — lowercase and all-caps are
+    // both confirmed logo text; mixed-case "Cordaan" is left untouched since that's
+    // where real prose (org charts, sentences) shows up.
     private static readonly Regex CordaanBoilerplate =
-        new(@"^cordaan[ \t]*$\n?", RegexOptions.Multiline | RegexOptions.Compiled);
+        new(@"^(cordaan|CORDAAN)[ \t]*$\n?", RegexOptions.Multiline | RegexOptions.Compiled);
 
     // Markdown image placeholders, e.g. ![alt](path) — carry no text value.
     private static readonly Regex ImagePlaceholder =
         new(@"!\[[^\]]*\]\([^\)]*\)", RegexOptions.Compiled);
+
+    // Literal HTML/XML tags left over after decoding entities (e.g. <br/>,
+    // <concept factuur="" ...>) — HtmlDecode only unescapes entities, it doesn't
+    // strip markup. Requires the first character after '<' (or '</') to be a letter
+    // so stray comparison operators like "a < b" or "1 < 2 > 3" aren't touched.
+    private static readonly Regex HtmlTag =
+        new(@"<\/?[a-zA-Z][^<>]*>", RegexOptions.Compiled);
 
     // Collapse 3+ consecutive newlines down to a single blank line.
     private static readonly Regex ExcessBlankLines =
@@ -101,14 +109,15 @@ public static class DataCleaner
     };
 
     // Normalizes page text: HTML-decode, normalize line endings (before any
-    // \n-dependent regex), strip logo lines and image placeholders,
-    // collapse excess blank lines, trim.
+    // \n-dependent regex), strip logo lines, image placeholders and leftover HTML
+    // tags, collapse excess blank lines, trim.
     private static string CleanPageContent(string raw)
     {
         var text = WebUtility.HtmlDecode(raw);
         text = text.Replace("\r\n", "\n");
         text = CordaanBoilerplate.Replace(text, "");
         text = ImagePlaceholder.Replace(text, "");
+        text = HtmlTag.Replace(text, "");
         text = ExcessBlankLines.Replace(text, "\n\n");
         return text.Trim();
     }
