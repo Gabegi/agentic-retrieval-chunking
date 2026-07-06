@@ -39,7 +39,7 @@ public class CsvExtractorTests
     {
         var csv = "DOCUMENT_ID,TITLE\ndoc1,Title\n";
 
-        Assert.ThrowsException<InvalidOperationException>(() => CsvExtractor.ExtractPages(ToStream(csv)));
+        Assert.ThrowsExactly<InvalidOperationException>(() => CsvExtractor.ExtractPages(ToStream(csv)));
     }
 
     [TestMethod]

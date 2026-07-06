@@ -119,7 +119,7 @@ public class PipelineValidatorTests
 
         var report = PipelineValidator.Validate(pages, index, join, clean);
 
-        CollectionAssert.Contains(report.DocumentsNeedingFallbackChunking, "doc1");
+        CollectionAssert.Contains(report.DocumentsNeedingFallbackChunking.ToList(), "doc1");
     }
 
     [TestMethod]
@@ -136,7 +136,7 @@ public class PipelineValidatorTests
 
         var report = PipelineValidator.Validate(pages, index, join, clean);
 
-        CollectionAssert.DoesNotContain(report.DocumentsNeedingFallbackChunking, "doc1");
+        CollectionAssert.DoesNotContain(report.DocumentsNeedingFallbackChunking.ToList(), "doc1");
     }
 
     [TestMethod]
