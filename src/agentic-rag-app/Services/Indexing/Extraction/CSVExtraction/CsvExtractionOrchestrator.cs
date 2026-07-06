@@ -37,10 +37,12 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     public CsvExtractionOrchestrator(
         BlobContainerClient                container,
         BlobContainerClient                stateContainer,
+        IRunReportWriter                   reportWriter,
         ILogger<CsvExtractionOrchestrator> logger)
     {
         _container      = container;
         _stateContainer = stateContainer;
+        _reportWriter   = reportWriter;
         _logger         = logger;
     }
 
