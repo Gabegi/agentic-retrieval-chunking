@@ -1,0 +1,68 @@
+# Questions for the data engineers — Zenya CSV export
+
+The CSV extraction pipeline (`CsvExtractor.cs`, see `docs/extraction-pipeline.md`)
+validates a fixed list of "required" headers up front and rejects the whole file if
+any are missing. That list was inferred from the sample exports we have, not from any
+documented contract with the Zenya export process — so we don't actually know which
+columns are guaranteed to always be present, or in what format. This doc collects the
+open questions and, until we get answers, the assumptions the pipeline currently makes.
+
+## Questions
+
+1. **Which columns are actually guaranteed to be present in every export?**
+   We currently require (and reject the whole file if any is missing):
+   - `zenya_pages.csv`: `DOCUMENT_ID`, `TITLE`, `QUICK_CODE`, `FOLDER_MINI_FULL_PATH`,
+     `LAST_MODIFIED_DATETIME`, `PAGE_INDEX`, `PAGE_CONTENT`, `RELATIVE_PATH`
+   - `zenya_index.csv`: `DOCUMENT_ID`, `DOCUMENT_TYPE_NAME`, `SUMMARY`, `VERSION`,
+     `CHECK_DATE`, `ATTENTION_REQUIRED_FLAGS`
+
+   Is this list correct? Are any of these actually optional in some export runs, and
+   are there other columns (e.g. `ACTIVE`, `LANGUAGE`) that are always present that we
+   could safely add to the required list?
+
+2. **What format does `ACTIVE` use?** We currently only accept values `bool.TryParse`
+   understands (case-insensitive `"True"`/`"False"`, per the .NET docs — notably
+   *not* `"0"`/`"1"`). We don't know whether the real export ever emits numeric
+   booleans, `"Y"`/`"N"`, or Dutch `"ja"`/`"nee"`/`"waar"`/`"onwaar"`. This matters
+   because a value we can't parse currently causes that entire index row to be
+   rejected (see "Working assumption" below) — if the real export regularly uses one
+   of these other formats, we'd be silently losing documents rather than harmlessly
+   defaulting them.
+
+3. **Is `ACTIVE` ever entirely absent from a row/file** (no column at all, not just an
+   empty value), **and is that expected?** We treat an absent or blank `ACTIVE` as
+   "assume active," on the assumption this column is sometimes omitted rather than
+   always present-but-empty. Is that assumption correct?
+
+4. **Is header casing stable?** We've had to defensively normalize header matching to
+   be case-insensitive (`DOCUMENT_ID` vs `Document_Id` vs `document_id`) because we
+   don't know whether casing is guaranteed consistent across export runs. Can you
+   confirm it's always exactly as documented (all caps, underscores), or should we
+   keep treating it as unreliable?
+
+5. **Can `DOCUMENT_ID` legitimately contain leading/trailing whitespace**, or is that
+   always an export artifact/bug on Zenya's side? We currently trim it unconditionally
+   before using it as the join key between the two files.
+
+## Working assumption until we hear back
+
+**A document whose `ACTIVE` value parses as `false` is treated as withdrawn — its
+pages are excluded from the search index** (`CsvJoiner.Join`, the `!indexRecord.Active`
+check skips every page for that `DOCUMENT_ID`, logged as a data-quality warning, not an
+error). This is the existing, implemented behavior; we're recording it here as an
+explicit assumption pending confirmation that "inactive in the index" really does mean
+"withdrawn protocol — shouldn't be searchable," rather than something else (e.g. a
+draft not yet published).
+
+Two related outcomes, in case they matter for the answer to Q2/Q3:
+
+- **`ACTIVE` missing or blank** → treated as active (document is kept, indexed
+  normally). This is the "column is optional" default.
+- **`ACTIVE` present but unparseable** (anything that isn't `"true"`/`"false"`) → the
+  *entire index row is rejected* as a parse error, not defaulted either way. That
+  document gets no `IndexRecord` at all, which in turn makes every one of its pages
+  fail to join ("no index record found") and drop out of the run entirely. This is a
+  deliberate "fail loud" choice for now (see `ParseActive` in `CsvExtractor.cs`) rather
+  than guessing active/inactive for a value we don't recognize — but if the export
+  turns out to regularly use a format we don't parse (Q2), this would need to change
+  to a whitelist instead of a hard failure.

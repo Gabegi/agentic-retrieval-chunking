@@ -71,43 +71,17 @@ public static class CsvExtractor
     // metadata (title/version/summary/etc.) that CsvJoiner later attaches to every
     // page of the matching DOCUMENT_ID from ExtractPages. Same per-row error handling
     // as ExtractPages: a bad row is recorded and skipped, not fatal to the whole file.
-    public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream)
-    {
-        var result = new ExtractionResult<IndexRecord>();
-        using var csv = EnsureHeadersAreCorrect(stream, IndexRequiredHeaders);
-
-        var rowNumber = 1;
-        while (true)
+    public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream) =>
+        Extract(stream, IndexRequiredHeaders, csv => new IndexRecord
         {
-            if (!EnsureRowIsReadable(csv, result, ref rowNumber)) break;
-
-            rowNumber++;
-            try
-            {
-                result.AddRecord(new IndexRecord
-                {
-                    DocumentId        = RequireDocumentId(csv),
-                    DocumentTypeName  = csv.GetField("DOCUMENT_TYPE_NAME") ?? "",
-                    Summary           = csv.GetField("SUMMARY") ?? "",
-                    Version           = FormatVersion(csv),
-                    CheckDateRaw      = csv.GetField("CHECK_DATE") ?? "",
-                    AttentionFlagsRaw = csv.GetField("ATTENTION_REQUIRED_FLAGS") ?? "",
-                    Active            = ParseActive(csv),
-                });
-            }
-            catch (Exception ex)
-            {
-                result.AddError(new ExtractionError
-                {
-                    RowNumber  = rowNumber,
-                    DocumentId = csv.TryGetField<string>("DOCUMENT_ID", out var id) ? id : null,
-                    Message    = ex.Message,
-                });
-            }
-        }
-
-        return result;
-    }
+            DocumentId        = RequireDocumentId(csv),
+            DocumentTypeName  = csv.GetField("DOCUMENT_TYPE_NAME") ?? "",
+            Summary           = csv.GetField("SUMMARY") ?? "",
+            Version           = FormatVersion(csv),
+            CheckDateRaw      = csv.GetField("CHECK_DATE") ?? "",
+            AttentionFlagsRaw = csv.GetField("ATTENTION_REQUIRED_FLAGS") ?? "",
+            Active            = ParseActive(csv),
+        });
 
 
     // Shared read loop for both ExtractPages and ExtractIndex. The only thing that
@@ -259,8 +233,14 @@ public static class CsvExtractor
     // through it unnoticed.
     private static bool ParseActive(CsvReader csv)
     {
-        var raw = csv.GetField("ACTIVE");
-        if (string.IsNullOrWhiteSpace(raw)) return true;
+        // TryGetField, not GetField: ACTIVE isn't a required header, and with
+        // MissingFieldFound restored to its default (throwing), GetField would throw
+        // on every row for any export that omits this column entirely. TryGetField
+        // returns false instead, so "column doesn't exist" and "column exists but
+        // this row's value is blank" both fall through to the same "assume active"
+        // default - only a value that's actually present and unparseable throws.
+        if (!csv.TryGetField<string>("ACTIVE", out var raw) || string.IsNullOrWhiteSpace(raw))
+            return true;
         if (!bool.TryParse(raw, out var active))
             throw new FormatException($"ACTIVE '{raw}' is not a valid true/false value.");
         return active;
