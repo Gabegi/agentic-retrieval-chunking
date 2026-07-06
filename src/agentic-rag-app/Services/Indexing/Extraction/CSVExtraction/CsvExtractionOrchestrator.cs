@@ -122,11 +122,14 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
 
         Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
 
-        // Metadata completeness — count docs missing title, version, department
+        // Metadata completeness — count docs missing title, version, department. Title
+        // and FolderPath are page-CSV fields and can legitimately vary page-to-page for
+        // the same document, so a document only counts as "missing" if EVERY one of its
+        // pages lacks that field, not just whichever page happens to come first.
         var docs = cleanResult.Records.ToList();
-        var missingTitle      = docs.DistinctBy(r => r.DocumentId).Count(r => string.IsNullOrWhiteSpace(r.Title));
-        var missingVersion    = docs.DistinctBy(r => r.DocumentId).Count(r => string.IsNullOrWhiteSpace(r.Version));
-        var missingDepartment = docs.DistinctBy(r => r.DocumentId).Count(r => string.IsNullOrWhiteSpace(r.FolderPath));
+        var missingTitle      = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
+        var missingVersion    = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Version)));
+        var missingDepartment = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.FolderPath)));
 
         if (missingTitle > 0)      Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
         if (missingVersion > 0)    Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
