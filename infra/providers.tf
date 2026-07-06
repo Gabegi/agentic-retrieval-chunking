@@ -25,4 +25,9 @@ provider "azurerm" {
   alias           = "hub"
   subscription_id = "c8e46005-ce0e-4be5-9ded-0178e19fbe28" # cor-connectivity-prd
   features {}
+
+  # This SP only has read access in the hub subscription (data sources only,
+  # see data.tf) - it can't register resource providers there, and never
+  # needs to since nothing is provisioned through this alias.
+  resource_provider_registrations = "none"
 }

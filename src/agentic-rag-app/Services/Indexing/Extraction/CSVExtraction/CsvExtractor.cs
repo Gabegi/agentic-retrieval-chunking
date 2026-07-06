@@ -20,50 +20,6 @@ public static class CsvExtractor
     // prevents looping forever if the parser can't advance past a corrupt region.
     private const int MaxConsecutiveReadFailures = 25;
 
-    private static CsvReader OpenCsv(Stream stream, params string[] requiredColumns)
-    {
-        var csv = new CsvReader(new StreamReader(stream), Config);
-        csv.Read();
-        csv.ReadHeader();
-
-        // One clear failure beats 11k identical "DOCUMENT_ID is missing" row errors.
-        var missing = requiredColumns
-            .Where(c => csv.HeaderRecord is null
-                     || !csv.HeaderRecord.Contains(c, StringComparer.OrdinalIgnoreCase))
-            .ToList();
-        if (missing.Count > 0)
-            throw new InvalidOperationException(
-                $"CSV header is missing required column(s): {string.Join(", ", missing)}.");
-
-        return csv;
-    }
-
-    private static string RequireDocumentId(CsvReader csv)
-    {
-        var docId = csv.GetField("DOCUMENT_ID") ?? "";
-        if (string.IsNullOrWhiteSpace(docId))
-            throw new FormatException("DOCUMENT_ID is missing or empty.");
-        return docId;
-    }
-
-    private static int ParsePageIndex(CsvReader csv)
-    {
-        var raw = csv.GetField("PAGE_INDEX");
-        if (!int.TryParse(raw, out var value))
-            throw new FormatException($"PAGE_INDEX '{raw}' is not a valid integer.");
-        return value;
-    }
-
-    // "VERSION.REVISION" (e.g. "7.0"). REVISION isn't in the required-columns list — if it's
-    // missing/unparseable, fall back to bare VERSION rather than failing the whole row over it.
-    private static string FormatVersion(CsvReader csv)
-    {
-        var version = csv.GetField("VERSION") ?? "";
-        if (string.IsNullOrWhiteSpace(version))
-            return "";
-        return int.TryParse(csv.GetField("REVISION"), out var revision) ? $"{version}.{revision}" : version;
-    }
-
     public static ExtractionResult<PageRecord> ExtractPages(Stream stream)
     {
         var result = new ExtractionResult<PageRecord>();
@@ -119,6 +75,50 @@ public static class CsvExtractor
         }
 
         return result;
+    }
+
+    private static CsvReader OpenCsv(Stream stream, params string[] requiredColumns)
+    {
+        var csv = new CsvReader(new StreamReader(stream), Config);
+        csv.Read();
+        csv.ReadHeader();
+
+        // One clear failure beats 11k identical "DOCUMENT_ID is missing" row errors.
+        var missing = requiredColumns
+            .Where(c => csv.HeaderRecord is null
+                     || !csv.HeaderRecord.Contains(c, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (missing.Count > 0)
+            throw new InvalidOperationException(
+                $"CSV header is missing required column(s): {string.Join(", ", missing)}.");
+
+        return csv;
+    }
+
+    private static string RequireDocumentId(CsvReader csv)
+    {
+        var docId = csv.GetField("DOCUMENT_ID") ?? "";
+        if (string.IsNullOrWhiteSpace(docId))
+            throw new FormatException("DOCUMENT_ID is missing or empty.");
+        return docId;
+    }
+
+    private static int ParsePageIndex(CsvReader csv)
+    {
+        var raw = csv.GetField("PAGE_INDEX");
+        if (!int.TryParse(raw, out var value))
+            throw new FormatException($"PAGE_INDEX '{raw}' is not a valid integer.");
+        return value;
+    }
+
+    // "VERSION.REVISION" (e.g. "7.0"). REVISION isn't in the required-columns list — if it's
+    // missing/unparseable, fall back to bare VERSION rather than failing the whole row over it.
+    private static string FormatVersion(CsvReader csv)
+    {
+        var version = csv.GetField("VERSION") ?? "";
+        if (string.IsNullOrWhiteSpace(version))
+            return "";
+        return int.TryParse(csv.GetField("REVISION"), out var revision) ? $"{version}.{revision}" : version;
     }
 
     public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream)
