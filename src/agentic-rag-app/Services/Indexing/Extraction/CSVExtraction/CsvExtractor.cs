@@ -61,8 +61,8 @@ public static class CsvExtractor
                 // csv.Read() by default throws 2 exceptions:
                     // - A row has fewer fields than the header → MissingFieldException
                     // - A field contains malformed data (e.g. a stray unescaped quote inside an unquoted field) → BadDataException
-                    // Turn off by default
-                hasRow = csv.Read();
+                    // Turned off by CsvConfiguration config
+                hasRow = csv.Read(); // keeps going until no rows (false)
                 failureStreak = 0;
             }
             catch (Exception ex)
