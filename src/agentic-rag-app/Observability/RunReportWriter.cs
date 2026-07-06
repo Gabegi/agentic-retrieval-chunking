@@ -24,6 +24,9 @@ public class RunReportWriter : IRunReportWriter
     public Task WriteIndexReportAsync(IndexRunReport report, CancellationToken ct = default) =>
         WriteAsync($"indexing/{report.StartedAt:yyyy/MM/dd}/{report.InstanceId}.json", report, ct);
 
+    public Task WriteJoinIssuesAsync(IReadOnlyList<ValidationIssue> issues, DateTimeOffset runAt, CancellationToken ct = default) =>
+        WriteAsync($"indexing/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-join-issues.json", issues, ct);
+
     private const string LastIndexStatsPath = "indexing/_last-stats.json";
 
     public async Task<(long DocumentCount, long StorageSizeBytes)?> GetLastIndexStatsAsync(CancellationToken ct = default)
