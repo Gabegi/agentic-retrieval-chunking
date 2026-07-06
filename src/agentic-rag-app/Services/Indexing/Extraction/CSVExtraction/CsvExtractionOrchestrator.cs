@@ -188,9 +188,6 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             RedFlags:               report.RedFlags.ToList(),
             SpotCheckSample:        spotCheck);
     }
-}
-
-
 
     // Persisted in the pipeline-internal "pipeline-temp" container, not the CSV drop
     // container — the CSV container is overwritten by an external Zenya export process
@@ -245,4 +242,5 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
                 "State blob '{Blob}' was updated concurrently — this run's baseline was not saved.", StateBlobName);
         }
     }
+}
 
