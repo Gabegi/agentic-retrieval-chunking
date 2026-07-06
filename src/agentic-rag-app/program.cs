@@ -137,6 +137,7 @@ var host = new HostBuilder()
         services.AddSingleton<IExtractionOrchestrator>(sp => new CsvExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
+            sp.GetRequiredService<IRunReportWriter>(),
             sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
 
         // RAG pipeline
