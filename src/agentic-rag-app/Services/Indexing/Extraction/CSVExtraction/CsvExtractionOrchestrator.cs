@@ -21,6 +21,13 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     private const string IndexBlobName = "zenya_index.csv";
     private const string StateBlobName = "csv-extraction-state.json";
 
+    // Caps how many individual validation issues get their own log line. A badly
+    // malformed file can produce thousands of near-identical issues - real log
+    // volume/cost at that point, not useful signal. This is separate from the
+    // Take(100) further down on the *returned* issues list, which exists for a
+    // different reason (Durable Table Storage's 64KB row-size limit).
+    private const int MaxLoggedIssues = 100;
+
     private sealed record RunState(int CleanedRecords);
 
     public CsvExtractionOrchestrator(
@@ -91,10 +98,13 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
             effectivePassed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
 
-        foreach (var issue in report.Issues)
+        foreach (var issue in report.Issues.Take(MaxLoggedIssues))
             _logger.Log(
                 issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
                 "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
+        if (report.Issues.Count > MaxLoggedIssues)
+            _logger.LogWarning("…{More} more issue(s) not logged (see the run report for the full list).",
+                report.Issues.Count - MaxLoggedIssues);
 
         // Emit validation metrics before the pass/fail gate below - a failed run is
         // exactly the case these metrics matter most for, and a throw would otherwise
