@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProtocolsIndexer", "agentic
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RagApp.Evaluation.Tests", "RagApp.Evaluation.Tests\RagApp.Evaluation.Tests.csproj", "{6B1F0AD6-0701-4F96-B7D4-50E890B0E813}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RagApp.UnitTests", "RagApp.UnitTests\RagApp.UnitTests.csproj", "{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,6 +45,18 @@ Global
 		{6B1F0AD6-0701-4F96-B7D4-50E890B0E813}.Release|x64.Build.0 = Release|Any CPU
 		{6B1F0AD6-0701-4F96-B7D4-50E890B0E813}.Release|x86.ActiveCfg = Release|Any CPU
 		{6B1F0AD6-0701-4F96-B7D4-50E890B0E813}.Release|x86.Build.0 = Release|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Debug|x64.Build.0 = Debug|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Debug|x86.Build.0 = Debug|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Release|x64.ActiveCfg = Release|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Release|x64.Build.0 = Release|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Release|x86.ActiveCfg = Release|Any CPU
+		{E6B0F8F4-1145-437C-8F57-30ABB06BEA14}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
