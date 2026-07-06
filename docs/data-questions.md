@@ -44,6 +44,12 @@ open questions and, until we get answers, the assumptions the pipeline currently
    always an export artifact/bug on Zenya's side? We currently trim it unconditionally
    before using it as the join key between the two files.
 
+6. **Is `DOCUMENT_ID` casing guaranteed consistent between the two files** (e.g. always
+   the same case as it appears in both `zenya_pages.csv` and `zenya_index.csv`), or
+   could the same document show up as `ABC-123` in one file and `abc-123` in the other?
+   We now match them case-insensitively in `CsvJoiner` as a precaution, but don't have
+   real data confirming whether that's ever actually needed.
+
 ## Working assumption until we hear back
 
 **A document whose `ACTIVE` value parses as `false` is treated as withdrawn — its

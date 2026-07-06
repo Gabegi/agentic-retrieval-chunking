@@ -17,15 +17,23 @@ public static class CsvJoiner
     {
         var result = new JoinResult();
 
-        var uniqueIndex = CheckForDuplicateIDInIndex(index, result);
+        var uniqueIndex = BuildUniqueIndex(index, result);
 
-        var matchedDocIds  = new HashSet<string>();
-        var alreadyErrored = new HashSet<string>();
+        // OrdinalIgnoreCase: we don't have confirmation that DOCUMENT_ID values are
+        // consistently cased across the two source files (see docs/data-questions.md).
+        // If they're always consistent this changes nothing; if they're not, it
+        // prevents the same silent-mismatch failure mode Trim() already guards
+        // against for whitespace in RequireDocumentId.
+        var matchedDocIds   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var alreadyReported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var page in pages)
-            MatchPageToIndex(page, uniqueIndex, result, matchedDocIds, alreadyErrored);
+            MatchPageToIndex(page, uniqueIndex, result, matchedDocIds, alreadyReported);
 
-        foreach (var indexRecord in index)
+        // Iterate uniqueIndex.Values, not the raw index list - a duplicate DOCUMENT_ID
+        // that never matches any page would otherwise get added to SkippedIndexRecords
+        // once per duplicate row instead of once for the (deduplicated) document.
+        foreach (var indexRecord in uniqueIndex.Values)
         {
             if (!matchedDocIds.Contains(indexRecord.DocumentId))
                 result.AddSkippedIndexRecord(indexRecord);
@@ -34,63 +42,69 @@ public static class CsvJoiner
         return result;
     }
 
-    // matches pages with index based on Document_id. Page is dropped if no match is
-    // found, or if ACTIVE=False
+    // matches pages with index based on Document_id.
+    // Page is dropped if no match is found, or if ACTIVE=False
     private static void MatchPageToIndex(
         PageRecord page, Dictionary<string, IndexRecord> uniqueIndex, JoinResult result,
-        HashSet<string> matchedDocIds, HashSet<string> alreadyErrored)
+        HashSet<string> matchedDocIds, HashSet<string> alreadyReported)
     {
-        if (uniqueIndex.TryGetValue(page.DocumentId, out var indexRecord))
+        // Look up page.DocumentId in uniqueIndex.
+        if (!uniqueIndex.TryGetValue(page.DocumentId, out var indexRecord))
         {
-            // Matched an index record regardless of Active status — otherwise an
-            // inactive-but-paged doc would fall into SkippedIndexRecords below and get
-            // mislabeled as "no pages" when it's actually just excluded for being inactive.
-            matchedDocIds.Add(page.DocumentId);
-
-            if (!indexRecord.Active)
-            {
-                result.CountInactivePageSkipped();
-                if (alreadyErrored.Add(page.DocumentId))   // reuse the per-doc dedup set
-                    result.AddDataQualityWarning(new JoinError
-                    {
-                        DocumentId = page.DocumentId,
-                        Message    = "Document is marked inactive in the index — pages skipped.",
-                    });
-                return;
-            }
-
-            result.AddJoined(new JoinedPageRecord
-            {
-                DocumentId        = page.DocumentId,
-                Title             = page.Title,
-                QuickCode         = page.QuickCode,
-                FolderPath        = page.FolderPath,
-                LastModifiedRaw   = page.LastModifiedRaw,
-                PageIndex         = page.PageIndex,
-                PageContent       = page.PageContent,
-                Language          = page.Language,
-                RelativePath      = page.RelativePath,
-                DocumentTypeName  = indexRecord.DocumentTypeName,
-                Summary           = indexRecord.Summary,
-                Version           = indexRecord.Version,
-                CheckDateRaw      = indexRecord.CheckDateRaw,
-                AttentionFlagsRaw = indexRecord.AttentionFlagsRaw,
-            });
+            // Not found -> log an error (once per doc, via alreadyReported), then return - page is dropped.
+            if (alreadyReported.Add(page.DocumentId))
+                result.AddError(new JoinError
+                {
+                    DocumentId = page.DocumentId,
+                    Message    = $"No index record found for document {page.DocumentId}.",
+                });
+            return;
         }
-        else if (alreadyErrored.Add(page.DocumentId))
+
+        // Found -> mark this index record as "used" regardless of Active,
+        // so it won't wrongly show up as unmatched later.
+        matchedDocIds.Add(page.DocumentId);
+
+        if (!indexRecord.Active)
         {
-            result.AddError(new JoinError
-            {
-                DocumentId = page.DocumentId,
-                Message    = $"No index record found for document {page.DocumentId}.",
-            });
+            // Inactive -> count as skipped, warn once per doc, return - page dropped.
+            result.CountInactivePageSkipped();
+            if (alreadyReported.Add(page.DocumentId))
+                result.AddDataQualityWarning(new JoinError
+                {
+                    DocumentId = page.DocumentId,
+                    Message    = "Document is marked inactive in the index — pages skipped.",
+                });
+            return;
         }
+
+        // Active -> build a JoinedPageRecord and add it to result.
+        result.AddJoined(ToJoinedRecord(page, indexRecord));
     }
 
-    // Checks for duplicates in index by DOCUMENT_ID
-    private static Dictionary<string, IndexRecord> CheckForDuplicateIDInIndex(IReadOnlyList<IndexRecord> index, JoinResult result)
+    private static JoinedPageRecord ToJoinedRecord(PageRecord page, IndexRecord indexRecord) => new()
     {
-        var indexByDocId = new Dictionary<string, IndexRecord>();
+        DocumentId        = page.DocumentId,
+        Title             = page.Title,
+        QuickCode         = page.QuickCode,
+        FolderPath        = page.FolderPath,
+        LastModifiedRaw   = page.LastModifiedRaw,
+        PageIndex         = page.PageIndex,
+        PageContent       = page.PageContent,
+        Language          = page.Language,
+        RelativePath      = page.RelativePath,
+        DocumentTypeName  = indexRecord.DocumentTypeName,
+        Summary           = indexRecord.Summary,
+        Version           = indexRecord.Version,
+        CheckDateRaw      = indexRecord.CheckDateRaw,
+        AttentionFlagsRaw = indexRecord.AttentionFlagsRaw,
+    };
+
+    // Builds the DOCUMENT_ID -> IndexRecord lookup Join matches pages against, warning
+    // on (and skipping) any duplicate DOCUMENT_ID rather than throwing.
+    private static Dictionary<string, IndexRecord> BuildUniqueIndex(IReadOnlyList<IndexRecord> index, JoinResult result)
+    {
+        var indexByDocId = new Dictionary<string, IndexRecord>(StringComparer.OrdinalIgnoreCase);
         foreach (var record in index)
         {
             if (!indexByDocId.TryAdd(record.DocumentId, record))
