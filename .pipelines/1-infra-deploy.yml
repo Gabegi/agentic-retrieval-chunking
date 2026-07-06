@@ -100,7 +100,9 @@ stages:
                 SP_ID=$(az account show --query user.name -o tsv)
                 az role assignment list --assignee "$SP_ID" --all -o table
                 echo "--- management groups visible to this SP, if any ---"
-                az account management-group list -o table
+                # Expected to fail for this SP (no Microsoft.Management/managementGroups/read) -
+                # informational only, must not fail the task on its own.
+                az account management-group list -o table || echo "(no management group read access - expected, see docs/platform-team-dns-verzoek.md)"
 
           - script: |
               TF_VERSION="1.15.7"
