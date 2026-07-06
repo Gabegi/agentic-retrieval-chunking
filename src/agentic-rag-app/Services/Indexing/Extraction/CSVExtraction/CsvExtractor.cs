@@ -52,18 +52,29 @@ public static class CsvExtractor
         };
     }
 
-    // 1. Checks correct headers are there once, up front (EnsureHeadersAreCorrect)
-    // 2. Per row, try to read it (csv.Read()):
-    //      - throws        -> row is unparseable garbage; log an error (no DocumentId), keep going
-    //      - returns false -> no more rows; stop
-    //      - returns true  -> row read OK, go to step 3
-    // 3. Try to build a PageRecord from that row's fields (needs DOCUMENT_ID + valid PAGE_INDEX):
-    //      - succeeds -> add it as a PageRecord
-    //      - fails    -> log it as an ExtractionError, with DocumentId if we could read one
-    public static ExtractionResult<PageRecord> ExtractPages(Stream stream)
+    public static ExtractionResult<PageRecord> ExtractPages(Stream stream) =>
+        Extract(stream, PagesRequiredHeaders, csv => new PageRecord
+        {
+            DocumentId      = RequireDocumentId(csv),
+            Title           = csv.GetField("TITLE") ?? "",
+            QuickCode       = csv.GetField("QUICK_CODE") ?? "",
+            FolderPath      = csv.GetField("FOLDER_MINI_FULL_PATH") ?? "",
+            LastModifiedRaw = csv.GetField("LAST_MODIFIED_DATETIME") ?? "",
+            PageIndex       = ParsePageIndex(csv),
+            PageContent     = csv.GetField("PAGE_CONTENT") ?? "",
+            Language        = csv.GetField("LANGUAGE") ?? "",
+            RelativePath    = csv.GetField("RELATIVE_PATH") ?? "",
+        });
+
+
+    // Reads zenya_index.csv row by row into IndexRecord objects - the document-level
+    // metadata (title/version/summary/etc.) that CsvJoiner later attaches to every
+    // page of the matching DOCUMENT_ID from ExtractPages. Same per-row error handling
+    // as ExtractPages: a bad row is recorded and skipped, not fatal to the whole file.
+    public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream)
     {
-        var result = new ExtractionResult<PageRecord>();
-        using var csv = EnsureHeadersAreCorrect(stream, PagesRequiredHeaders);
+        var result = new ExtractionResult<IndexRecord>();
+        using var csv = EnsureHeadersAreCorrect(stream, IndexRequiredHeaders);
 
         var rowNumber = 1;
         while (true)
@@ -73,26 +84,66 @@ public static class CsvExtractor
             rowNumber++;
             try
             {
-                // A ragged row (missing one of these fields entirely) throws
-                // MissingFieldException from GetField() and is caught below, same as
-                // DOCUMENT_ID/PAGE_INDEX failing their own explicit checks.
-                result.AddRecord(new PageRecord
+                result.AddRecord(new IndexRecord
                 {
-                    DocumentId      = RequireDocumentId(csv),
-                    Title           = csv.GetField("TITLE") ?? "",
-                    QuickCode       = csv.GetField("QUICK_CODE") ?? "",
-                    FolderPath      = csv.GetField("FOLDER_MINI_FULL_PATH") ?? "",
-                    LastModifiedRaw = csv.GetField("LAST_MODIFIED_DATETIME") ?? "",
-                    PageIndex       = ParsePageIndex(csv),
-                    PageContent     = csv.GetField("PAGE_CONTENT") ?? "",
-                    Language        = csv.GetField("LANGUAGE") ?? "",
-                    RelativePath    = csv.GetField("RELATIVE_PATH") ?? "",
+                    DocumentId        = RequireDocumentId(csv),
+                    DocumentTypeName  = csv.GetField("DOCUMENT_TYPE_NAME") ?? "",
+                    Summary           = csv.GetField("SUMMARY") ?? "",
+                    Version           = FormatVersion(csv),
+                    CheckDateRaw      = csv.GetField("CHECK_DATE") ?? "",
+                    AttentionFlagsRaw = csv.GetField("ATTENTION_REQUIRED_FLAGS") ?? "",
+                    Active            = ParseActive(csv),
                 });
             }
             catch (Exception ex)
             {
-                // Row-level failure (RequireDocumentId/ParsePageIndex throwing) - recorded,
-                // then the loop moves on to the next row instead of aborting the file.
+                result.AddError(new ExtractionError
+                {
+                    RowNumber  = rowNumber,
+                    DocumentId = csv.TryGetField<string>("DOCUMENT_ID", out var id) ? id : null,
+                    Message    = ex.Message,
+                });
+            }
+        }
+
+        return result;
+    }
+
+
+    // Shared read loop for both ExtractPages and ExtractIndex. The only thing that
+    // differs between them is which headers are required and how to build a T from
+    // a successfully-read row (build) - everything else (advancing rows via
+    // EnsureRowIsReadable, catching a row-level build failure - e.g. a ragged row's
+    // GetField() throwing MissingFieldException, or RequireDocumentId/ParsePageIndex/
+    // ParseActive rejecting a bad value - and logging it as an ExtractionError) is
+    // identical, so it lives here once instead of twice.
+
+
+     // 1. Checks correct headers are there once, up front (EnsureHeadersAreCorrect)
+    // 2. Per row, try to read it (csv.Read()):
+    //      - throws        -> row is unparseable garbage; log an error (no DocumentId), keep going
+    //      - returns false -> no more rows; stop
+    //      - returns true  -> row read OK, go to step 3
+    // 3. Try to build a PageRecord from that row's fields (needs DOCUMENT_ID + valid PAGE_INDEX):
+    //      - succeeds -> add it as a PageRecord
+    //      - fails    -> log it as an ExtractionError, with DocumentId if we could read one
+    private static ExtractionResult<T> Extract<T>(Stream stream, string[] requiredHeaders, Func<CsvReader, T> build)
+    {
+        var result = new ExtractionResult<T>();
+        using var csv = EnsureHeadersAreCorrect(stream, requiredHeaders);
+
+        var rowNumber = 1;
+        while (true)
+        {
+            if (!EnsureRowIsReadable(csv, result, ref rowNumber)) break;
+
+            rowNumber++;
+            try
+            {
+                result.AddRecord(build(csv));
+            }
+            catch (Exception ex)
+            {
                 result.AddError(new ExtractionError
                 {
                     RowNumber  = rowNumber,
@@ -215,45 +266,4 @@ public static class CsvExtractor
         return active;
     }
 
-    // Reads zenya_index.csv row by row into IndexRecord objects - the document-level
-    // metadata (title/version/summary/etc.) that CsvJoiner later attaches to every
-    // page of the matching DOCUMENT_ID from ExtractPages. Same per-row error handling
-    // as ExtractPages: a bad row is recorded and skipped, not fatal to the whole file.
-    public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream)
-    {
-        var result = new ExtractionResult<IndexRecord>();
-        using var csv = EnsureHeadersAreCorrect(stream, IndexRequiredHeaders);
-
-        var rowNumber = 1;
-        while (true)
-        {
-            if (!EnsureRowIsReadable(csv, result, ref rowNumber)) break;
-
-            rowNumber++;
-            try
-            {
-                result.AddRecord(new IndexRecord
-                {
-                    DocumentId        = RequireDocumentId(csv),
-                    DocumentTypeName  = csv.GetField("DOCUMENT_TYPE_NAME") ?? "",
-                    Summary           = csv.GetField("SUMMARY") ?? "",
-                    Version           = FormatVersion(csv),
-                    CheckDateRaw      = csv.GetField("CHECK_DATE") ?? "",
-                    AttentionFlagsRaw = csv.GetField("ATTENTION_REQUIRED_FLAGS") ?? "",
-                    Active            = ParseActive(csv),
-                });
-            }
-            catch (Exception ex)
-            {
-                result.AddError(new ExtractionError
-                {
-                    RowNumber  = rowNumber,
-                    DocumentId = csv.TryGetField<string>("DOCUMENT_ID", out var id) ? id : null,
-                    Message    = ex.Message,
-                });
-            }
-        }
-
-        return result;
-    }
 }
