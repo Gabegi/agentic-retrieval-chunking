@@ -15,6 +15,7 @@ test
 │   └── variables.tf
 ├── src/                        # .NET application code
 ├── .pipelines/                 # Azure DevOps pipelines
+│   ├── 0-build-test.yml        # .NET build + unit tests (runs on PR and push)
 │   └── 1-infra-deploy.yml      # Terraform CI/CD (plan on PR, apply on push)
 └── ReadMe.md
 ```
