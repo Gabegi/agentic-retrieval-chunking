@@ -181,7 +181,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         // Whether passed normally or via override, this becomes the new baseline - an
         // override run resets the magnitude check so the NEXT run is auto-gated again
         // instead of comparing against the same stale count.
-        await SaveRunStateAsync(cleanResult.Records.Count, ct);
+        await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
 
         var extractionDocs = cleanResult.Records
             .Select(r => new ExtractionDocument(
