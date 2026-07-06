@@ -8,5 +8,5 @@ public class IndexRecord
     public string Version           { get; set; } = "";
     public string CheckDateRaw      { get; set; } = "";
     public string AttentionFlagsRaw { get; set; } = "";
-    public bool   Active             { get; set; } = true;
+    public bool   Active             { get; set; }
 }

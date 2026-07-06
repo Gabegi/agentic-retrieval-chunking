@@ -171,10 +171,10 @@ public static class PipelineValidator
             ? [.. cleanResult.Records]
             : [.. cleanResult.Records.OrderBy(_ => Guid.NewGuid()).Take(SpotCheckSampleSize)];
 
-        // 9. Pass/fail. Denominator is every row ATTEMPTED across both inputs — parse errors
+        // 9. Pass/fail. Denominator is every row attempted across both inputs — parse errors
         // from the index file count against the same budget they're measured by.
         var errorCount     = issues.Count(i => i.Severity == "Error") + reconciliation.Count;
-        var totalAttempted = pagesExtraction.TotalRows + indexExtraction.TotalRows;
+        var totalAttempted = pagesExtraction.RowsAttempted + indexExtraction.RowsAttempted;
         var errorRate      = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
         var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
         // Magnitude shift is a hard gate too - a truncated export (rows silently dropped
