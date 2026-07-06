@@ -7,22 +7,44 @@ namespace RagApp.UnitTests.CsvExtraction;
 [TestClass]
 public class PipelineValidatorTests
 {
+    // Full header set including the optional-but-not-TryGetField columns (LANGUAGE,
+    // REVISION) that CsvExtractor reads with GetField rather than TryGetField - omitting
+    // them entirely (as opposed to leaving the value blank) throws MissingFieldException.
+    private const string PagesHeader =
+        "DOCUMENT_ID,TITLE,QUICK_CODE,FOLDER_MINI_FULL_PATH,LAST_MODIFIED_DATETIME,PAGE_INDEX,PAGE_CONTENT,RELATIVE_PATH,LANGUAGE";
+    private const string IndexHeader =
+        "DOCUMENT_ID,DOCUMENT_TYPE_NAME,SUMMARY,VERSION,REVISION,CHECK_DATE,ATTENTION_REQUIRED_FLAGS";
+
     // Builds a clean, all-good pipeline: one page, joined, cleaned, no errors anywhere -
     // the baseline every test below perturbs one piece of.
     private static (ExtractionResult<PageRecord> Pages, ExtractionResult<IndexRecord> Index, JoinResult Join, CleanResult Clean) HappyPath()
     {
         var pages = CsvExtractor.ExtractPages(ToStream(
-            "DOCUMENT_ID,TITLE,QUICK_CODE,FOLDER_MINI_FULL_PATH,LAST_MODIFIED_DATETIME,PAGE_INDEX,PAGE_CONTENT,RELATIVE_PATH\n" +
-            "doc1,Title,QC,Folder,20240101120000,0,Some markdown content,rel\n"));
+            PagesHeader + "\n" +
+            "doc1,Title,QC,Folder,20240101120000,0,Some markdown content,rel,nl-NL\n"));
         var index = CsvExtractor.ExtractIndex(ToStream(
-            "DOCUMENT_ID,DOCUMENT_TYPE_NAME,SUMMARY,VERSION,CHECK_DATE,ATTENTION_REQUIRED_FLAGS\n" +
-            "doc1,Protocol,Summary,7.0,,[]\n"));
+            IndexHeader + "\n" +
+            "doc1,Protocol,Summary,7,0,,[]\n"));
         var join  = CsvJoiner.Join(pages.Records, index.Records);
         var clean = DataCleaner.Clean(join.Joined);
         return (pages, index, join, clean);
     }
 
     private static Stream ToStream(string csv) => new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
+
+    // JoinedPageRecord builder for PipelineValidator tests that skip the join step -
+    // LastModifiedRaw must be a valid "yyyyMMddHHmmss" value or DataCleaner rejects the
+    // whole record with a CleaningError before PipelineValidator ever sees it.
+    private static JoinedPageRecord JoinedPage(
+        string docId, string content, string language = "nl-NL", string attentionFlagsRaw = "") => new()
+    {
+        DocumentId        = docId,
+        PageIndex         = 0,
+        PageContent       = content,
+        LastModifiedRaw   = "20240101120000",
+        Language          = language,
+        AttentionFlagsRaw = attentionFlagsRaw,
+    };
 
     [TestMethod]
     public void HappyPath_Passes()
@@ -53,8 +75,8 @@ public class PipelineValidatorTests
     public void JoinError_IsSurfacedAsIssueAndCountsTowardErrorRate()
     {
         var pages = CsvExtractor.ExtractPages(ToStream(
-            "DOCUMENT_ID,TITLE,QUICK_CODE,FOLDER_MINI_FULL_PATH,LAST_MODIFIED_DATETIME,PAGE_INDEX,PAGE_CONTENT,RELATIVE_PATH\n" +
-            "doc1,Title,QC,Folder,20240101120000,0,Content,rel\n"));
+            PagesHeader + "\n" +
+            "doc1,Title,QC,Folder,20240101120000,0,Content,rel,nl-NL\n"));
         var index = new ExtractionResult<IndexRecord>(); // no matching index record for doc1
         var join  = CsvJoiner.Join(pages.Records, index.Records);
         var clean = DataCleaner.Clean(join.Joined);
@@ -69,8 +91,8 @@ public class PipelineValidatorTests
     {
         var pages = new ExtractionResult<PageRecord>();
         var index = CsvExtractor.ExtractIndex(ToStream(
-            "DOCUMENT_ID,DOCUMENT_TYPE_NAME,SUMMARY,VERSION,CHECK_DATE,ATTENTION_REQUIRED_FLAGS\n" +
-            "doc1,Protocol,Summary,7.0,,[]\n"));
+            IndexHeader + "\n" +
+            "doc1,Protocol,Summary,7,0,,[]\n"));
         var join  = CsvJoiner.Join(pages.Records, index.Records);
         var clean = DataCleaner.Clean(join.Joined);
 
@@ -85,13 +107,7 @@ public class PipelineValidatorTests
     {
         var flaggedJoin = new List<JoinedPageRecord>
         {
-            new()
-            {
-                DocumentId        = "doc1",
-                PageIndex         = 0,
-                PageContent       = "content",
-                AttentionFlagsRaw = "[\"check_date_exceeded\"]",
-            },
+            JoinedPage("doc1", "content", attentionFlagsRaw: "[\"check_date_exceeded\"]"),
         };
         var clean = DataCleaner.Clean(flaggedJoin);
 
@@ -108,10 +124,7 @@ public class PipelineValidatorTests
     [TestMethod]
     public void ContentWithoutHeadings_NeedsFallbackChunking()
     {
-        var joined = new List<JoinedPageRecord>
-        {
-            new() { DocumentId = "doc1", PageIndex = 0, PageContent = "Plain text, no headings at all." },
-        };
+        var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "Plain text, no headings at all.") };
         var clean = DataCleaner.Clean(joined);
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
@@ -125,10 +138,7 @@ public class PipelineValidatorTests
     [TestMethod]
     public void ContentWithMarkdownHeading_DoesNotNeedFallbackChunking()
     {
-        var joined = new List<JoinedPageRecord>
-        {
-            new() { DocumentId = "doc1", PageIndex = 0, PageContent = "# Heading\nSome content under it." },
-        };
+        var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "# Heading\nSome content under it.") };
         var clean = DataCleaner.Clean(joined);
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
@@ -142,10 +152,7 @@ public class PipelineValidatorTests
     [TestMethod]
     public void ReplacementCharacterInContent_IsTextQualityError()
     {
-        var joined = new List<JoinedPageRecord>
-        {
-            new() { DocumentId = "doc1", PageIndex = 0, PageContent = "Corrupted � text" },
-        };
+        var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "Corrupted � text") };
         var clean = DataCleaner.Clean(joined);
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
@@ -160,10 +167,7 @@ public class PipelineValidatorTests
     [TestMethod]
     public void NonDutchLanguage_IsTextQualityWarning()
     {
-        var joined = new List<JoinedPageRecord>
-        {
-            new() { DocumentId = "doc1", PageIndex = 0, PageContent = "Some content", Language = "en-US" },
-        };
+        var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "Some content", language: "en-US") };
         var clean = DataCleaner.Clean(joined);
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
