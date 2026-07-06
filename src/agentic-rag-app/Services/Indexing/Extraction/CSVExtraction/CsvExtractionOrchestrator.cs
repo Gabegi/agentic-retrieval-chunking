@@ -63,15 +63,17 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
 
     public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
-        using var pagesStream = new MemoryStream();
-        using var indexStream = new MemoryStream();
+        // Stream directly from blob storage instead of buffering the whole file into a
+        // MemoryStream first - CsvExtractor only ever reads forward through the stream
+        // once, so there's nothing gained by holding the entire file in memory before
+        // parsing starts, and a large export would otherwise mean two full files
+        // resident in memory at once for no reason.
+        var pagesStreamTask = _container.GetBlobClient(PagesBlobName).OpenReadAsync(cancellationToken: ct);
+        var indexStreamTask = _container.GetBlobClient(IndexBlobName).OpenReadAsync(cancellationToken: ct);
+        await Task.WhenAll(pagesStreamTask, indexStreamTask);
 
-        await Task.WhenAll(
-            _container.GetBlobClient(PagesBlobName).DownloadToAsync(pagesStream, ct),
-            _container.GetBlobClient(IndexBlobName).DownloadToAsync(indexStream, ct));
-
-        pagesStream.Position = 0;
-        indexStream.Position = 0;
+        await using var pagesStream = await pagesStreamTask;
+        await using var indexStream = await indexStreamTask;
 
         var pagesResult = CsvExtractor.ExtractPages(pagesStream);
         var indexResult = CsvExtractor.ExtractIndex(indexStream);
