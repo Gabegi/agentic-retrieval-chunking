@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Hosting;
+using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Observability.Reports;
 
