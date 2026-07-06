@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Hosting;
-using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Observability.Reports;
 
@@ -18,14 +17,8 @@ public class RunReportWriter : IRunReportWriter
         IsEnabled  = env.IsDevelopment();
     }
 
-    public Task WriteQueryReportAsync(QueryRunReport report, CancellationToken ct = default) =>
-        WriteAsync($"queries/{report.Timestamp:yyyy/MM/dd}/{report.RunId}.json", report, ct);
-
-    public Task WriteIndexReportAsync(IndexRunReport report, CancellationToken ct = default) =>
-        WriteAsync($"indexing/{report.StartedAt:yyyy/MM/dd}/{report.InstanceId}.json", report, ct);
-
-    public Task WriteJoinIssuesAsync(IReadOnlyList<ValidationIssue> issues, DateTimeOffset runAt, CancellationToken ct = default) =>
-        WriteAsync($"indexing/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-join-issues.json", issues, ct);
+    public Task WriteReportAsync<T>(string path, T report, CancellationToken ct = default) =>
+        WriteAsync(path, report, ct);
 
     private const string LastIndexStatsPath = "indexing/_last-stats.json";
 

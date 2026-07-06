@@ -57,7 +57,9 @@ public class QueryingFunction
                 result.LatencyMs, result.InputTokens, result.OutputTokens);
 
             if (_reportWriter.IsEnabled)
-                await _reportWriter.WriteQueryReportAsync(new QueryRunReport(
+                await _reportWriter.WriteReportAsync(
+                    $"queries/{timestamp:yyyy/MM/dd}/{result.ConversationId}.json",
+                    new QueryRunReport(
                     RunId:              result.ConversationId,
                     Timestamp:          timestamp,
                     Question:           body.Question,

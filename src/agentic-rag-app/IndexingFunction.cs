@@ -192,7 +192,8 @@ public class IndexingFunction
     {
         if (!_reportWriter.IsEnabled) return;
 
-        await _reportWriter.WriteIndexReportAsync(report, context.CancellationToken);
+        await _reportWriter.WriteReportAsync(
+            $"indexing/{report.StartedAt:yyyy/MM/dd}/{report.InstanceId}.json", report, context.CancellationToken);
         _logger.LogInformation(
             "Index run report saved — instance={InstanceId}, docs={Docs}, chunks={Chunks}, success={Success}",
             report.InstanceId, report.DocsToProcess, report.ChunksProduced, report.Success);
