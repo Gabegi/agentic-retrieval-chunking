@@ -11,6 +11,8 @@ public static class CsvExtractor
     {
         Delimiter         = ",",
         HasHeaderRecord   = true,
+
+        // Turns off by default the two potential csv.Read Exceptions
         MissingFieldFound = null,
         BadDataFound      = null,   // malformed fields become row-level errors below, not exceptions
     };
@@ -56,9 +58,10 @@ public static class CsvExtractor
             bool hasRow;
             try
             {
-                // csv.Read() itself can throw (e.g. a row CsvHelper can't tokenize at
-                // all) - distinct from a row that reads fine but fails validation
-                // below, so it's tracked separately via failureStreak.
+                // csv.Read() by default throws 2 exceptions:
+                    // - A row has fewer fields than the header → MissingFieldException
+                    // - A field contains malformed data (e.g. a stray unescaped quote inside an unquoted field) → BadDataException
+                    // Turn off by default
                 hasRow = csv.Read();
                 failureStreak = 0;
             }
