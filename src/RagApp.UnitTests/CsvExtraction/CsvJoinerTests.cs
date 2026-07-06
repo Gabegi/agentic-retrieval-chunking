@@ -25,7 +25,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void MatchedAndActive_IsAddedToJoined()
     {
-        var result = Joiner.Join([Page("doc1")], [Index("doc1")]);
+        var result = CsvJoiner.Join([Page("doc1")], [Index("doc1")]);
 
         Assert.AreEqual(1, result.Joined.Count);
         Assert.AreEqual("doc1", result.Joined[0].DocumentId);
@@ -36,7 +36,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void PageWithNoMatchingIndex_IsError()
     {
-        var result = Joiner.Join([Page("doc1")], []);
+        var result = CsvJoiner.Join([Page("doc1")], []);
 
         Assert.AreEqual(0, result.Joined.Count);
         Assert.AreEqual(1, result.Errors.Count);
@@ -46,7 +46,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void MultiplePagesForSameUnmatchedDoc_OnlyReportsErrorOnce()
     {
-        var result = Joiner.Join([Page("doc1", 0), Page("doc1", 1)], []);
+        var result = CsvJoiner.Join([Page("doc1", 0), Page("doc1", 1)], []);
 
         Assert.AreEqual(1, result.Errors.Count);
     }
@@ -54,7 +54,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void InactiveIndexRecord_PageIsSkippedWithWarning()
     {
-        var result = Joiner.Join([Page("doc1")], [Index("doc1", active: false)]);
+        var result = CsvJoiner.Join([Page("doc1")], [Index("doc1", active: false)]);
 
         Assert.AreEqual(0, result.Joined.Count);
         Assert.AreEqual(1, result.DataQualityWarnings.Count);
@@ -65,7 +65,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void InactiveIndexRecord_DoesNotAlsoAppearInSkippedIndexRecords()
     {
-        var result = Joiner.Join([Page("doc1")], [Index("doc1", active: false)]);
+        var result = CsvJoiner.Join([Page("doc1")], [Index("doc1", active: false)]);
 
         // Deliberate: an inactive-but-matched doc counts as "used", so it shouldn't
         // double up in SkippedIndexRecords - it's already tracked via the warning.
@@ -75,7 +75,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void MultiplePagesForSameInactiveDoc_CountsEachPageButWarnsOnce()
     {
-        var result = Joiner.Join([Page("doc1", 0), Page("doc1", 1)], [Index("doc1", active: false)]);
+        var result = CsvJoiner.Join([Page("doc1", 0), Page("doc1", 1)], [Index("doc1", active: false)]);
 
         Assert.AreEqual(2, result.InactivePagesSkipped);
         Assert.AreEqual(1, result.DataQualityWarnings.Count);
@@ -84,7 +84,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void IndexRecordWithNoMatchingPages_IsSkipped()
     {
-        var result = Joiner.Join([], [Index("doc1")]);
+        var result = CsvJoiner.Join([], [Index("doc1")]);
 
         Assert.AreEqual(1, result.SkippedIndexRecords.Count);
         Assert.AreEqual("doc1", result.SkippedIndexRecords[0].DocumentId);
@@ -93,7 +93,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void DuplicateIndexDocumentId_KeepsFirstOccurrenceAndWarnsOnce()
     {
-        var result = Joiner.Join(
+        var result = CsvJoiner.Join(
             [Page("doc1")],
             [Index("doc1", documentTypeName: "First"), Index("doc1", documentTypeName: "Second")]);
 
@@ -107,7 +107,7 @@ public class CsvJoinerTests
     {
         var index = Enumerable.Range(0, 50).Select(_ => Index("doc1")).ToList();
 
-        var result = Joiner.Join([Page("doc1")], index);
+        var result = CsvJoiner.Join([Page("doc1")], index);
 
         Assert.AreEqual(1, result.DataQualityWarnings.Count);
     }
@@ -115,7 +115,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void DocumentIdMatching_IsCaseInsensitive()
     {
-        var result = Joiner.Join([Page("DOC1")], [Index("doc1")]);
+        var result = CsvJoiner.Join([Page("DOC1")], [Index("doc1")]);
 
         Assert.AreEqual(1, result.Joined.Count);
     }
@@ -123,7 +123,7 @@ public class CsvJoinerTests
     [TestMethod]
     public void AllPagesForDocument_AreJoinedToSameIndexRecord()
     {
-        var result = Joiner.Join([Page("doc1", 0), Page("doc1", 1), Page("doc1", 2)], [Index("doc1")]);
+        var result = CsvJoiner.Join([Page("doc1", 0), Page("doc1", 1), Page("doc1", 2)], [Index("doc1")]);
 
         Assert.AreEqual(3, result.Joined.Count);
         Assert.IsTrue(result.Joined.All(r => r.DocumentTypeName == "Protocol"));
@@ -145,7 +145,7 @@ public class CsvJoinerTests
             Index("orphan", active: true), // no pages -> skipped
         };
 
-        var result = Joiner.Join(pages, index);
+        var result = CsvJoiner.Join(pages, index);
 
         Assert.AreEqual(1, result.Joined.Count);
         Assert.AreEqual("matched", result.Joined[0].DocumentId);
