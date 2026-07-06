@@ -150,7 +150,7 @@ public static class CsvJoiner
         {
             if (!indexByDocId.TryAdd(record.DocumentId, record) && alreadyWarned.Add(record.DocumentId))
             {
-                result.AddToInactive(new JoinError
+                result.AddToDuplicates(new JoinError
                 {
                     DocumentId = record.DocumentId,
                     Message    = $"Duplicate DOCUMENT_ID '{record.DocumentId}' in index — kept the first occurrence.",
