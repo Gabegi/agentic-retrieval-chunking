@@ -77,6 +77,7 @@ public static class CsvExtractor
         return result;
     }
 
+//  CsvHelper has better parsing features than Microsoft TextFieldParser 
     private static CsvReader OpenCsv(Stream stream, params string[] requiredColumns)
     {
         var csv = new CsvReader(new StreamReader(stream), Config);
@@ -84,6 +85,8 @@ public static class CsvExtractor
         csv.ReadHeader();
 
         // One clear failure beats 11k identical "DOCUMENT_ID is missing" row errors.
+        // if requiredColumns "DOCUMENT_ID", "TITLE", "QUICK_CODE", "FOLDER_MINI_FULL_PATH",
+        //    "LAST_MODIFIED_DATETIME", "PAGE_INDEX", "PAGE_CONTENT"); are missing then it breaks
         var missing = requiredColumns
             .Where(c => csv.HeaderRecord is null
                      || !csv.HeaderRecord.Contains(c, StringComparer.OrdinalIgnoreCase))
