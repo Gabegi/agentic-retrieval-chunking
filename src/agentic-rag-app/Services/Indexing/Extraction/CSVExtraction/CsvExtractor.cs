@@ -37,18 +37,21 @@ public static class CsvExtractor
         };
     }
 
-    // Reads zenya_pages.csv row by row into PageRecord objects. Each row is parsed
-    // independently: a row that throws (missing DOCUMENT_ID, bad PAGE_INDEX, etc.) is
-    // recorded as an ExtractionError and skipped, not fatal to the whole file. Only a
-    // run of MaxConsecutiveReadFailures unreadable rows in a row aborts the extraction
-    // (see the failureStreak handling below) - one bad row shouldn't sink 11k good ones.
+    // 1. Checks correct headers are there once, up front (EnsureHeadersAreCorrect)
+    // 2. Per row, try to read it (csv.Read()):
+    //      - throws        -> row is unparseable garbage; log an error (no DocumentId), keep going
+    //      - returns false -> no more rows; stop
+    //      - returns true  -> row read OK, go to step 3
+    // 3. Try to build a PageRecord from that row's fields (needs DOCUMENT_ID + valid PAGE_INDEX):
+    //      - succeeds -> add it as a PageRecord
+    //      - fails    -> log it as an ExtractionError, with DocumentId if we could read one
     public static ExtractionResult<PageRecord> ExtractPages(Stream stream)
     {
         var result = new ExtractionResult<PageRecord>();
         using var csv = EnsureHeadersAreCorrect(stream, PagesRequiredHeaders);
 
         int rowNumber = 1, failureStreak = 0;
-        while (true)
+        while (true) // always runs, even if one row fails
         {
             bool hasRow;
             try
