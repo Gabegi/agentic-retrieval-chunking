@@ -14,13 +14,23 @@ namespace ProtocolsIndexer.Services;
 // a page with no matching index record is an Error; an
 // index record with no matching pages is tracked separately (SkippedIndexRecords); a
 // duplicate DOCUMENT_ID in the index is a DataQualityWarning (first occurrence wins).
+
+// Potential outcomes
+    // Matched + Active → AddJoined → the only bucket that continues to DataCleaner. This is your "data + metadata both present" set.
+    // NotFound → AddError → tracked, not joined. Whether that then gets written to blob for tracking is a caller decision outside this method — Join() just classifies it.
+    // Inactive → AddDataQualityWarning + skip count → same idea, tracked but excluded from joined output.
+    // Index record, zero matching pages → AddSkippedIndexRecord → tracked separately.
 public static class CsvJoiner
 {
+    private enum MatchStatus { NotFound, Inactive, Matched }
+
+    private readonly record struct PageMatch(string DocumentId, MatchStatus Status, JoinedPageRecord? Joined);
+
     public static JoinResult Join(IReadOnlyList<PageRecord> pages, IReadOnlyList<IndexRecord> index)
     {
         var result = new JoinResult();
 
-        var uniqueIndex = FindUniqueIDinIndex(index, result);
+        var uniqueIndex = BuildIndexLookup(index, result);
 
         // OrdinalIgnoreCase: we don't have confirmation that DOCUMENT_ID values are
         // consistently cased across the two source files (see docs/data-questions.md).
@@ -31,7 +41,10 @@ public static class CsvJoiner
         var alreadyReported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var page in pages)
-            MatchPageToIndex(page, uniqueIndex, result, matchedDocIds, alreadyReported);
+        {
+            var match = MatchPageWithIndexOnID(page, uniqueIndex);
+            SetPageResult(match, result, matchedDocIds, alreadyReported);
+        }
 
         // Iterate uniqueIndex.Values, not the raw index list - a duplicate DOCUMENT_ID
         // that never matches any page would otherwise get added to SkippedIndexRecords
@@ -39,7 +52,7 @@ public static class CsvJoiner
         foreach (var indexRecord in uniqueIndex.Values)
         {
             if (!matchedDocIds.Contains(indexRecord.DocumentId))
-                result.AddSkippedIndexRecord(indexRecord);
+                result.AddToIndexWithoutPages(indexRecord);
         }
 
         return result;
@@ -47,20 +60,23 @@ public static class CsvJoiner
 
     // matches pages with index based on Document_id.
     // Page is dropped if no match is found, or if ACTIVE=False
-    private static PageMatch MatchPageToIndexBasedOnId(PageRecord page, Dictionary<string, IndexRecord> uniqueIndex)
+    private static PageMatch MatchPageWithIndexOnID(PageRecord page, Dictionary<string, IndexRecord> uniqueIndex)
     {
+        // NotFound = Document ID doesn't match any in the index
         if (!uniqueIndex.TryGetValue(page.DocumentId, out var indexRecord))
             return new PageMatch(page.DocumentId, MatchStatus.NotFound, Joined: null);
 
+        // Inactive = Valid Document ID but Index is set as Inactive
         if (!indexRecord.Active)
             return new PageMatch(page.DocumentId, MatchStatus.Inactive, Joined: null);
 
+        // Matched = Matching Document ID and Active
         return new PageMatch(page.DocumentId, MatchStatus.Matched, ToJoinedRecord(page, indexRecord));
     }
 
     // Applies a PageMatch to the running JoinResult and bookkeeping sets.
-    // Split from MatchPageToIndex so the lookup logic stays a pure function of (page, index).
-    private static void ApplyMatch(
+    // Split from MatchPageWithIndexOnID so the lookup logic stays a pure function of (page, index).
+    private static void SetPageResult(
         PageMatch match, JoinResult result, HashSet<string> matchedDocIds, HashSet<string> alreadyReported)
     {
         switch (match.Status)
@@ -87,7 +103,7 @@ public static class CsvJoiner
     private static void ApplyNotFound(PageMatch match, JoinResult result, HashSet<string> alreadyReported)
     {
         if (alreadyReported.Add(match.DocumentId))
-            result.AddError(new JoinError
+            result.AddToNotFound(new JoinError
             {
                 DocumentId = match.DocumentId,
                 Message    = $"No index record found for document {match.DocumentId}.",
@@ -99,7 +115,7 @@ public static class CsvJoiner
     {
         result.CountInactivePageSkipped();
         if (alreadyReported.Add(match.DocumentId))
-            result.AddDataQualityWarning(new JoinError
+            result.AddToInactive(new JoinError
             {
                 DocumentId = match.DocumentId,
                 Message    = "Document is marked inactive in the index — pages skipped.",
@@ -126,14 +142,15 @@ public static class CsvJoiner
 
     // Builds the DOCUMENT_ID -> IndexRecord lookup Join matches pages against, warning
     // on (and skipping) any duplicate DOCUMENT_ID rather than throwing.
-    private static Dictionary<string, IndexRecord> FindUniqueIDinIndex(IReadOnlyList<IndexRecord> index, JoinResult result)
+    private static Dictionary<string, IndexRecord> BuildIndexLookup(IReadOnlyList<IndexRecord> index, JoinResult result)
     {
-        var indexByDocId = new Dictionary<string, IndexRecord>(StringComparer.OrdinalIgnoreCase);
+        var indexByDocId  = new Dictionary<string, IndexRecord>(StringComparer.OrdinalIgnoreCase);
+        var alreadyWarned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var record in index)
         {
-            if (!indexByDocId.TryAdd(record.DocumentId, record))
+            if (!indexByDocId.TryAdd(record.DocumentId, record) && alreadyWarned.Add(record.DocumentId))
             {
-                result.AddDataQualityWarning(new JoinError
+                result.AddToInactive(new JoinError
                 {
                     DocumentId = record.DocumentId,
                     Message    = $"Duplicate DOCUMENT_ID '{record.DocumentId}' in index — kept the first occurrence.",

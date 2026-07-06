@@ -15,8 +15,9 @@ public class JoinResult
     public int InactivePagesSkipped { get; private set; }
 
     internal void AddJoined(JoinedPageRecord r)       => _joined.Add(r);
-    internal void AddError(JoinError e)               => _errors.Add(e);
-    internal void AddDataQualityWarning(JoinError w)  => _dataQualityWarnings.Add(w);
-    internal void AddSkippedIndexRecord(IndexRecord r) => _skippedIndexRecords.Add(r);
+    internal void AddToNotFound(JoinError e)               => _errors.Add(e);
+    internal void AddToInactive(JoinError w)  => _dataQualityWarnings.Add(w);
+    internal void AddToDuplicates(JoinError w) => _dataQualityWarnings.Add(w);
+    internal void AddToIndexWithoutPages(IndexRecord r) => _skippedIndexRecords.Add(r);
     internal void CountInactivePageSkipped()           => InactivePagesSkipped++;
 }
