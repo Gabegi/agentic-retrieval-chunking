@@ -18,6 +18,16 @@ public static class CsvExtractor
     {
         Delimiter       = ",",
         HasHeaderRecord = true,
+
+        // CsvHelper's own GetField("DOCUMENT_ID") name lookup is case-sensitive by
+        // default - EnsureHeadersAreCorrect validating with StringComparer.OrdinalIgnoreCase
+        // doesn't change that, since it's a separate manual scan over the raw
+        // HeaderRecord. Without this, a file with "Document_Id" instead of
+        // "DOCUMENT_ID" would pass the up-front header check and then fail to resolve
+        // on every single GetField call - the exact all-rows failure that check
+        // exists to prevent. Normalizing both sides to uppercase makes CsvHelper's
+        // own matching genuinely case-insensitive too.
+        PrepareHeaderForMatch = args => args.Header.ToUpperInvariant(),
     };
 
     // csv.Read() itself can throw on rows the parser can't recover from; a bounded
@@ -149,9 +159,18 @@ public static class CsvExtractor
     // Shared by both ExtractPages and ExtractIndex - DOCUMENT_ID is the join key
     // CsvJoiner matches pages to index rows on, so an empty one makes the row
     // useless downstream regardless of which file it came from.
+    //
+    // Trim() matters here specifically because CsvJoiner keys its lookup dictionary
+    // on this value via plain string equality (record.DocumentId / page.DocumentId,
+    // no normalization at the join site itself) - so "abc123" from one file and
+    // "abc123 " (stray trailing space) from the other would compare unequal and
+    // fail to match, even though they're the same document. Trimming once here,
+    // at the single choke point both ExtractPages and ExtractIndex go through,
+    // guarantees both sides of the join always compare on the same normalized
+    // value - fixing it at either individual call site wouldn't cover the other.
     private static string RequireDocumentId(CsvReader csv)
     {
-        var docId = csv.GetField("DOCUMENT_ID") ?? "";
+        var docId = (csv.GetField("DOCUMENT_ID") ?? "").Trim();
         if (string.IsNullOrWhiteSpace(docId))
             throw new FormatException("DOCUMENT_ID is missing or empty.");
         return docId;
@@ -177,6 +196,25 @@ public static class CsvExtractor
         return int.TryParse(csv.GetField("REVISION"), out var revision) ? $"{version}.{revision}" : version;
     }
 
+    // ACTIVE has no required-column entry, so a genuinely missing value silently
+    // defaults to active - this field simply doesn't appear in every export, and
+    // that's fine. But a value that IS present and just doesn't parse as
+    // "true"/"false" (e.g. the export switching to "0"/"1", "Y"/"N", or Dutch
+    // "ja"/"nee") is a different problem: Active is the one thing keeping withdrawn
+    // protocols out of the search index, so silently guessing "active" for garbled
+    // data fails in exactly the wrong direction and would do so with zero signal.
+    // That case throws instead, same as any other row-level validation failure -
+    // it rejects the row (logged as an ExtractionError) rather than defaulting
+    // through it unnoticed.
+    private static bool ParseActive(CsvReader csv)
+    {
+        var raw = csv.GetField("ACTIVE");
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+        if (!bool.TryParse(raw, out var active))
+            throw new FormatException($"ACTIVE '{raw}' is not a valid true/false value.");
+        return active;
+    }
+
     // Reads zenya_index.csv row by row into IndexRecord objects - the document-level
     // metadata (title/version/summary/etc.) that CsvJoiner later attaches to every
     // page of the matching DOCUMENT_ID from ExtractPages. Same per-row error handling
@@ -194,9 +232,6 @@ public static class CsvExtractor
             rowNumber++;
             try
             {
-                // ACTIVE has no required-column entry - unlike a missing DOCUMENT_ID,
-                // there's a safe default (treat unparseable/absent as active) rather
-                // than a reason to fail the row.
                 result.AddRecord(new IndexRecord
                 {
                     DocumentId        = RequireDocumentId(csv),
@@ -205,7 +240,7 @@ public static class CsvExtractor
                     Version           = FormatVersion(csv),
                     CheckDateRaw      = csv.GetField("CHECK_DATE") ?? "",
                     AttentionFlagsRaw = csv.GetField("ATTENTION_REQUIRED_FLAGS") ?? "",
-                    Active            = !bool.TryParse(csv.GetField("ACTIVE"), out var active) || active,  // unparseable/missing → assume active
+                    Active            = ParseActive(csv),
                 });
             }
             catch (Exception ex)
