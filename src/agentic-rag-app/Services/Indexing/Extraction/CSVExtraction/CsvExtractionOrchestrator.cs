@@ -126,7 +126,11 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         // straight to blob - unlike the Issues returned below, this never passes through the
         // Durable Table Storage-backed activity return, so it isn't subject to the 100-item cap.
         if (_reportWriter.IsEnabled)
-            await _reportWriter.WriteJoinIssuesAsync(report.Issues, DateTimeOffset.UtcNow, ct);
+        {
+            var runAt = DateTimeOffset.UtcNow;
+            await _reportWriter.WriteReportAsync(
+                $"indexing/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-join-issues.json", report.Issues, ct);
+        }
 
         foreach (var warning in report.MagnitudeWarnings)
             _logger.LogWarning("{Warning}", warning);
