@@ -211,4 +211,27 @@ public class PipelineValidatorTests
 
         Assert.AreEqual(0, report.MagnitudeWarnings.Count);
     }
+
+    [TestMethod]
+    public void AllPagesInactive_ZeroCleanedRecords_FailsEvenWithNoOtherErrors()
+    {
+        // Every row parses fine and the index matches - the only reason cleanResult ends
+        // up empty is that the sole document is inactive. errorRate would be 0% and there's
+        // no previous-run baseline for the magnitude check to compare against, so without
+        // the explicit zero-records guard this would pass vacuously with nothing indexed.
+        var pages = CsvExtractor.ExtractPages(ToStream(
+            PagesHeader + "\n" +
+            "doc1,Title,QC,Folder,20240101120000,0,Some content,rel,nl-NL\n"));
+        var index = CsvExtractor.ExtractIndex(ToStream(
+            IndexHeader + "\n" +
+            "doc1,Protocol,Summary,7,0,,[],false\n"));
+        var join  = CsvJoiner.Join(pages.Records, index.Records);
+        var clean = DataCleaner.Clean(join.Joined);
+
+        var report = PipelineValidator.Validate(pages, index, join, clean);
+
+        Assert.AreEqual(0, clean.Records.Count);
+        Assert.IsFalse(report.Passed);
+        Assert.IsTrue(report.ReconciliationProblems.Any(p => p.Contains("Zero cleaned records")));
+    }
 }
