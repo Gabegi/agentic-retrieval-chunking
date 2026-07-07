@@ -169,13 +169,10 @@ resource "azurerm_private_endpoint" "stfunc_file" {
     is_manual_connection           = false
   }
 
-  # Commented out until the platform team links cor-vnet-cap-dev-we-001 to
-  # privatelink.file.core.windows.net (docs/platform-team-dns-verzoek.md) -
-  # this is the zone that's actually blocking the content-share mount today.
-  # private_dns_zone_group {
-  #   name                 = "default"
-  #   private_dns_zone_ids = [data.azurerm_private_dns_zone.file.id]
-  # }
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [data.azurerm_private_dns_zone.file.id]
+  }
 
   tags = local.common_tags
 }
