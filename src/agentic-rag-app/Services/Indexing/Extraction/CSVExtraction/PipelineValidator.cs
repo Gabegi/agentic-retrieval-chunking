@@ -121,17 +121,6 @@ public static class PipelineValidator
                     DocumentId = record.DocumentId,
                     Message    = $"Page {record.PageIndex}: {replacementCount} U+FFFD char(s) — source text is corrupted." });
 
-            foreach (var (pattern, fix) in KnownMojibakePatterns)
-            {
-                if (record.PageContent.Contains(pattern))
-                {
-                    issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
-                        DocumentId = record.DocumentId,
-                        Message    = $"Page {record.PageIndex}: possible mojibake '{pattern}' (expected '{fix}')." });
-                    break;   // one mojibake warning per page is enough
-                }
-            }
-
             if (!string.IsNullOrEmpty(record.Language) &&
                 !record.Language.StartsWith("nl", StringComparison.OrdinalIgnoreCase))
                 issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
