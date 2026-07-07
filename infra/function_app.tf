@@ -32,7 +32,7 @@ resource "azurerm_windows_function_app" "indexer" {
   # access, so it opens a scoped Allow rule on the SCM site for its own
   # runner IP via `az functionapp config access-restriction add`
   # immediately before the zip deploy, then removes it again immediately
-  # after - see 3-deploy-application.yml.
+  # after - see 4-deploy-application.yml.
   public_network_access_enabled = true
   # storage_uses_managed_identity only covers AzureWebJobsStorage/Durable
   # Functions (blob/queue/table). The EP1 plan's content share still needs a
