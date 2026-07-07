@@ -34,6 +34,16 @@ public static class DataCleaner
     private static readonly Regex ExcessBlankLines =
         new(@"\n{3,}", RegexOptions.Compiled);
 
+    // Windows-1252/UTF-8 mis-decodes seen in Zenya's source exports. Dutch text is full
+    // of accented characters (é, ë, ï, ü) and curly quotes, so this class of corruption
+    // is common here. Checked in order; longer patterns first so "â€œ" isn't left
+    // half-replaced as a prefix match.
+    private static readonly (string Pattern, string Fix)[] KnownMojibakePatterns =
+    [
+        ("â€™", "'"), ("â€œ", "\""), ("â€", "\""), ("â€“", "–"), ("â€”", "—"),
+        ("Ã«", "ë"), ("Ã©", "é"), ("Ã¯", "ï"), ("Ã¼", "ü"),
+    ];
+
     // Entry point. Walks all pages, skipping duplicates (same DocumentId +
     // PageIndex) and converting each remaining page to a CleanedPageRecord.
     // Parse failures are collected as errors; empty content only warns.
