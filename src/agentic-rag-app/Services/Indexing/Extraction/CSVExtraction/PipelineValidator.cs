@@ -79,6 +79,16 @@ public static class PipelineValidator
                 $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored + " +
                 $"{cleanResult.DuplicatePagesSkipped} duplicate-skipped.");
 
+        // 2b. Zero cleaned records is never a legitimate outcome, even an export where
+        // every document happens to be inactive. Unlike the magnitude-shift check below,
+        // this fires with no previous-run baseline required — a first-ever run (or a run
+        // right after a lost/corrupt state blob) shouldn't be able to sail through empty.
+        // Folded into reconciliation (not magnitude) so overrideMagnitudeCheck can never
+        // bypass it — see the magnitude-shift comment below on why an empty run is
+        // dangerous downstream (the diff step deletes anything "missing").
+        if (cleanResult.Records.Count == 0)
+            reconciliation.Add("Zero cleaned records produced — refusing to pass an empty run.");
+
         // 3. Magnitude shift vs a previous run, if supplied.
         if (previousRunCleanedCount is int previous && previous > 0)
         {
@@ -90,6 +100,10 @@ public static class PipelineValidator
         }
 
         // 4. Referential integrity: no duplicate (DocumentId, PageIndex) in the final output.
+        // Defense-in-depth, not reachable today — DataCleaner.Clean already dedupes on
+        // this exact key before a record ever reaches cleanResult.Records, so this can
+        // only fire if that upstream guarantee is ever broken. Kept as a cheap invariant
+        // check rather than relied on as live logic.
         var duplicateKeys = cleanResult.Records
             .GroupBy(r => (r.DocumentId, r.PageIndex))
             .Where(g => g.Count() > 1)
