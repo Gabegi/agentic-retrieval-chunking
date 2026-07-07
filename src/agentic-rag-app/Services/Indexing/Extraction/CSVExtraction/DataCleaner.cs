@@ -13,18 +13,20 @@ public static class DataCleaner
 {
     // Standalone "cordaan"/"CORDAAN" logo lines only — lowercase and all-caps are
     // both confirmed logo text; mixed-case "Cordaan" is left untouched since that's
-    // where real prose (org charts, sentences) shows up.
+    // where real prose (org charts, sentences) shows up. Leading/trailing
+    // spaces/tabs around the logo line are tolerated.
     private static readonly Regex CordaanBoilerplate =
-        new(@"^(cordaan|CORDAAN)[ \t]*$\n?", RegexOptions.Multiline | RegexOptions.Compiled);
+        new(@"^[ \t]*(cordaan|CORDAAN)[ \t]*$\n?", RegexOptions.Multiline | RegexOptions.Compiled);
 
     // Markdown image placeholders, e.g. ![alt](path) — carry no text value.
     private static readonly Regex ImagePlaceholder =
         new(@"!\[[^\]]*\]\([^\)]*\)", RegexOptions.Compiled);
 
-    // Literal HTML/XML tags left over after decoding entities (e.g. <br/>,
-    // <concept factuur="" ...>) — HtmlDecode only unescapes entities, it doesn't
-    // strip markup. Requires the first character after '<' (or '</') to be a letter
-    // so stray comparison operators like "a < b" or "1 < 2 > 3" aren't touched.
+    // Literal HTML/XML tags in the *raw* (pre-decode) text (e.g. <br/>,
+    // <concept factuur="" ...>). Applied before HtmlDecode so escaped text like
+    // "&lt;naam&gt;" survives as visible "<naam>" content instead of being
+    // stripped as markup. Requires the first character after '<' (or '</') to be
+    // a letter so stray comparison operators like "a < b" aren't touched.
     private static readonly Regex HtmlTag =
         new(@"<\/?[a-zA-Z][^<>]*>", RegexOptions.Compiled);
 
@@ -54,7 +56,7 @@ public static class DataCleaner
         return result;
     }
 
-        // Records a skipped duplicate page (first occurrence wins).
+    // Records a skipped duplicate page (first occurrence wins).
     private static void ReportDuplicatePage(JoinedPageRecord page, CleanResult result)
     {
         result.CountDuplicateSkipped();
@@ -71,7 +73,7 @@ public static class DataCleaner
     {
         try
         {
-            var content = CleanPageContent(page.PageContent);
+            var content = CleanPageContent(page.PageContent ?? "");
 
             if (string.IsNullOrWhiteSpace(content))
                 result.AddWarning(new CleaningWarning
@@ -88,63 +90,73 @@ public static class DataCleaner
         }
     }
 
-
-
     // Maps a joined record to its cleaned, typed equivalent:
-    // trims string fields, parses dates and attention flags.
+    // trims string fields (null-safe), parses dates and attention flags.
     private static CleanedPageRecord ToCleanedRecord(JoinedPageRecord page, string content) => new()
     {
         DocumentId       = page.DocumentId,
-        Title            = page.Title.Trim(),
-        QuickCode        = page.QuickCode.Trim(),
-        FolderPath       = page.FolderPath.Trim(),
+        Title            = TrimOrEmpty(page.Title),
+        QuickCode        = TrimOrEmpty(page.QuickCode),
+        FolderPath       = TrimOrEmpty(page.FolderPath),
         LastModified     = ParseDateTime(page.LastModifiedRaw, "yyyyMMddHHmmss", page.DocumentId, "LastModifiedRaw"),
         PageIndex        = page.PageIndex,
         PageContent      = content,
-        Language         = page.Language.Trim(),
-        RelativePath     = page.RelativePath.Trim(),
-        DocumentTypeName = page.DocumentTypeName.Trim(),
-        Summary          = page.Summary.Trim(),
-        Version          = page.Version.Trim(),
+        Language         = TrimOrEmpty(page.Language),
+        RelativePath     = TrimOrEmpty(page.RelativePath),
+        DocumentTypeName = TrimOrEmpty(page.DocumentTypeName),
+        Summary          = TrimOrEmpty(page.Summary),
+        Version          = TrimOrEmpty(page.Version),
         CheckDate        = ParseOptionalDateTime(page.CheckDateRaw, "yyyyMMdd", page.DocumentId, "CheckDateRaw"),
         AttentionFlags   = ParseAttentionFlags(page.AttentionFlagsRaw, page.DocumentId),
     };
 
-    // Normalizes page text: HTML-decode, normalize line endings (before any
-    // \n-dependent regex), strip logo lines, image placeholders and leftover HTML
-    // tags, collapse excess blank lines, trim.
+    // Null-safe trim: a missing source field becomes an empty string
+    // instead of throwing NullReferenceException.
+    private static string TrimOrEmpty(string? value) => value?.Trim() ?? "";
+
+    // Normalizes page text: normalize line endings, strip literal HTML tags
+    // *before* decoding (so escaped markup survives as text), then HTML-decode,
+    // strip logo lines and image placeholders, collapse excess blank lines, trim.
     private static string CleanPageContent(string raw)
     {
-        var text = WebUtility.HtmlDecode(raw);
-        text = text.Replace("\r\n", "\n");
+        var text = raw.Replace("\r\n", "\n");
+        text = HtmlTag.Replace(text, "");
+        text = WebUtility.HtmlDecode(text);
+        // Decoding can emit \r from entities (&#13;); normalize again so the
+        // multiline $ anchors below aren't defeated by stray carriage returns.
+        text = text.Replace("\r\n", "\n").Replace("\r", "\n");
         text = CordaanBoilerplate.Replace(text, "");
         text = ImagePlaceholder.Replace(text, "");
-        text = HtmlTag.Replace(text, "");
         text = ExcessBlankLines.Replace(text, "\n\n");
         return text.Trim();
     }
 
     // Parses a required date in the given exact format; throws FormatException
-    // with document context if it doesn't match.
-    private static DateTime ParseDateTime(string raw, string format, string documentId, string field)
+    // with document context if it doesn't match (a null field also fails here).
+    private static DateTime ParseDateTime(string? raw, string format, string documentId, string field)
     {
         if (!DateTime.TryParseExact(raw, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out var value))
             throw new FormatException($"{field} '{raw}' on document {documentId} is not a valid '{format}' date.");
         return value;
     }
 
-    // Same as ParseDateTime, but empty/whitespace input means "no date" (null).
-    private static DateTime? ParseOptionalDateTime(string raw, string format, string documentId, string field)
+    // Same as ParseDateTime, but empty/whitespace/null input means "no date" (null).
+    private static DateTime? ParseOptionalDateTime(string? raw, string format, string documentId, string field)
         => string.IsNullOrWhiteSpace(raw) ? null : ParseDateTime(raw, format, documentId, field);
 
     // Parses AttentionFlagsRaw as a JSON string array; empty input → empty list,
-    // invalid JSON → FormatException with document context.
-    private static List<string> ParseAttentionFlags(string raw, string documentId)
+    // invalid JSON → FormatException. Null/whitespace-only entries inside the
+    // array are dropped, and remaining entries are trimmed.
+    private static List<string> ParseAttentionFlags(string? raw, string documentId)
     {
         if (string.IsNullOrWhiteSpace(raw)) return [];
         try
         {
-            return JsonSerializer.Deserialize<List<string>>(raw) ?? [];
+            var flags = JsonSerializer.Deserialize<List<string?>>(raw) ?? [];
+            return flags
+                .Where(f => !string.IsNullOrWhiteSpace(f))
+                .Select(f => f!.Trim())
+                .ToList();
         }
         catch (JsonException ex)
         {
