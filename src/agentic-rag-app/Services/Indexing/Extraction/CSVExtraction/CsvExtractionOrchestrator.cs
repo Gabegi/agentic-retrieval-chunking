@@ -94,7 +94,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         if (cleanResult.Errors.Count > 0 || cleanResult.Warnings.Count > 0)
             await WriteStageReportAsync("clean", runAt, new { cleanResult.Errors, cleanResult.Warnings }, ct);
 
-        var (previousCount, previousETag) = await ReadPreviousCleanedCountAsync(ct);
+        var (previousCount, previousETag) = await PreviousRunCount(ct);
         var report = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
 
         // Full, uncapped issue list (NotFound/Inactive/Duplicate/SkippedIndexRecords) written
@@ -226,18 +226,10 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             ? _reportWriter.WriteReportAsync($"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-stage-{stage}.json", payload, ct)
             : Task.CompletedTask;
 
-    // Persisted in the pipeline-internal "pipeline-temp" container, not the CSV drop
-    // container — the CSV container is overwritten by an external Zenya export process
-    // outside this repo, and it's unclear whether that's a scoped overwrite of the two
-    // named CSVs or a wholesale container wipe. Using our own container avoids the state
-    // file silently disappearing before it's ever read back.
-    //
-    // Returns the blob's ETag alongside the count so SaveRunStateAsync can do a
-    // conditional write - nothing serializes concurrent /index calls (see
-    // IndexingFunction.Start, which schedules a fresh orchestration instance per
-    // request with no dedup), so two overlapping runs could otherwise race a
-    // read-then-write and have one silently clobber the other's saved baseline.
-    private async Task<(int? Count, ETag? ETag)> ReadPreviousCleanedCountAsync(CancellationToken ct)
+    // Holds the count of cleaned records from the last successful run
+    // Returns that count
+    // If difference is more than x%, that's flagged and hard failed
+    private async Task<(int? Count, ETag? ETag)> PreviousRunCount(CancellationToken ct)
     {
         var blob = _stateContainer.GetBlobClient(StateBlobName);
         if (!await blob.ExistsAsync(ct)) return (null, null);
