@@ -104,6 +104,30 @@ stages:
                 # informational only, must not fail the task on its own.
                 az account management-group list -o table || echo "(no management group read access - expected, see docs/platform-team-dns-verzoek.md)"
 
+          # Temporary, read-only: confirm what role(s) this SP actually holds
+          # in the hub subscription, and at what scope, before trusting that
+          # the private_dns_zone_group blocks in Terraform (search.tf,
+          # storage.tf, keyvault.tf, function_app.tf) can write A records
+          # into the privatelink zones there. "Someone said it has access" is
+          # not verifiable; a role name + scope from the SP's own token is.
+          # Remove this step once that's confirmed (or once an apply has
+          # actually succeeded end-to-end).
+          - task: AzureCLI@2
+            displayName: 'DIAGNOSTIC: confirm SP role assignments in hub'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az account set --subscription c8e46005-ce0e-4be5-9ded-0178e19fbe28
+                SP_ID=$(az account show --query user.name -o tsv)
+                echo "--- role assignments for this SP in cor-connectivity-prd ---"
+                az role assignment list --assignee "$SP_ID" --all -o table
+                echo "--- role assignments scoped specifically to the DNS zone RG ---"
+                az role assignment list --assignee "$SP_ID" \
+                  --scope "/subscriptions/c8e46005-ce0e-4be5-9ded-0178e19fbe28/resourceGroups/cor-connectivity-dns-prd-we-001" \
+                  --include-inherited -o table
+
           - script: |
               TF_VERSION="1.15.7"
               curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip

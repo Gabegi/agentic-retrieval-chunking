@@ -26,8 +26,13 @@ provider "azurerm" {
   subscription_id = "c8e46005-ce0e-4be5-9ded-0178e19fbe28" # cor-connectivity-prd
   features {}
 
-  # This SP only has read access in the hub subscription (data sources only,
-  # see data.tf) - it can't register resource providers there, and never
-  # needs to since nothing is provisioned through this alias.
+  # This alias itself is only ever used for data sources (see data.tf) - no
+  # resource is provisioned through it directly, so it never needs to
+  # register resource providers in the hub subscription. The SP does also
+  # have write access there now (Private DNS Zone Contributor, confirmed by
+  # the platform team), which is what lets the private_dns_zone_group blocks
+  # on our private endpoints create their A records in the hub zones - that
+  # write happens implicitly via ARM when the zone group is created, not
+  # through this provider alias.
   resource_provider_registrations = "none"
 }
