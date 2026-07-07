@@ -54,6 +54,17 @@ public static class DataCleaner
         return result;
     }
 
+        // Records a skipped duplicate page (first occurrence wins).
+    private static void ReportDuplicatePage(JoinedPageRecord page, CleanResult result)
+    {
+        result.CountDuplicateSkipped();
+        result.AddWarning(new CleaningWarning
+        {
+            DocumentId = page.DocumentId,
+            Message    = $"Duplicate page {page.PageIndex} in source — kept the first occurrence.",
+        });
+    }
+
     // Cleans one page and adds it to the result.
     // Any parse failure (dates, flags) lands in result.Errors for that page only.
     private static void CleanSinglePage(JoinedPageRecord page, CleanResult result)
@@ -77,16 +88,7 @@ public static class DataCleaner
         }
     }
 
-    // Records a skipped duplicate page (first occurrence wins).
-    private static void ReportDuplicatePage(JoinedPageRecord page, CleanResult result)
-    {
-        result.CountDuplicateSkipped();
-        result.AddWarning(new CleaningWarning
-        {
-            DocumentId = page.DocumentId,
-            Message    = $"Duplicate page {page.PageIndex} in source — kept the first occurrence.",
-        });
-    }
+
 
     // Maps a joined record to its cleaned, typed equivalent:
     // trims string fields, parses dates and attention flags.
