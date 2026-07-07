@@ -25,6 +25,11 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     private const string IndexBlobName = "zenya_index.csv";
     private const string StateBlobName = "csv-extraction-state.json";
 
+    // Folder segment namespacing every report blob this orchestrator writes, so a
+    // future second IExtractionOrchestrator (e.g. PDF) writing to the same
+    // "telemetry-reports" container doesn't mix its blobs in with these.
+    private const string ReportFolder = "indexing/csv-extraction";
+
     // Caps how many individual validation issues get their own log line. A badly
     // malformed file can produce thousands of near-identical issues - real log
     // volume/cost at that point, not useful signal. This is separate from the
