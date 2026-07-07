@@ -125,10 +125,13 @@ resource "azurerm_private_endpoint" "stfunc_queue" {
     is_manual_connection           = false
   }
 
-  private_dns_zone_group {
-    name                 = "default"
-    private_dns_zone_ids = [data.azurerm_private_dns_zone.queue.id]
-  }
+  # Commented out until the platform team creates privatelink.queue.core.windows.net
+  # in the hub - confirmed 2026-07-07 it doesn't exist there at all yet (not
+  # just an unlinked zone). Uncomment once it exists (data.tf).
+  # private_dns_zone_group {
+  #   name                 = "default"
+  #   private_dns_zone_ids = [data.azurerm_private_dns_zone.queue.id]
+  # }
 
   tags = local.common_tags
 }
@@ -147,10 +150,13 @@ resource "azurerm_private_endpoint" "stfunc_table" {
     is_manual_connection           = false
   }
 
-  private_dns_zone_group {
-    name                 = "default"
-    private_dns_zone_ids = [data.azurerm_private_dns_zone.table.id]
-  }
+  # Commented out until the platform team creates privatelink.table.core.windows.net
+  # in the hub - confirmed 2026-07-07 it doesn't exist there at all yet (not
+  # just an unlinked zone). Uncomment once it exists (data.tf).
+  # private_dns_zone_group {
+  #   name                 = "default"
+  #   private_dns_zone_ids = [data.azurerm_private_dns_zone.table.id]
+  # }
 
   tags = local.common_tags
 }
