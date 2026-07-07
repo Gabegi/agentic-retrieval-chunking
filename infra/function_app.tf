@@ -39,14 +39,12 @@ resource "azurerm_windows_function_app" "indexer" {
   # key-based connection string - Azure Files/SMB has no managed-identity
   # auth path - plus WEBSITE_CONTENTOVERVNET so the platform reaches it via
   # the private endpoint (azurerm_private_endpoint.stfunc_file in storage.tf)
-  # instead of the public endpoint. This is currently broken (see
-  # docs/platform-team-dns-verzoek.md) - the DNS zone group for that private
-  # endpoint isn't attached yet, so the content-share mount fails. We tried a
+  # instead of the public endpoint. That private endpoint now has its
+  # private_dns_zone_group attached (storage.tf). We previously tried a
   # public-endpoint + trusted-service-bypass workaround; reverted it, since
   # Azure Files mounts over SMB (445), and the VNet's vnet_route_all_enabled
   # forces that through the hub firewall too - opening the storage account
-  # alone doesn't help if that firewall blocks 445 outbound. Nothing to do
-  # here until the platform team attaches the zone group.
+  # alone doesn't help if that firewall blocks 445 outbound.
 
   identity {
     type = "SystemAssigned"
