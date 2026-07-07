@@ -103,7 +103,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         if (_reportWriter.IsEnabled)
         {
             await _reportWriter.WriteReportAsync(
-                $"indexing/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-join-issues.json", report.Issues, ct);
+                $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-join-issues.json", report.Issues, ct);
         }
 
         foreach (var warning in report.MagnitudeWarnings)
@@ -223,7 +223,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     // leave behind four empty blobs per execution.
     private Task WriteStageReportAsync(string stage, DateTimeOffset runAt, object payload, CancellationToken ct) =>
         _reportWriter.IsEnabled
-            ? _reportWriter.WriteReportAsync($"indexing/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-stage-{stage}.json", payload, ct)
+            ? _reportWriter.WriteReportAsync($"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-stage-{stage}.json", payload, ct)
             : Task.CompletedTask;
 
     // Persisted in the pipeline-internal "pipeline-temp" container, not the CSV drop
