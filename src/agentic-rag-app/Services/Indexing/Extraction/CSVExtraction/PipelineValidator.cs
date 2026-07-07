@@ -187,7 +187,11 @@ public static class PipelineValidator
 
         // 9. Pass/fail. Denominator is every row attempted across both inputs — parse errors
         // from the index file count against the same budget they're measured by.
-        var errorCount     = issues.Count(i => i.Severity == "Error") + reconciliation.Count;
+        // reconciliation.Count is deliberately NOT folded in here: a reconciliation problem
+        // is a pipeline-integrity assertion, not a per-row issue, so mixing it into a
+        // rows-denominated rate would compare different units. It's already an
+        // unconditional hard gate via reconciliation.Count == 0 below, regardless of rate.
+        var errorCount     = issues.Count(i => i.Severity == "Error");
         var totalAttempted = pagesExtraction.RowsAttempted + indexExtraction.RowsAttempted;
         var errorRate      = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
         var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
