@@ -27,10 +27,10 @@ resource "azurerm_private_endpoint" "search" {
     is_manual_connection           = false
   }
 
-  # No private_dns_zone_group here yet: privatelink.search.windows.net
-  # doesn't exist in the hub at all (cor-connectivity-dns-prd-we-001) - the
-  # platform team needs to create the zone first, not just link/attach it
-  # (docs/platform-team-dns-verzoek.md).
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [data.azurerm_private_dns_zone.search.id]
+  }
 
   tags = local.common_tags
 }

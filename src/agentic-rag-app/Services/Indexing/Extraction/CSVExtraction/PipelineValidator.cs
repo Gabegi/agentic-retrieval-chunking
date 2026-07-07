@@ -22,35 +22,11 @@ public static class PipelineValidator
         CleanResult                   cleanResult,
         int?                          previousRunCleanedCount = null)
     {
-        var issues        = new List<ValidationIssue>();
         var reconciliation = new List<string>();
         var magnitude     = new List<string>();
         var redFlags      = new List<string>();
 
-        // 1. Aggregate every error/warning bucket into one place.
-        issues.AddRange(pagesExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"Row {e.RowNumber}: {e.Message}" }));
-        issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"Row {e.RowNumber}: {e.Message}" }));
-        issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue
-            { Stage = "Join", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
-        issues.AddRange(joinResult.DataQualityWarnings.Select(w => new ValidationIssue
-            { Stage = "Join", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
-        issues.AddRange(cleanResult.Errors.Select(e => new ValidationIssue
-            { Stage = "Clean", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
-        issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue
-            { Stage = "Clean", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
-
-        // 1b. Index documents with no pages never reach the search index — make that visible.
-        issues.AddRange(joinResult.SkippedIndexRecords.Select(r => new ValidationIssue
-        {
-            Stage      = "Join",
-            Severity   = "Warning",
-            DocumentId = r.DocumentId,
-            Message    = "Index record has no pages — document will not be indexed.",
-        }));
-        if (joinResult.SkippedIndexRecords.Count > 0)
-            redFlags.Add($"{joinResult.SkippedIndexRecords.Count} index document(s) have no pages and will not be indexed.");
+        var issues = CollectIssues(pagesExtraction, indexExtraction, joinResult, cleanResult, redFlags);
 
         // 2. Reconcile counts across step boundaries.
         // Join dedupes its error log per DOCUMENT, not per page — recompute the real
@@ -203,5 +179,42 @@ public static class PipelineValidator
             Passed                        = passed,
             PassedExcludingMagnitude      = passedExcludingMagnitude,
         };
+    }
+
+    // 1. Aggregate every error/warning bucket into one place.
+    private static List<ValidationIssue> CollectIssues(
+        ExtractionResult<PageRecord>  pagesExtraction,
+        ExtractionResult<IndexRecord> indexExtraction,
+        JoinResult                    joinResult,
+        CleanResult                   cleanResult,
+        List<string>                  redFlags)
+    {
+        var issues = new List<ValidationIssue>();
+
+        issues.AddRange(pagesExtraction.Errors.Select(e => new ValidationIssue
+            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"Row {e.RowNumber}: {e.Message}" }));
+        issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue
+            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"Row {e.RowNumber}: {e.Message}" }));
+        issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue
+            { Stage = "Join", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
+        issues.AddRange(joinResult.DataQualityWarnings.Select(w => new ValidationIssue
+            { Stage = "Join", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
+        issues.AddRange(cleanResult.Errors.Select(e => new ValidationIssue
+            { Stage = "Clean", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
+        issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue
+            { Stage = "Clean", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
+
+        // 1b. Index documents with no pages never reach the search index — make that visible.
+        issues.AddRange(joinResult.SkippedIndexRecords.Select(r => new ValidationIssue
+        {
+            Stage      = "Join",
+            Severity   = "Warning",
+            DocumentId = r.DocumentId,
+            Message    = "Index record has no pages — document will not be indexed.",
+        }));
+        if (joinResult.SkippedIndexRecords.Count > 0)
+            redFlags.Add($"{joinResult.SkippedIndexRecords.Count} index document(s) have no pages and will not be indexed.");
+
+        return issues;
     }
 }

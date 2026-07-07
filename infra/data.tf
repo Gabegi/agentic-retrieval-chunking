@@ -61,16 +61,11 @@ data "azurerm_resource_group" "data" {
 }
 
 # --- Private DNS zones (hub, owned by platform team) -----------------------
-# Confirmed via the diagnostic step in 1-infra-deploy.yml (subscription
-# cor-connectivity-prd, RG cor-connectivity-dns-prd-we-001). This is the
-# *complete* zone list in that RG - there is no queue/table/search.windows.net
-# zone at all, so stfunc_queue/stfunc_table/search private endpoints have no
-# zone to attach to yet (a bigger ask than the others - the zone itself would
-# need to be created, not just linked). None of these 7 zones has a virtual
-# network link to our VNet (cor-vnet-cap-dev-we-001) either - see
-# docs/platform-team-dns-verzoek.md. Adding these data sources doesn't fix
-# DNS by itself; it gets the zone IDs into code for when the VNet link and
-# private_dns_zone_group wiring happen.
+# Subscription cor-connectivity-prd, RG cor-connectivity-dns-prd-we-001. The
+# queue/table/search.windows.net zones (previously missing entirely - see
+# docs/platform-team-dns-verzoek.md) now exist, so every private endpoint in
+# this repo has a private_dns_zone_group attached directly rather than
+# waiting on the platform team's policy-based remediation.
 
 data "azurerm_private_dns_zone" "azurewebsites" {
   provider            = azurerm.hub
@@ -93,6 +88,24 @@ data "azurerm_private_dns_zone" "file" {
 data "azurerm_private_dns_zone" "vaultcore" {
   provider            = azurerm.hub
   name                = "privatelink.vaultcore.azure.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "queue" {
+  provider            = azurerm.hub
+  name                = "privatelink.queue.core.windows.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "table" {
+  provider            = azurerm.hub
+  name                = "privatelink.table.core.windows.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "search" {
+  provider            = azurerm.hub
+  name                = "privatelink.search.windows.net"
   resource_group_name = "cor-connectivity-dns-prd-we-001"
 }
 
