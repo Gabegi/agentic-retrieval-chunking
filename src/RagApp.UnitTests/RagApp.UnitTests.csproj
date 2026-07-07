@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
     <PackageReference Include="MSTest.TestAdapter"      Version="3.*" />
     <PackageReference Include="MSTest.TestFramework"     Version="3.*" />
+    <PackageReference Include="Moq"                      Version="4.*" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\agentic-rag-app\ProtocolsIndexer.csproj" />
