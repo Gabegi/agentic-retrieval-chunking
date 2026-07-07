@@ -223,7 +223,7 @@ public class PipelineValidatorTests
             PagesHeader + "\n" +
             "doc1,Title,QC,Folder,20240101120000,0,Some content,rel,nl-NL\n"));
         var index = CsvExtractor.ExtractIndex(ToStream(
-            IndexHeader + "\n" +
+            IndexHeader + ",ACTIVE\n" +
             "doc1,Protocol,Summary,7,0,,[],false\n"));
         var join  = CsvJoiner.Join(pages.Records, index.Records);
         var clean = DataCleaner.Clean(join.Joined);
