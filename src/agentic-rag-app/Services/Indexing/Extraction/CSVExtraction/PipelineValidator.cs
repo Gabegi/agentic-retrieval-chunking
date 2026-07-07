@@ -10,13 +10,6 @@ public static class PipelineValidator
     private const int    SpotCheckSampleSize                = 5;
     private const char   ReplacementChar                    = '�';
 
-    // Checked in order; longer patterns first so "â€œ" isn't double-reported by a prefix.
-    private static readonly (string Pattern, string Fix)[] KnownMojibakePatterns =
-    [
-        ("â€™", "'"), ("â€œ", "\""), ("â€", "\""), ("â€“", "–"), ("â€”", "—"),
-        ("Ã«", "ë"), ("Ã©", "é"), ("Ã¯", "ï"), ("Ã¼", "ü"),
-    ];
-
     private static readonly Regex MarkdownHeading =
         new(@"^#{1,6}\s", RegexOptions.Multiline | RegexOptions.Compiled);
     private static readonly Regex MarkdownTableLine =
