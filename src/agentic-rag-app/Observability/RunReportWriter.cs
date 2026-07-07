@@ -17,11 +17,8 @@ public class RunReportWriter : IRunReportWriter
         IsEnabled  = env.IsDevelopment();
     }
 
-    public Task WriteQueryReportAsync(QueryRunReport report, CancellationToken ct = default) =>
-        WriteAsync($"queries/{report.Timestamp:yyyy/MM/dd}/{report.RunId}.json", report, ct);
-
-    public Task WriteIndexReportAsync(IndexRunReport report, CancellationToken ct = default) =>
-        WriteAsync($"indexing/{report.StartedAt:yyyy/MM/dd}/{report.InstanceId}.json", report, ct);
+    public Task WriteReportAsync<T>(string path, T report, CancellationToken ct = default) =>
+        WriteAsync(path, report, ct);
 
     private const string LastIndexStatsPath = "indexing/_last-stats.json";
 
