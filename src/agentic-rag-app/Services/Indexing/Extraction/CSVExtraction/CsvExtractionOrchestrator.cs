@@ -48,6 +48,10 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
 
     public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
+        // Shared by every blob write below (per-stage and combined) so a single run's
+        // artifacts land together under the same indexing/{date}/{time}-* prefix.
+        var runAt = DateTimeOffset.UtcNow;
+
         // Stream directly from blob storage instead of buffering the whole file into a
         // MemoryStream first - CsvExtractor only ever reads forward through the stream
         // once, so there's nothing gained by holding the entire file in memory before
@@ -60,10 +64,30 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         await using var pagesStream = await pagesStreamTask;
         await using var indexStream = await indexStreamTask;
 
+        // Per-stage blobs are written as soon as each stage finishes, independent of
+        // whether the run later passes overall validation - so a stage's problems are
+        // visible even if a later stage throws or the run gets killed before the
+        // combined report below is written.
         var pagesResult = CsvExtractor.ExtractPages(pagesStream);
+        if (pagesResult.Errors.Count > 0)
+            await WriteStageReportAsync("pages", runAt, pagesResult.Errors, ct);
+
         var indexResult = CsvExtractor.ExtractIndex(indexStream);
-        var joinResult  = CsvJoiner.Join(pagesResult.Records, indexResult.Records);
+        if (indexResult.Errors.Count > 0)
+            await WriteStageReportAsync("index", runAt, indexResult.Errors, ct);
+
+        var joinResult = CsvJoiner.Join(pagesResult.Records, indexResult.Records);
+        if (joinResult.Errors.Count > 0 || joinResult.DataQualityWarnings.Count > 0 || joinResult.SkippedIndexRecords.Count > 0)
+            await WriteStageReportAsync("join", runAt, new
+            {
+                joinResult.Errors,
+                joinResult.DataQualityWarnings,
+                joinResult.SkippedIndexRecords,
+            }, ct);
+
         var cleanResult = DataCleaner.Clean(joinResult.Joined);
+        if (cleanResult.Errors.Count > 0 || cleanResult.Warnings.Count > 0)
+            await WriteStageReportAsync("clean", runAt, new { cleanResult.Errors, cleanResult.Warnings }, ct);
 
         var (previousCount, previousETag) = await ReadPreviousCleanedCountAsync(ct);
         var report = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
@@ -73,7 +97,6 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         // Durable Table Storage-backed activity return, so it isn't subject to the 100-item cap.
         if (_reportWriter.IsEnabled)
         {
-            var runAt = DateTimeOffset.UtcNow;
             await _reportWriter.WriteReportAsync(
                 $"indexing/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-join-issues.json", report.Issues, ct);
         }
@@ -188,6 +211,15 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             RedFlags:               report.RedFlags.ToList(),
             SpotCheckSample:        spotCheck);
     }
+
+    // Writes one stage's own errors/warnings to its own blob, named distinctly from the
+    // combined "-join-issues.json" report below so the two never collide. Caller only
+    // invokes this when there's actually something to report, so a healthy run doesn't
+    // leave behind four empty blobs per execution.
+    private Task WriteStageReportAsync(string stage, DateTimeOffset runAt, object payload, CancellationToken ct) =>
+        _reportWriter.IsEnabled
+            ? _reportWriter.WriteReportAsync($"indexing/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-stage-{stage}.json", payload, ct)
+            : Task.CompletedTask;
 
     // Persisted in the pipeline-internal "pipeline-temp" container, not the CSV drop
     // container — the CSV container is overwritten by an external Zenya export process
