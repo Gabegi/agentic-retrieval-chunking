@@ -34,6 +34,16 @@ public static class DataCleaner
     private static readonly Regex ExcessBlankLines =
         new(@"\n{3,}", RegexOptions.Compiled);
 
+    // Windows-1252/UTF-8 mis-decodes seen in Zenya's source exports. Dutch text is full
+    // of accented characters (é, ë, ï, ü) and curly quotes, so this class of corruption
+    // is common here. Checked in order; longer patterns first so "â€œ" isn't left
+    // half-replaced as a prefix match.
+    private static readonly (string Pattern, string Fix)[] KnownMojibakePatterns =
+    [
+        ("â€™", "'"), ("â€œ", "\""), ("â€", "\""), ("â€“", "–"), ("â€”", "—"),
+        ("Ã«", "ë"), ("Ã©", "é"), ("Ã¯", "ï"), ("Ã¼", "ü"),
+    ];
+
     // Entry point. Walks all pages, skipping duplicates (same DocumentId +
     // PageIndex) and converting each remaining page to a CleanedPageRecord.
     // Parse failures are collected as errors; empty content only warns.
@@ -73,7 +83,14 @@ public static class DataCleaner
     {
         try
         {
-            var content = CleanPageContent(page.PageContent ?? "");
+            var (content, mojibakeFixed) = CleanPageContent(page.PageContent ?? "");
+
+            if (mojibakeFixed)
+                result.AddWarning(new CleaningWarning
+                {
+                    DocumentId = page.DocumentId,
+                    Message    = $"Page {page.PageIndex}: repaired mojibake in source text (e.g. 'â€™' -> \"'\").",
+                });
 
             if (string.IsNullOrWhiteSpace(content))
                 result.AddWarning(new CleaningWarning
@@ -116,8 +133,9 @@ public static class DataCleaner
 
     // Normalizes page text: normalize line endings, strip literal HTML tags
     // *before* decoding (so escaped markup survives as text), then HTML-decode,
-    // strip logo lines and image placeholders, collapse excess blank lines, trim.
-    private static string CleanPageContent(string raw)
+    // repair known mojibake, strip logo lines and image placeholders, collapse
+    // excess blank lines, trim.
+    private static (string Content, bool MojibakeFixed) CleanPageContent(string raw)
     {
         var text = raw.Replace("\r\n", "\n");
         text = HtmlTag.Replace(text, "");
@@ -125,10 +143,19 @@ public static class DataCleaner
         // Decoding can emit \r from entities (&#13;); normalize again so the
         // multiline $ anchors below aren't defeated by stray carriage returns.
         text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
+        var mojibakeFixed = false;
+        foreach (var (pattern, fix) in KnownMojibakePatterns)
+        {
+            if (!text.Contains(pattern)) continue;
+            text          = text.Replace(pattern, fix);
+            mojibakeFixed = true;
+        }
+
         text = CordaanBoilerplate.Replace(text, "");
         text = ImagePlaceholder.Replace(text, "");
         text = ExcessBlankLines.Replace(text, "\n\n");
-        return text.Trim();
+        return (text.Trim(), mojibakeFixed);
     }
 
     // Parses a required date in the given exact format; throws FormatException
