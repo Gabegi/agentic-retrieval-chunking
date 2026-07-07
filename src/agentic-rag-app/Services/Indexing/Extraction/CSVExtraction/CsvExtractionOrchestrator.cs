@@ -54,7 +54,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
         // Shared by every blob write below (per-stage and combined) so a single run's
-        // artifacts land together under the same indexing/{date}/{time}-* prefix.
+        // artifacts land together under the same ReportFolder/{date}/{time}-* prefix.
         var runAt = DateTimeOffset.UtcNow;
 
         // Stream directly from blob storage instead of buffering the whole file into a
