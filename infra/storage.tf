@@ -8,17 +8,14 @@
 #     function_app.tf).
 #   - data: source documents, chunks, reports, and saved intermediate state
 #     for the indexing/query pipeline (blob only, organized by container).
-# Both are private-endpoint-only (no public network access); DNS resolution
-# for the privatelink zones is centrally managed by the platform team
-# (Policy-based zone links). That DNS wiring isn't attached yet
-# (docs/platform-team-dns-verzoek.md), which currently blocks the Function
-# App from reaching either account - and blocks the content-share mount
-# specifically. We tried a public-endpoint + trusted-service-bypass
-# workaround for both; reverted it (SMB/445 for the file share likely also
-# needs a hub-firewall egress rule beyond just the storage account's own
-# firewall, and opening the accounts up don't fix that, so it wasn't a
-# viable path). Nothing to do here until the platform team attaches the
-# zone group.
+# Both are private-endpoint-only (no public network access). Each private
+# endpoint below attaches its private_dns_zone_group directly rather than
+# waiting on the platform team's policy-based zone linking
+# (docs/platform-team-dns-verzoek.md). We previously tried a
+# public-endpoint + trusted-service-bypass workaround for both; reverted it
+# (SMB/445 for the file share likely also needs a hub-firewall egress rule
+# beyond just the storage account's own firewall, and opening the accounts
+# up don't fix that, so it wasn't a viable path).
 # ---------------------------------------------------------------------------
 
 resource "azurerm_storage_account" "func" {
@@ -106,15 +103,10 @@ resource "azurerm_private_endpoint" "stfunc_blob" {
     is_manual_connection           = false
   }
 
-  # Commented out until the platform team links cor-vnet-cap-dev-we-001 to
-  # privatelink.blob.core.windows.net (docs/platform-team-dns-verzoek.md) -
-  # the zone group alone won't resolve without that link, and we haven't
-  # confirmed this deploy identity even has write access to attach it
-  # (read-only confirmed so far).
-  # private_dns_zone_group {
-  #   name                 = "default"
-  #   private_dns_zone_ids = [data.azurerm_private_dns_zone.blob.id]
-  # }
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [data.azurerm_private_dns_zone.blob.id]
+  }
 
   tags = local.common_tags
 }
