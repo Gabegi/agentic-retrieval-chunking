@@ -116,10 +116,11 @@ public class ChunkNeighborExpanderTests
     [TestMethod]
     public async Task ExpandAsync_TotalContextExceedsCap_StopsAddingFurtherChunks()
     {
-        // MaxContextChars is 16_000 - three hits of 9000 chars each guarantees the third is dropped.
+        // MaxContextChars is 16_000 - three hits of 7500 chars each: the first two fit
+        // (15,000 total) but adding the third would push the running total to 22,500.
         var searchClient = MockSearchClient();
         var expander = new ChunkNeighborExpander(searchClient.Object);
-        var big = new string('x', 9_000);
+        var big = new string('x', 7_500);
         var hits = new[]
         {
             Hit("d1_p0", "d1", page: 0, content: big),

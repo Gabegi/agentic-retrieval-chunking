@@ -54,10 +54,11 @@ public class ChunkingStrategy1Tests
     public void SplitPrefersSentenceBoundary_ChunkEndsOnPunctuation()
     {
         // "Sentence one is here. Sentence two follows now. Sentence three trails after that."
-        // maxChars lands mid "Sentence two" — the sentence-boundary search should walk back
-        // to the end of "Sentence one is here." rather than hard-splitting mid-word.
+        // The sentence boundary after "here." sits right at the search window's midpoint, so
+        // maxChars must be small enough to keep it clearly within the back-half search range
+        // (see FindSentenceSplit) - otherwise the split falls back to the nearest word boundary.
         var content = "Sentence one is here. Sentence two follows now. Sentence three trails after that.";
-        var strategy = new ChunkingStrategy1(maxChars: 40, overlapChars: 5);
+        var strategy = new ChunkingStrategy1(maxChars: 30, overlapChars: 5);
 
         var chunks = strategy.Chunk(content);
 
