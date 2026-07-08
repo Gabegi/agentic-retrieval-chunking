@@ -51,7 +51,7 @@ public static class PipelineValidator
         // 7. Spot-check sample for human review.
         var sample = BuildSpotCheckSample(cleanResult);
 
-        // 9. Pass/fail. Denominator is every row attempted across both inputs — parse errors
+        // 8. Pass/fail. Denominator is every row attempted across both inputs — parse errors
         // from the index file count against the same budget they're measured by.
         // reconciliation.Count is deliberately NOT folded in here: a reconciliation problem
         // is a pipeline-integrity assertion, not a per-row issue, so mixing it into a
