@@ -26,7 +26,14 @@ public static class PipelineValidator
         var magnitude     = new List<string>();
         var redFlags      = new List<string>();
 
-        // 1. Collect all errors from all 3 previous steps
+        // 1. Collect all errors from all 3 previous steps =
+            //     pagesExtraction.Errors                    (Error,   Stage=Parse:Pages)
+            //   + indexExtraction.Errors                    (Error,   Stage=Parse:Index)
+            //   + joinResult.Errors                         (Error,   Stage=Join)
+            //   + joinResult.DataQualityWarnings            (Warning, Stage=Join)
+            //   + cleanResult.Errors                        (Error,   Stage=Clean)
+            //   + cleanResult.Warnings                      (Warning, Stage=Clean)
+            //   + joinResult.SkippedIndexRecords            (Warning, Stage=Join — "no pages" docs)
         var issues = CollectIssues(pagesExtraction, indexExtraction, joinResult, cleanResult, redFlags);
 
         // 2. Reconcile counts across step boundaries.
@@ -231,6 +238,13 @@ public static class PipelineValidator
             : [.. cleanResult.Records.OrderBy(_ => Guid.NewGuid()).Take(SpotCheckSampleSize)];
 
     // 1. Aggregate every error/warning bucket into one place.
+            //     pagesExtraction.Errors                    (Error,   Stage=Parse:Pages)
+            //   + indexExtraction.Errors                    (Error,   Stage=Parse:Index)
+            //   + joinResult.Errors                         (Error,   Stage=Join)
+            //   + joinResult.DataQualityWarnings            (Warning, Stage=Join)
+            //   + cleanResult.Errors                        (Error,   Stage=Clean)
+            //   + cleanResult.Warnings                      (Warning, Stage=Clean)
+            //   + joinResult.SkippedIndexRecords            (Warning, Stage=Join — "no pages" docs)
     private static List<ValidationIssue> CollectIssues(
         ExtractionResult<PageRecord>  pagesExtraction,
         ExtractionResult<IndexRecord> indexExtraction,
@@ -240,20 +254,33 @@ public static class PipelineValidator
     {
         var issues = new List<ValidationIssue>();
 
+        //     pagesExtraction.Errors                    (Error,   Stage=Parse:Pages)
         issues.AddRange(pagesExtraction.Errors.Select(e => new ValidationIssue
             { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"Row {e.RowNumber}: {e.Message}" }));
+
+        //   + indexExtraction.Errors                    (Error,   Stage=Parse:Index)
         issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue
             { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"Row {e.RowNumber}: {e.Message}" }));
+
+        //   + joinResult.Errors                         (Error,   Stage=Join)
         issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue
             { Stage = "Join", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
+
+        //   + joinResult.DataQualityWarnings            (Warning, Stage=Join)
         issues.AddRange(joinResult.DataQualityWarnings.Select(w => new ValidationIssue
             { Stage = "Join", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
+
+        //   + cleanResult.Errors                        (Error,   Stage=Clean)
         issues.AddRange(cleanResult.Errors.Select(e => new ValidationIssue
             { Stage = "Clean", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
+
+        //   + cleanResult.Warnings                      (Warning, Stage=Clean)
         issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue
             { Stage = "Clean", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
 
-        // 1b. Index documents with no pages never reach the search index — make that visible.
+        // 1b. Index documents with no pages never reach the search index — make that visible
+
+        //   + joinResult.SkippedIndexRecords            (Warning, Stage=Join — "no pages" docs)
         issues.AddRange(joinResult.SkippedIndexRecords.Select(r => new ValidationIssue
         {
             Stage      = "Join",
