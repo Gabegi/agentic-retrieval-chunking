@@ -35,7 +35,7 @@ public class ExtractionService : IExtractionService
     // 1. Call the source extractor, diff results against the current index state
     private async Task<DiffResult> ExtractAndDiffAsync(bool forceReindex, bool overrideMagnitudeCheck, CancellationToken ct)
     {
-        var output       = await _extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
+        var extractionOutput       = await _extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
         var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
 
         var toProcess      = new List<ExtractionDocument>();
@@ -44,7 +44,7 @@ public class ExtractionService : IExtractionService
         var newCount       = 0;
         var updated        = 0;
 
-        foreach (var doc in output.Docs)
+        foreach (var doc in extractionOutput.Docs)
         {
             seenSourceIds.Add(doc.SourceId);
 
@@ -75,13 +75,13 @@ public class ExtractionService : IExtractionService
         var removedSourceIds = indexedDates.Keys.Where(id => !seenSourceIds.Contains(id)).ToList();
         toDeleteChunks.AddRange(removedSourceIds);
 
-        var skipped = output.Docs.Count - toProcess.Count;
+        var skipped = extractionOutput.Docs.Count - toProcess.Count;
 
         _logger.LogInformation(
             "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped",
             _extractor.Source, newCount, updated, removedSourceIds.Count, skipped);
 
-        return new DiffResult(_extractor.Source, output, toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
+        return new DiffResult(_extractor.Source, extractionOutput, toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
     }
 
     // 2. Emit instrumentation metrics from the diff result

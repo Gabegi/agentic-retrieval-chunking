@@ -82,60 +82,8 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
                 $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-validation-report.json", report, ct);
         }
 
-        foreach (var warning in report.MagnitudeWarnings)
-            _logger.LogWarning("{Warning}", warning);
-
-        // A magnitude-only failure can be deliberately let through by the caller; error-rate
-        // and reconciliation failures never are, regardless of overrideMagnitudeCheck.
-        var magnitudeOverrideApplied = !report.Passed && overrideMagnitudeCheck && report.PassedExcludingMagnitude;
-        var effectivePassed          = report.Passed || magnitudeOverrideApplied;
-
-        if (magnitudeOverrideApplied)
-            _logger.LogWarning(
-                "VALIDATION OVERRIDE APPLIED — magnitude-shift gate bypassed by explicit operator request. " +
-                "{Cleaned} records this run. Warnings: {Warnings}",
-                cleanResult.Records.Count, string.Join(" | ", report.MagnitudeWarnings));
-
-        _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
-            effectivePassed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
-
-        foreach (var issue in report.Issues.Take(MaxLoggedIssues))
-            _logger.Log(
-                issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
-                "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
-        if (report.Issues.Count > MaxLoggedIssues)
-            _logger.LogWarning("…{More} more issue(s) not logged (see the run report for the full list).",
-                report.Issues.Count - MaxLoggedIssues);
-
-        // Emit validation metrics before the pass/fail gate below - a failed run is
-        // exactly the case these metrics matter most for, and a throw would otherwise
-        // skip every one of them.
-        var errors   = report.Issues.Count(i => i.Severity == "Error");
-        var warnings = report.Issues.Count(i => i.Severity != "Error");
-
-        var sourceTag = new KeyValuePair<string, object?>("source", Source);
-
-        // Unconditional, not guarded with "> 0": these are counters, and a healthy run
-        // (zero errors/stale docs) should still emit a zero data point. Otherwise a
-        // dashboard/alert can't tell "this metric is healthy at zero" apart from "this
-        // metric stopped reporting entirely".
-        Instrumentation.ValidationIssues.Add(errors,   sourceTag, new("severity", "error"));
-        Instrumentation.ValidationIssues.Add(warnings, sourceTag, new("severity", "warning"));
-        Instrumentation.StaleDocs.Add(report.StaleDocCount, sourceTag);
-        Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
-
-        // Metadata completeness — count docs missing title, version, department. Title
-        // and FolderPath are page-CSV fields and can legitimately vary page-to-page for
-        // the same document, so a document only counts as "missing" if EVERY one of its
-        // pages lacks that field, not just whichever page happens to come first.
-        var docs = cleanResult.Records.ToList();
-        var missingTitle      = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
-        var missingVersion    = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Version)));
-        var missingDepartment = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.FolderPath)));
-
-        Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
-        Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
-        Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
+        var (effectivePassed, errors, warnings, missingTitle, missingVersion, missingDepartment) =
+            LogAndEmitValidationTelemetry(report, cleanResult, overrideMagnitudeCheck);
 
         if (!effectivePassed)
             throw new InvalidOperationException(
@@ -147,6 +95,20 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         // instead of comparing against the same stale count.
         await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
 
+        return BuildExtractionOutput(report, cleanResult, errors, warnings, missingTitle, missingVersion, missingDepartment);
+    }
+
+    // Maps the validated, cleaned records into the source-agnostic ExtractionOutput
+    // returned to the caller - the actual "product" of this whole pipeline.
+    private static ExtractionOutput BuildExtractionOutput(
+        ValidationReport report,
+        CleanResult      cleanResult,
+        int              errors,
+        int              warnings,
+        int              missingTitle,
+        int              missingVersion,
+        int              missingDepartment)
+    {
         var extractionDocs = cleanResult.Records
             .Select(r => new ExtractionDocument(
                 SourceId: r.DocumentId,
@@ -191,6 +153,73 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             Issues:                 issues,
             RedFlags:               report.RedFlags.ToList(),
             SpotCheckSample:        spotCheck);
+    }
+
+    // Everything this run logs and emits as metrics, in one place: whether the caller's
+    // magnitude override actually applied, the magnitude-shift audit trail, a pass/fail
+    // summary line, one log line per issue (capped), and the OTel counters
+    // dashboards/alerts read. Runs regardless of pass/fail, before the caller's throw,
+    // so a failed run still gets full telemetry. Returns effectivePassed plus the counts
+    // ExtractionOutput needs further down, so callers don't have to recompute any of it.
+    private (bool EffectivePassed, int Errors, int Warnings, int MissingTitle, int MissingVersion, int MissingDepartment)
+        LogAndEmitValidationTelemetry(
+            ValidationReport report,
+            CleanResult      cleanResult,
+            bool             overrideMagnitudeCheck)
+    {
+        // A magnitude-only failure can be deliberately let through by the caller; error-rate
+        // and reconciliation failures never are, regardless of overrideMagnitudeCheck.
+        var magnitudeOverrideApplied = !report.Passed && overrideMagnitudeCheck && report.PassedExcludingMagnitude;
+        var effectivePassed          = report.Passed || magnitudeOverrideApplied;
+
+        foreach (var warning in report.MagnitudeWarnings)
+            _logger.LogWarning("{Warning}", warning);
+
+        if (magnitudeOverrideApplied)
+            _logger.LogWarning(
+                "VALIDATION OVERRIDE APPLIED — magnitude-shift gate bypassed by explicit operator request. " +
+                "{Cleaned} records this run. Warnings: {Warnings}",
+                cleanResult.Records.Count, string.Join(" | ", report.MagnitudeWarnings));
+
+        _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
+            effectivePassed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
+
+        foreach (var issue in report.Issues.Take(MaxLoggedIssues))
+            _logger.Log(
+                issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
+                "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
+        if (report.Issues.Count > MaxLoggedIssues)
+            _logger.LogWarning("…{More} more issue(s) not logged (see the run report for the full list).",
+                report.Issues.Count - MaxLoggedIssues);
+
+        var errors   = report.Issues.Count(i => i.Severity == "Error");
+        var warnings = report.Issues.Count(i => i.Severity != "Error");
+
+        var sourceTag = new KeyValuePair<string, object?>("source", Source);
+
+        // Unconditional, not guarded with "> 0": these are counters, and a healthy run
+        // (zero errors/stale docs) should still emit a zero data point. Otherwise a
+        // dashboard/alert can't tell "this metric is healthy at zero" apart from "this
+        // metric stopped reporting entirely".
+        Instrumentation.ValidationIssues.Add(errors,   sourceTag, new("severity", "error"));
+        Instrumentation.ValidationIssues.Add(warnings, sourceTag, new("severity", "warning"));
+        Instrumentation.StaleDocs.Add(report.StaleDocCount, sourceTag);
+        Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
+
+        // Metadata completeness — count docs missing title, version, department. Title
+        // and FolderPath are page-CSV fields and can legitimately vary page-to-page for
+        // the same document, so a document only counts as "missing" if EVERY one of its
+        // pages lacks that field, not just whichever page happens to come first.
+        var byDocument        = cleanResult.Records.GroupBy(r => r.DocumentId).ToList();
+        var missingTitle      = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
+        var missingVersion    = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Version)));
+        var missingDepartment = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.FolderPath)));
+
+        Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
+        Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
+        Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
+
+        return (effectivePassed, errors, warnings, missingTitle, missingVersion, missingDepartment);
     }
 
     // Holds the count of cleaned records from the last successful run
