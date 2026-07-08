@@ -167,6 +167,13 @@ public class CsvExtractor : ICsvExtractor
 
         _logger.LogInformation("CSV encoding detected: {Encoding}", streamReader.CurrentEncoding.WebName);
 
+        // A wrong delimiter (e.g. a semicolon-delimited export against our hardcoded comma)
+        // fails
+        if (csv.HeaderRecord is { Length: 1 } && requiredHeaders.Length > 1)
+            throw new InvalidOperationException(
+                $"CSV header parsed as a single column ('{csv.HeaderRecord[0]}') — " +
+                $"check that the delimiter is '{Config.Delimiter}'.");
+
         var missing = requiredHeaders
             .Where(c => csv.HeaderRecord is null
                      || !csv.HeaderRecord.Contains(c, StringComparer.OrdinalIgnoreCase))

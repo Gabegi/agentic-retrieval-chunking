@@ -62,6 +62,18 @@ public class CsvExtractorTests
     }
 
     [TestMethod]
+    public void ExtractPages_SemicolonDelimitedFile_ThrowsSpecificDelimiterError()
+    {
+        // Same header/data, but delimited with ';' instead of our hardcoded ',' - CsvHelper
+        // reads the entire header line as one field since there's nothing to split it on.
+        var csv = PagesHeader.Replace(',', ';') + "\n" +
+                  "doc1;Title;QC1;Folder/Path;20240101120000;0;Some content;rel/path;nl-NL\n";
+
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => BuildExtractor().ExtractPages(ToStream(csv)));
+        StringAssert.Contains(ex.Message, "delimiter");
+    }
+
+    [TestMethod]
     public void ExtractPages_MissingRequiredHeader_Throws()
     {
         var csv = "DOCUMENT_ID,TITLE\ndoc1,Title\n";
