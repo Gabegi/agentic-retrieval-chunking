@@ -28,7 +28,7 @@ public class PipelineValidatorTests
         var pages = BuildExtractor().ExtractPages(ToStream(
             PagesHeader + "\n" +
             "doc1,Title,QC,Folder,20240101120000,0,Some markdown content,rel,nl-NL\n"));
-        var index = CsvExtractor.ExtractIndex(ToStream(
+        var index = BuildExtractor().ExtractIndex(ToStream(
             IndexHeader + "\n" +
             "doc1,Protocol,Summary,7,0,,[]\n"));
         var join  = CsvJoiner.Join(pages.Records, index.Records);
@@ -96,7 +96,7 @@ public class PipelineValidatorTests
     public void SkippedIndexRecord_ProducesWarningAndRedFlag()
     {
         var pages = new ExtractionResult<PageRecord>();
-        var index = CsvExtractor.ExtractIndex(ToStream(
+        var index = BuildExtractor().ExtractIndex(ToStream(
             IndexHeader + "\n" +
             "doc1,Protocol,Summary,7,0,,[]\n"));
         var join  = CsvJoiner.Join(pages.Records, index.Records);
@@ -228,7 +228,7 @@ public class PipelineValidatorTests
         var pages = BuildExtractor().ExtractPages(ToStream(
             PagesHeader + "\n" +
             "doc1,Title,QC,Folder,20240101120000,0,Some content,rel,nl-NL\n"));
-        var index = CsvExtractor.ExtractIndex(ToStream(
+        var index = BuildExtractor().ExtractIndex(ToStream(
             IndexHeader + ",ACTIVE\n" +
             "doc1,Protocol,Summary,7,0,,[],false\n"));
         var join  = CsvJoiner.Join(pages.Records, index.Records);
