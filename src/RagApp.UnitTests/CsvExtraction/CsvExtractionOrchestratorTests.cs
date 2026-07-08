@@ -99,7 +99,13 @@ public class CsvExtractionOrchestratorTests
 
     private static CsvExtractionOrchestrator BuildOrchestrator(
         BlobContainerClient container, BlobContainerClient stateContainer, IRunReportWriter reportWriter) =>
-        new(container, stateContainer, reportWriter, NullLogger<CsvExtractionOrchestrator>.Instance);
+        new(
+            container, stateContainer, reportWriter,
+            new CsvExtractor(NullLogger<CsvExtractor>.Instance),
+            new CsvJoiner(),
+            new DataCleaner(),
+            new PipelineValidator(),
+            NullLogger<CsvExtractionOrchestrator>.Instance);
 
     [TestMethod]
     public async Task HappyPath_ReturnsDocsAndSavesStateUnconditionally()

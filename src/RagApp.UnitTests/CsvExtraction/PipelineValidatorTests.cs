@@ -57,7 +57,7 @@ public class PipelineValidatorTests
     {
         var (pages, index, join, clean) = HappyPath();
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         Assert.IsTrue(report.Passed);
         Assert.AreEqual(0, report.ReconciliationProblems.Count);
@@ -71,7 +71,7 @@ public class PipelineValidatorTests
         var join  = BuildJoiner().Join(pages.Records, index.Records);
         var clean = BuildCleaner().Clean(join.Joined);
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         // totalAttempted == 0 forces errorRate to 100, so an empty run never passes silently.
         Assert.IsFalse(report.Passed);
@@ -87,7 +87,7 @@ public class PipelineValidatorTests
         var join  = BuildJoiner().Join(pages.Records, index.Records);
         var clean = BuildCleaner().Clean(join.Joined);
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         Assert.IsTrue(report.Issues.Any(i => i.Stage == "Join" && i.Severity == "Error"));
     }
@@ -102,7 +102,7 @@ public class PipelineValidatorTests
         var join  = BuildJoiner().Join(pages.Records, index.Records);
         var clean = BuildCleaner().Clean(join.Joined);
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         Assert.AreEqual(1, report.SkippedIndexDocuments.Count);
         Assert.IsTrue(report.RedFlags.Any(f => f.Contains("no pages")));
@@ -121,7 +121,7 @@ public class PipelineValidatorTests
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         Assert.AreEqual(1, report.StaleDocCount);
         Assert.IsTrue(report.RedFlags.Any(f => f.Contains("check_date_exceeded")));
@@ -136,7 +136,7 @@ public class PipelineValidatorTests
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         CollectionAssert.Contains(report.DocumentsNeedingFallbackChunking.ToList(), "doc1");
     }
@@ -150,7 +150,7 @@ public class PipelineValidatorTests
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         CollectionAssert.DoesNotContain(report.DocumentsNeedingFallbackChunking.ToList(), "doc1");
     }
@@ -164,7 +164,7 @@ public class PipelineValidatorTests
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         Assert.IsTrue(report.Issues.Any(i => i.Stage == "TextQuality" && i.Severity == "Error"));
         Assert.IsFalse(report.Passed);
@@ -179,7 +179,7 @@ public class PipelineValidatorTests
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         Assert.IsTrue(report.Issues.Any(i => i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("en-US")));
     }
@@ -190,7 +190,7 @@ public class PipelineValidatorTests
         var (pages, index, join, clean) = HappyPath(); // 1 cleaned record
 
         // Previous run had 100 - a drop to 1 is a -99% shift, way past the 20% threshold.
-        var report = PipelineValidator.Validate(pages, index, join, clean, previousRunCleanedCount: 100);
+        var report = BuildValidator().Validate(pages, index, join, clean, previousRunCleanedCount: 100);
 
         Assert.IsFalse(report.Passed);
         Assert.IsTrue(report.PassedExcludingMagnitude);
@@ -202,7 +202,7 @@ public class PipelineValidatorTests
     {
         var (pages, index, join, clean) = HappyPath(); // 1 cleaned record
 
-        var report = PipelineValidator.Validate(pages, index, join, clean, previousRunCleanedCount: 1);
+        var report = BuildValidator().Validate(pages, index, join, clean, previousRunCleanedCount: 1);
 
         Assert.IsTrue(report.Passed);
         Assert.AreEqual(0, report.MagnitudeWarnings.Count);
@@ -213,7 +213,7 @@ public class PipelineValidatorTests
     {
         var (pages, index, join, clean) = HappyPath();
 
-        var report = PipelineValidator.Validate(pages, index, join, clean, previousRunCleanedCount: null);
+        var report = BuildValidator().Validate(pages, index, join, clean, previousRunCleanedCount: null);
 
         Assert.AreEqual(0, report.MagnitudeWarnings.Count);
     }
@@ -234,7 +234,7 @@ public class PipelineValidatorTests
         var join  = BuildJoiner().Join(pages.Records, index.Records);
         var clean = BuildCleaner().Clean(join.Joined);
 
-        var report = PipelineValidator.Validate(pages, index, join, clean);
+        var report = BuildValidator().Validate(pages, index, join, clean);
 
         Assert.AreEqual(0, clean.Records.Count);
         Assert.IsFalse(report.Passed);

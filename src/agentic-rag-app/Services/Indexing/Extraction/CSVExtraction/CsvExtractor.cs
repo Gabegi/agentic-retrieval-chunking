@@ -80,16 +80,6 @@ public class CsvExtractor : ICsvExtractor
             Active            = ParseActive(csv),
         });
 
-
-    // Shared read loop for both ExtractPages and ExtractIndex. The only thing that
-    // differs between them is which headers are required and how to build a T from
-    // a successfully-read row (build) - everything else (advancing rows via
-    // EnsureRowIsReadable, catching a row-level build failure - e.g. a ragged row's
-    // GetField() throwing MissingFieldException, or RequireDocumentId/ParsePageIndex/
-    // ParseActive rejecting a bad value - and logging it as an ExtractionError) is
-    // identical, so it lives here once instead of twice.
-
-
      // 1. Checks correct headers are there once, up front (EnsureHeadersAreCorrect)
     // 2. Per row, try to read it (csv.Read()):
     //      - throws        -> row is unparseable garbage; log an error (no DocumentId), keep going
@@ -161,14 +151,7 @@ public class CsvExtractor : ICsvExtractor
     //    row loop to start calling csv.Read() for data rows.
     //
     // So it does two things: open/position the reader, and fail fast on a bad header.
-    //
-    // Encoding: explicit constructor args (not the parameterless StreamReader(Stream)
-    // overload) so the BOM-detection behavior is visible in code rather than hiding
-    // behind a default. detectEncodingFromByteOrderMarks inspects the file's first
-    // bytes for a UTF-8/UTF-16LE/UTF-16BE BOM and switches to it; with none present it
-    // falls back to the Encoding.UTF8 passed here. csv.Read() below is the first actual
-    // read from the stream, which is what triggers that detection - StreamReader.CurrentEncoding
-    // only reflects the real answer once read from, not at construction time.
+
     private CsvReader EnsureHeadersAreCorrect(Stream stream, string[] requiredHeaders)
     {
         var streamReader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
@@ -192,15 +175,7 @@ public class CsvExtractor : ICsvExtractor
     // Shared by both ExtractPages and ExtractIndex - DOCUMENT_ID is the join key
     // CsvJoiner matches pages to index rows on, so an empty one makes the row
     // useless downstream regardless of which file it came from.
-    //
-    // Trim() matters here specifically because CsvJoiner keys its lookup dictionary
-    // on this value via plain string equality (record.DocumentId / page.DocumentId,
-    // no normalization at the join site itself) - so "abc123" from one file and
-    // "abc123 " (stray trailing space) from the other would compare unequal and
-    // fail to match, even though they're the same document. Trimming once here,
-    // at the single choke point both ExtractPages and ExtractIndex go through,
-    // guarantees both sides of the join always compare on the same normalized
-    // value - fixing it at either individual call site wouldn't cover the other.
+
     private static string RequireDocumentId(CsvReader csv)
     {
         var docId = (csv.GetField("DOCUMENT_ID") ?? "").Trim();
@@ -229,24 +204,9 @@ public class CsvExtractor : ICsvExtractor
         return int.TryParse(csv.GetField("REVISION"), out var revision) ? $"{version}.{revision}" : version;
     }
 
-    // ACTIVE has no required-column entry, so a genuinely missing value silently
-    // defaults to active - this field simply doesn't appear in every export, and
-    // that's fine. But a value that IS present and just doesn't parse as
-    // "true"/"false" (e.g. the export switching to "0"/"1", "Y"/"N", or Dutch
-    // "ja"/"nee") is a different problem: Active is the one thing keeping withdrawn
-    // protocols out of the search index, so silently guessing "active" for garbled
-    // data fails in exactly the wrong direction and would do so with zero signal.
-    // That case throws instead, same as any other row-level validation failure -
-    // it rejects the row (logged as an ExtractionError) rather than defaulting
-    // through it unnoticed.
+
     private static bool ParseActive(CsvReader csv)
     {
-        // TryGetField, not GetField: ACTIVE isn't a required header, and with
-        // MissingFieldFound restored to its default (throwing), GetField would throw
-        // on every row for any export that omits this column entirely. TryGetField
-        // returns false instead, so "column doesn't exist" and "column exists but
-        // this row's value is blank" both fall through to the same "assume active"
-        // default - only a value that's actually present and unparseable throws.
         if (!csv.TryGetField<string>("ACTIVE", out var raw) || string.IsNullOrWhiteSpace(raw))
             return true;
         if (!bool.TryParse(raw, out var active))
