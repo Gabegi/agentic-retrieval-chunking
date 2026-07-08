@@ -71,7 +71,7 @@ public class IndexDocumentService : IIndexDocumentService
     // Pages through the entire index selecting only document_id + last_modified_date.
     // Deduplication is implicit: all chunks for the same document share the same values,
     // so TryAdd keeps the first occurrence and ignores the rest.
-    public async Task<Dictionary<string, DateTimeOffset>> GetIndexedDocumentDatesAsync(CancellationToken ct = default)
+    public async Task<Dictionary<string, DateTimeOffset>> GetCurrentIndexedDocumentDatesAsync(CancellationToken ct = default)
     {
         var result  = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
         var options = new SearchOptions

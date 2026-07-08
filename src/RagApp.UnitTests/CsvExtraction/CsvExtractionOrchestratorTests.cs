@@ -189,7 +189,7 @@ public class CsvExtractionOrchestratorTests
     }
 
     [TestMethod]
-    public async Task PagesParseError_WritesPerStageReportBlob()
+    public async Task PagesParseError_WritesSingleValidationReportBlob()
     {
         var badPagesCsv = PagesHeader + "\n" + "doc1,Title,QC,Folder,20240101120000,not-a-number,Content,rel,nl-NL\n";
         var container = BuildSourceContainer(badPagesCsv, OneIndexCsv);
@@ -199,15 +199,11 @@ public class CsvExtractionOrchestratorTests
 
         // The page fails to parse, and doc1's index record then has zero matching pages,
         // which also fails validation (RowsAttempted denominator makes this a 100% error rate) -
-        // that's fine, this test only cares that the per-stage pages blob got written.
+        // that's fine, this test only cares that the one consolidated report blob got written.
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => orchestrator.ExtractDocumentsAsync());
 
         reportWriter.Verify(w => w.WriteReportAsync(
-            It.Is<string>(p => p.Contains("stage-pages")), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
-        reportWriter.Verify(w => w.WriteReportAsync(
-            It.Is<string>(p => p.Contains("stage-index")), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Never);
-        reportWriter.Verify(w => w.WriteReportAsync(
-            It.Is<string>(p => p.Contains("join-issues")), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+            It.Is<string>(p => p.Contains("validation-report")), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
