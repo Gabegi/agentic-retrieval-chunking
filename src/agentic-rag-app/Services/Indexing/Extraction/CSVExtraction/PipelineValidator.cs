@@ -48,7 +48,7 @@ public static class PipelineValidator
         // 5. Collect Text (char and language) + table format issues
         issues.AddRange(TextNTableQualityCheck(cleanResult));
 
-        // 6. 
+        // 6. docsNeedingFallback = zero headings across every single page of that document
         var docsNeedingFallback = FindDocsNeedingFallbackChunking(cleanResult);
         if (docsNeedingFallback.Count > 0)
             redFlags.Add($"{docsNeedingFallback.Count} document(s) have no markdown headings — need fallback chunking.");
@@ -56,20 +56,13 @@ public static class PipelineValidator
         // 7. Spot-check sample for human review.
         var sample = BuildSpotCheckSample(cleanResult);
 
-        // 8. Pass/fail. Denominator is every row attempted across both inputs — parse errors
-        // from the index file count against the same budget they're measured by.
-        // reconciliation.Count is deliberately NOT folded in here: a reconciliation problem
-        // is a pipeline-integrity assertion, not a per-row issue, so mixing it into a
-        // rows-denominated rate would compare different units. It's already an
-        // unconditional hard gate via reconciliation.Count == 0 below, regardless of rate.
+        // 8. 
         var errorCount     = issues.Count(i => i.Severity == "Error");
         var totalAttempted = pagesExtraction.RowsAttempted + indexExtraction.RowsAttempted;
         var errorRate      = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
         var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
-        // Magnitude shift is a hard gate too - a truncated export (rows silently dropped
-        // upstream) can look perfectly well-formed row-by-row, and the diff step deletes
-        // any previously-indexed document that's "missing" from a bad run. Only an
-        // explicit operator override should be able to proceed past this specific check.
+
+        // 
         var passed        = passedExcludingMagnitude && magnitude.Count == 0;
 
         return new ValidationReport
@@ -288,9 +281,11 @@ public static class PipelineValidator
         return issues;
     }
 
-    // 6. Structure presence per document — directly informs Chunking's strategy choice.
+    // 6. document flagged if none of its pages has a heading
+    // matters because chunking = chunks done per header
     private static List<string> FindDocsNeedingFallbackChunking(CleanResult cleanResult)
     {
+        // checks all pages that have a heading
         var docsWithHeadings = cleanResult.Records
             .Where(r => MarkdownHeading.IsMatch(r.PageContent))
             .Select(r => r.DocumentId)
