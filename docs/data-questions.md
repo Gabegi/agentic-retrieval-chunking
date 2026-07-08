@@ -50,6 +50,13 @@ open questions and, until we get answers, the assumptions the pipeline currently
    We now match them case-insensitively in `CsvJoiner` as a precaution, but don't have
    real data confirming whether that's ever actually needed.
 
+7. **What is the full set of possible values in `ATTENTION_REQUIRED_FLAGS`?** We parse
+   it as an arbitrary JSON string array (`DataCleaner.ParseAttentionFlags`) and only
+   `PipelineValidator` acts on it — and only on one specific value, `check_date_exceeded`
+   (surfaced as a validation red flag, not a hard failure). We don't have a documented
+   list of every flag Zenya can emit here, or a defined behavior for values we don't
+   recognize. Are there other flags we should also be surfacing or reacting to?
+
 ## Working assumption until we hear back
 
 **A document whose `ACTIVE` value parses as `false` is treated as withdrawn — its
