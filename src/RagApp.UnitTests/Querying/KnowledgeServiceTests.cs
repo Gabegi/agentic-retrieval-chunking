@@ -2,6 +2,7 @@ using System.Reflection;
 using Azure;
 using Azure.Core;
 using Azure.Search.Documents.Indexes;
+using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -34,7 +35,7 @@ public class KnowledgeServiceTests
         StorageAccountUrl         = "https://storage.example.com",
         StorageContainer          = "container",
         SearchIndexName           = "my-index",
-        SearchIndexKnowledgeSourceName       = "my-knowledge-source",
+        KnowledgeSourceName       = "my-knowledge-source",
         KnowledgeBaseName         = "my-knowledge-base",
         OpenAiGptDeployment       = "gpt",
         OpenAiGptModelName        = "gpt-model",
@@ -50,15 +51,15 @@ public class KnowledgeServiceTests
     }
 
     [TestMethod]
-    public async Task EnsureSearchIndexKnowledgeSourceAsync_CreatesOrUpdatesWithConfiguredName()
+    public async Task EnsureKnowledgeSourceAsync_CreatesOrUpdatesWithConfiguredName()
     {
         var (service, client) = BuildService();
-        client.Setup(c => c.CreateOrUpdateSearchIndexKnowledgeSourceAsync(It.IsAny<SearchIndexKnowledgeSource>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((SearchIndexKnowledgeSource ks, bool _, CancellationToken _) => Response.FromValue(ks, Mock.Of<Response>()));
+        client.Setup(c => c.CreateOrUpdateKnowledgeSourceAsync(It.IsAny<SearchIndexKnowledgeSource>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((SearchIndexKnowledgeSource ks, bool _, CancellationToken _) => Response.FromValue<KnowledgeSource>(ks, Mock.Of<Response>()));
 
-        await service.EnsureSearchIndexKnowledgeSourceAsync();
+        await service.EnsureKnowledgeSourceAsync();
 
-        client.Verify(c => c.CreateOrUpdateSearchIndexKnowledgeSourceAsync(
+        client.Verify(c => c.CreateOrUpdateKnowledgeSourceAsync(
             It.Is<SearchIndexKnowledgeSource>(ks => ks.Name == "my-knowledge-source"), false, It.IsAny<CancellationToken>()), Times.Once);
     }
 

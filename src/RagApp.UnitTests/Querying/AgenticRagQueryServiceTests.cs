@@ -59,7 +59,7 @@ public class AgenticRagQueryServiceTests
     {
         var response = RetrievalResponse(referenceSourceData, answerText);
         var mock = new Mock<KnowledgeBaseRetrievalClient>();
-        mock.Setup(c => c.RetrieveAsync(It.IsAny<KnowledgeBaseRetrievalRequest>(), cancellationToken: It.IsAny<CancellationToken>()))
+        mock.Setup(c => c.RetrieveAsync(It.IsAny<KnowledgeBaseRetrievalRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Response.FromValue(response, Mock.Of<Response>()));
         return mock;
     }
