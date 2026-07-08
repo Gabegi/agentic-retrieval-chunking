@@ -160,13 +160,7 @@ public class CsvExtractor : ICsvExtractor
         csv.ReadHeader(); // capture it into HeaderRecord (one-time, not per data row)
 
         // Zenya's export is expected to always be UTF-8 (BOM or no BOM - both decode to
-        // this same CodePage). Anything else means either the wrong file landed here or
-        // the export process changed upstream in a way we've never seen - checked before
-        // the header check below because a real encoding mismatch would otherwise surface
-        // as a confusing "missing required column" error instead of naming the actual
-        // cause. Proactive, not just logged: this fails the whole file immediately, the
-        // same way a missing header does, rather than letting every row risk silent
-        // mojibake/U+FFFD corruption for a cause we could have caught up front.
+        // this same CodePage). Anything else means either the wrong file landed
         if (streamReader.CurrentEncoding.CodePage != Encoding.UTF8.CodePage)
             throw new InvalidOperationException(
                 $"CSV is encoded as '{streamReader.CurrentEncoding.WebName}', expected UTF-8.");

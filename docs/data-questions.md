@@ -57,6 +57,16 @@ open questions and, until we get answers, the assumptions the pipeline currently
    list of every flag Zenya can emit here, or a defined behavior for values we don't
    recognize. Are there other flags we should also be surfacing or reacting to?
 
+8. **Is the export always encoded as UTF-8?** CSV has no way to declare its own
+   encoding, so this can only be confirmed from Zenya's side, not inferred from a file.
+   We currently detect the encoding from the file's byte-order-mark if present (UTF-8,
+   UTF-16LE, UTF-16BE all recognized), falling back to UTF-8 if there's no BOM, and
+   **reject the whole file outright if the detected encoding isn't UTF-8**
+   (`CsvExtractor.EnsureHeadersAreCorrect`). Is UTF-8 (with or without BOM) genuinely
+   the only encoding this export ever uses, or could a different export path/locale
+   produce something else (e.g. Windows-1252)? If the latter, this hard rejection would
+   need to become a whitelist of accepted encodings instead of a single one.
+
 ## Working assumption until we hear back
 
 **A document whose `ACTIVE` value parses as `false` is treated as withdrawn — its
