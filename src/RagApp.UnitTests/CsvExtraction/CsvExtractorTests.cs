@@ -119,7 +119,7 @@ public class CsvExtractorTests
         var csv = IndexHeader + "\n" +
                   "doc1,Protocol,A summary,7,0,20240101,[],true\n";
 
-        var result = CsvExtractor.ExtractIndex(ToStream(csv));
+        var result = BuildExtractor().ExtractIndex(ToStream(csv));
 
         Assert.AreEqual(1, result.Records.Count);
         var record = result.Records[0];
@@ -135,7 +135,7 @@ public class CsvExtractorTests
         var csv = IndexHeader + "\n" +
                   "doc1,Protocol,A summary,7,,20240101,[],true\n";
 
-        var result = CsvExtractor.ExtractIndex(ToStream(csv));
+        var result = BuildExtractor().ExtractIndex(ToStream(csv));
 
         Assert.AreEqual("7", result.Records[0].Version);
     }
@@ -146,7 +146,7 @@ public class CsvExtractorTests
         var csv = "DOCUMENT_ID,DOCUMENT_TYPE_NAME,SUMMARY,VERSION,REVISION,CHECK_DATE,ATTENTION_REQUIRED_FLAGS\n" +
                   "doc1,Protocol,A summary,7,0,20240101,[]\n";
 
-        var result = CsvExtractor.ExtractIndex(ToStream(csv));
+        var result = BuildExtractor().ExtractIndex(ToStream(csv));
 
         Assert.AreEqual(1, result.Records.Count);
         Assert.IsTrue(result.Records[0].Active);
@@ -158,7 +158,7 @@ public class CsvExtractorTests
         var csv = IndexHeader + "\n" +
                   "doc1,Protocol,A summary,7,0,20240101,[],false\n";
 
-        var result = CsvExtractor.ExtractIndex(ToStream(csv));
+        var result = BuildExtractor().ExtractIndex(ToStream(csv));
 
         Assert.IsFalse(result.Records[0].Active);
     }
@@ -169,7 +169,7 @@ public class CsvExtractorTests
         var csv = IndexHeader + "\n" +
                   "doc1,Protocol,A summary,7,0,20240101,[],maybe\n";
 
-        var result = CsvExtractor.ExtractIndex(ToStream(csv));
+        var result = BuildExtractor().ExtractIndex(ToStream(csv));
 
         Assert.AreEqual(0, result.Records.Count);
         Assert.AreEqual(1, result.Errors.Count);
