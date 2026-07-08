@@ -49,20 +49,34 @@ public static class PipelineValidator
         issues.AddRange(TextNTableQualityCheck(cleanResult));
 
         // 6. docsNeedingFallback = zero headings across every single page of that document
-        var docsNeedingFallback = FindDocsNeedingFallbackChunking(cleanResult);
-        if (docsNeedingFallback.Count > 0)
-            redFlags.Add($"{docsNeedingFallback.Count} document(s) have no markdown headings — need fallback chunking.");
+        var docsWithNoPagesWithHeadings = DocsWithNoPagesWithHeading(cleanResult);
+        if (docsWithNoPagesWithHeadings.Count > 0)
+            redFlags.Add($"{docsWithNoPagesWithHeadings.Count} document(s) have no markdown headings — need fallback chunking.");
 
-        // 7. Spot-check sample for human review.
-        var sample = BuildSpotCheckSample(cleanResult);
+        // 7. takes a random sample for human review
+        var sample = BuildRandomCheckSample(cleanResult);
 
-        // 8. 
+        // 8. Final pass/ fail check
+            // errorCount = count of every Error-severity item across the whole issues list (parse errors, join errors, clean errors, plus the U+FFFD text-quality errors from step 5). 
+            // Warnings don't count.
         var errorCount     = issues.Count(i => i.Severity == "Error");
+
+        // totalAttempted — the denominator: total rows attempted across both raw CSVs (pagesExtraction.RowsAttempted + indexExtraction.RowsAttempted)
+        // i.e. rows attempted before anything got dropped by join/clean.
         var totalAttempted = pagesExtraction.RowsAttempted + indexExtraction.RowsAttempted;
+
+        // errorRate — errorCount as a percentage of totalAttempted 
+        // (or 100.0 if totalAttempted is 0, since a run with zero attempted rows can't be considered a clean pass).
         var errorRate      = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
+
+
+        // passedExcludingMagnitude — two conditions both have to hold:
+        // - errorRate <= 1.0% (MaxAcceptableErrorRatePercent)
+        // - reconciliation.Count == 0 (no pipeline-integrity mismatches from step 2 — Parse→Join, Join→Clean, empty run, duplicate keys)
         var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
 
-        // 
+
+        // passed — takes that result and adds a third condition: magnitude.Count == 0 (no >20% swing vs. the previous run, from step 3)
         var passed        = passedExcludingMagnitude && magnitude.Count == 0;
 
         return new ValidationReport
@@ -77,7 +91,7 @@ public static class PipelineValidator
             MagnitudeWarnings             = magnitude,
             RedFlags                      = redFlags,
             SpotCheckSample               = sample,
-            DocumentsNeedingFallbackChunking = docsNeedingFallback,
+            DocumentsNeedingFallbackChunking = docsWithNoPagesWithHeadings,
             SkippedIndexDocuments         = joinResult.SkippedIndexRecords
                 .Select(r => $"{r.DocumentTypeName} ({r.DocumentId})")
                 .ToList(),
@@ -283,7 +297,7 @@ public static class PipelineValidator
 
     // 6. document flagged if none of its pages has a heading
     // matters because chunking = chunks done per header
-    private static List<string> FindDocsNeedingFallbackChunking(CleanResult cleanResult)
+    private static List<string> DocsWithNoPagesWithHeading(CleanResult cleanResult)
     {
         // checks all pages that have a heading
         var docsWithHeadings = cleanResult.Records
@@ -298,8 +312,8 @@ public static class PipelineValidator
             .ToList();
     }
 
-    // 7. Spot-check sample for human review.
-    private static List<CleanedPageRecord> BuildSpotCheckSample(CleanResult cleanResult) =>
+    // 7. takes a random sample for human review
+    private static List<CleanedPageRecord> BuildRandomCheckSample(CleanResult cleanResult) =>
         cleanResult.Records.Count <= SpotCheckSampleSize
             ? [.. cleanResult.Records]
             : [.. cleanResult.Records.OrderBy(_ => Guid.NewGuid()).Take(SpotCheckSampleSize)];
