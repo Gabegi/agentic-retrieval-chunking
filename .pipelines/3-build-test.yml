@@ -45,8 +45,10 @@ stages:
               dotnet test src/RagApp.UnitTests/RagApp.UnitTests.csproj \
                 -c Release --no-build \
                 --logger "trx;LogFileName=test-results.trx" \
-                --results-directory $(Agent.TempDirectory)/testresults
-            displayName: 'Run unit tests'
+                --results-directory $(Agent.TempDirectory)/testresults \
+                --collect:"XPlat Code Coverage" \
+                -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            displayName: 'Run unit tests with coverage'
 
           - task: PublishTestResults@2
             displayName: 'Publish test results'
@@ -56,3 +58,11 @@ stages:
               testResultsFiles: '**/test-results.trx'
               searchFolder: '$(Agent.TempDirectory)/testresults'
               mergeTestResults: true
+
+          # coverlet.collector drops coverage.cobertura.xml under a per-run GUID subfolder of
+          # --results-directory - the double-** glob picks it up regardless of that GUID.
+          - task: PublishCodeCoverageResults@2
+            displayName: 'Publish code coverage'
+            condition: succeededOrFailed()
+            inputs:
+              summaryFileLocation: '$(Agent.TempDirectory)/testresults/**/coverage.cobertura.xml'

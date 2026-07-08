@@ -10,6 +10,10 @@
     <PackageReference Include="MSTest.TestAdapter"      Version="3.*" />
     <PackageReference Include="MSTest.TestFramework"     Version="3.*" />
     <PackageReference Include="Moq"                      Version="4.*" />
+    <PackageReference Include="coverlet.collector"        Version="6.*">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\agentic-rag-app\ProtocolsIndexer.csproj" />
