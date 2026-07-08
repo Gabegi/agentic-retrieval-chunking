@@ -97,27 +97,24 @@ data "azurerm_private_dns_zone" "vaultcore" {
   resource_group_name = "cor-connectivity-dns-prd-we-001"
 }
 
-# Commented out until the platform team creates these zones (confirmed
-# 2026-07-07 they don't exist in the hub at all yet - not just an unlinked
-# zone). Uncomment once they exist, and re-add the private_dns_zone_group
-# blocks in storage.tf (stfunc_queue, stfunc_table) and search.tf.
-# data "azurerm_private_dns_zone" "queue" {
-#   provider            = azurerm.hub
-#   name                = "privatelink.queue.core.windows.net"
-#   resource_group_name = "cor-connectivity-dns-prd-we-001"
-# }
-#
-# data "azurerm_private_dns_zone" "table" {
-#   provider            = azurerm.hub
-#   name                = "privatelink.table.core.windows.net"
-#   resource_group_name = "cor-connectivity-dns-prd-we-001"
-# }
-#
-# data "azurerm_private_dns_zone" "search" {
-#   provider            = azurerm.hub
-#   name                = "privatelink.search.windows.net"
-#   resource_group_name = "cor-connectivity-dns-prd-we-001"
-# }
+# Platform team confirmed these zones now exist in the hub (2026-07-08).
+data "azurerm_private_dns_zone" "queue" {
+  provider            = azurerm.hub
+  name                = "privatelink.queue.core.windows.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "table" {
+  provider            = azurerm.hub
+  name                = "privatelink.table.core.windows.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
+
+data "azurerm_private_dns_zone" "search" {
+  provider            = azurerm.hub
+  name                = "privatelink.search.windows.net"
+  resource_group_name = "cor-connectivity-dns-prd-we-001"
+}
 
 # Not currently consumed by any private endpoint in this repo (the Foundry
 # account is referenced via data.azurerm_cognitive_account.foundry, managed
