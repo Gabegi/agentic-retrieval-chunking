@@ -36,7 +36,7 @@ public static class PipelineValidator
             //   + joinResult.SkippedIndexRecords            (Warning, Stage=Join — "no pages" docs)
         var issues = CollectIssues(pagesExtraction, indexExtraction, joinResult, cleanResult, redFlags);
 
-        // 2. Reconcile counts across step boundaries.
+        // 2. 
         reconciliation.AddRange(ReconcileCounts(pagesExtraction, joinResult, cleanResult));
 
         // 3. Magnitude shift vs a previous run, if supplied.
@@ -96,7 +96,7 @@ public static class PipelineValidator
         };
     }
 
-    // 2. Reconcile counts across step boundaries.
+    // 2. 
     private static List<string> ReconcileCounts(
         ExtractionResult<PageRecord> pagesExtraction,
         JoinResult                   joinResult,
@@ -104,8 +104,7 @@ public static class PipelineValidator
     {
         var reconciliation = new List<string>();
 
-        // Join dedupes its error log per DOCUMENT, not per page — recompute the real
-        // per-page total for unmatched docs before comparing.
+        // 
         var unmatchedDocIds    = joinResult.Errors.Select(e => e.DocumentId).ToHashSet();
         var unmatchedPageCount = pagesExtraction.Records.Count(p => unmatchedDocIds.Contains(p.DocumentId));
         if (joinResult.Joined.Count + unmatchedPageCount + joinResult.InactivePagesSkipped
