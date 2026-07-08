@@ -234,4 +234,10 @@ public class CsvExtractor : ICsvExtractor
         return active;
     }
 
+    // TryGetField, not GetField: same reasoning as ACTIVE/REVISION - name isn't in the
+    // required-columns list, so a column entirely absent from the file must default
+    // gracefully instead of throwing on every single row.
+    private static string GetOptionalField(CsvReader csv, string name) =>
+        csv.TryGetField<string>(name, out var value) ? value ?? "" : "";
+
 }
