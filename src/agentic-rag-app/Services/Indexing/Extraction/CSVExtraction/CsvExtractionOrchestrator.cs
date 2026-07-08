@@ -79,13 +79,13 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         await using var pagesStream = await pagesStreamTask;
         await using var indexStream = await indexStreamTask;
 
-        var pagesResult = CsvExtractor.ExtractPages(pagesStream);
-        var indexResult = CsvExtractor.ExtractIndex(indexStream);
-        var joinResult  = CsvJoiner.Join(pagesResult.Records, indexResult.Records);
-        var cleanResult = DataCleaner.Clean(joinResult.Joined);
+        var pagesResult = _csvExtractor.ExtractPages(pagesStream);
+        var indexResult = _csvExtractor.ExtractIndex(indexStream);
+        var joinResult  = _csvJoiner.Join(pagesResult.Records, indexResult.Records);
+        var cleanResult = _dataCleaner.Clean(joinResult.Joined);
 
         var (previousCount, previousETag) = await PreviousRunCount(ct);
-        var report = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
+        var report = _pipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
 
         // Write report in blob
         if (_reportWriter.IsEnabled)
