@@ -202,7 +202,7 @@ public class CsvExtractor : ICsvExtractor
     private static int ParsePageIndex(CsvReader csv)
     {
         var raw = csv.GetField("PAGE_INDEX");
-        if (!int.TryParse(raw, out var value))
+        if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
             throw new FormatException($"PAGE_INDEX '{raw}' is not a valid integer.");
         return value;
     }
