@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Azure.Core;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using ProtocolsIndexer.Services;
 
@@ -6,19 +8,23 @@ namespace RagApp.UnitTests.Querying;
 [TestClass]
 public class KnowledgeBaseReferenceMapperTests
 {
-    private static KnowledgeBaseReference Reference(Dictionary<string, object?> fields)
+    // KnowledgeBaseReference is an Azure SDK response-only model (no public constructor) -
+    // built via ModelReaderWriter from JSON, the SDK's documented pattern for constructing
+    // these models in tests.
+    private static KnowledgeBaseReference Reference(Dictionary<string, object?>? sourceData = null)
     {
-        var sourceData = new Dictionary<string, BinaryData>();
-        foreach (var (key, value) in fields)
-            sourceData[key] = BinaryData.FromObjectAsJson(value);
+        var payload = new Dictionary<string, object?> { ["type"] = "searchIndex" };
+        if (sourceData is not null)
+            payload["sourceData"] = sourceData;
 
-        return new KnowledgeBaseReference("searchIndex") { SourceData = sourceData };
+        var json = JsonSerializer.Serialize(payload);
+        return ModelReaderWriter.Read<KnowledgeBaseReference>(BinaryData.FromString(json))!;
     }
 
     [TestMethod]
     public void Reference_WithNoSourceData_IsSkipped()
     {
-        var reference = new KnowledgeBaseReference("searchIndex");
+        var reference = Reference();
 
         var chunks = KnowledgeBaseReferenceMapper.Map([reference]);
 

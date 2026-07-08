@@ -1,3 +1,4 @@
+using Azure.Core;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using ProtocolsIndexer.Services;
 
@@ -6,6 +7,16 @@ namespace RagApp.UnitTests.Querying;
 [TestClass]
 public class KnowledgeBaseActivitySummaryTests
 {
+    // These are Azure SDK response-only models (no public constructor) - built via
+    // ModelReaderWriter from JSON, the SDK's documented pattern for constructing them in tests.
+    private static KnowledgeBaseModelQueryPlanningActivityRecord PlanningRecord(long? input, long? output) =>
+        ModelReaderWriter.Read<KnowledgeBaseModelQueryPlanningActivityRecord>(BinaryData.FromString(
+            $$"""{"type":"modelQueryPlanning","inputTokens":{{input?.ToString() ?? "null"}},"outputTokens":{{output?.ToString() ?? "null"}}}"""))!;
+
+    private static KnowledgeBaseModelAnswerSynthesisActivityRecord SynthesisRecord(long? input, long? output) =>
+        ModelReaderWriter.Read<KnowledgeBaseModelAnswerSynthesisActivityRecord>(BinaryData.FromString(
+            $$"""{"type":"modelAnswerSynthesis","inputTokens":{{input?.ToString() ?? "null"}},"outputTokens":{{output?.ToString() ?? "null"}}}"""))!;
+
     [TestMethod]
     public void NullActivity_ReturnsZeroTokens()
     {
@@ -27,11 +38,7 @@ public class KnowledgeBaseActivitySummaryTests
     [TestMethod]
     public void PlanningRecord_TokensAreSummed()
     {
-        var record = new KnowledgeBaseModelQueryPlanningActivityRecord(1)
-        {
-            InputTokens  = 10,
-            OutputTokens = 20,
-        };
+        var record = PlanningRecord(10, 20);
 
         var (input, output) = KnowledgeBaseActivitySummary.SumTokens([record]);
 
@@ -42,11 +49,7 @@ public class KnowledgeBaseActivitySummaryTests
     [TestMethod]
     public void SynthesisRecord_TokensAreSummed()
     {
-        var record = new KnowledgeBaseModelAnswerSynthesisActivityRecord(1)
-        {
-            InputTokens  = 5,
-            OutputTokens = 7,
-        };
+        var record = SynthesisRecord(5, 7);
 
         var (input, output) = KnowledgeBaseActivitySummary.SumTokens([record]);
 
@@ -57,8 +60,8 @@ public class KnowledgeBaseActivitySummaryTests
     [TestMethod]
     public void MultipleRecords_TokensAcrossPlanningAndSynthesisAreSummed()
     {
-        var planning = new KnowledgeBaseModelQueryPlanningActivityRecord(1) { InputTokens = 10, OutputTokens = 20 };
-        var synthesis = new KnowledgeBaseModelAnswerSynthesisActivityRecord(2) { InputTokens = 5, OutputTokens = 7 };
+        var planning  = PlanningRecord(10, 20);
+        var synthesis = SynthesisRecord(5, 7);
 
         var (input, output) = KnowledgeBaseActivitySummary.SumTokens([planning, synthesis]);
 
@@ -69,7 +72,7 @@ public class KnowledgeBaseActivitySummaryTests
     [TestMethod]
     public void NullTokenValues_AreTreatedAsZero()
     {
-        var record = new KnowledgeBaseModelQueryPlanningActivityRecord(1);
+        var record = PlanningRecord(null, null);
 
         var (input, output) = KnowledgeBaseActivitySummary.SumTokens([record]);
 

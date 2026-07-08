@@ -7,9 +7,7 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-// Instance (not static) specifically so encoding detection can log immediately at the
-// point it happens, via an injected ILogger, instead of threading the detected encoding
-// back out through ExtractionResult<T> for some other layer to log later.
+// Instance, not static, so encoding detection can log immediately via an injected ILogger.
 public class CsvExtractor : ICsvExtractor
 {
     private readonly ILogger<CsvExtractor> _logger;
