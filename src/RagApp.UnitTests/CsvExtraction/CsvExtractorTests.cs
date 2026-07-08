@@ -40,6 +40,28 @@ public class CsvExtractorTests
     }
 
     [TestMethod]
+    public void ExtractPages_LogsDetectedEncoding()
+    {
+        // No BOM in ToStream's raw UTF-8 bytes, so StreamReader falls back to the UTF-8
+        // default it was explicitly constructed with (EnsureHeadersAreCorrect) - this
+        // verifies that fallback is actually observable, not just assumed.
+        var logger    = new Mock<ILogger<CsvExtractor>>();
+        var extractor = new CsvExtractor(logger.Object);
+        var csv = PagesHeader + "\n" +
+                  "doc1,Title,QC1,Folder/Path,20240101120000,0,Some content,rel/path,nl-NL\n";
+
+        extractor.ExtractPages(ToStream(csv));
+
+        logger.Verify(l => l.Log(
+            LogLevel.Information,
+            It.IsAny<EventId>(),
+            It.Is<It.IsAnyType>((state, _) => state.ToString()!.Contains("utf-8", StringComparison.OrdinalIgnoreCase)),
+            null,
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [TestMethod]
     public void ExtractPages_MissingRequiredHeader_Throws()
     {
         var csv = "DOCUMENT_ID,TITLE\ndoc1,Title\n";
