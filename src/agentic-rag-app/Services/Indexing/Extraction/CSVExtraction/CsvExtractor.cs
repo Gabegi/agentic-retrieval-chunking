@@ -174,6 +174,18 @@ public class CsvExtractor : ICsvExtractor
                 $"CSV header parsed as a single column ('{csv.HeaderRecord[0]}') — " +
                 $"check that the delimiter is '{Config.Delimiter}'.");
 
+        // Two columns sharing a name (e.g. two "DOCUMENT_ID" columns) would otherwise leave
+        // GetField's resolution among them as unverified, implicit CsvHelper behavior. Name
+        // the actual problem explicitly instead, same principle as the delimiter check above.
+        var duplicates = (csv.HeaderRecord ?? [])
+            .GroupBy(h => h, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+        if (duplicates.Count > 0)
+            throw new InvalidOperationException(
+                $"CSV header has duplicate column name(s): {string.Join(", ", duplicates)}.");
+
         var missing = requiredHeaders
             .Where(c => csv.HeaderRecord is null
                      || !csv.HeaderRecord.Contains(c, StringComparer.OrdinalIgnoreCase))
