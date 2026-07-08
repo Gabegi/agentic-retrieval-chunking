@@ -124,9 +124,12 @@ stages:
                 echo "--- role assignments for this SP in cor-connectivity-prd ---"
                 az role assignment list --assignee "$SP_ID" --all -o table
                 echo "--- role assignments scoped specifically to the DNS zone RG ---"
+                # Expected to fail for this SP (no Microsoft.Authorization/roleAssignments/read
+                # at the RG scope - its role assignments are at the individual zone resources,
+                # already shown above) - informational only, must not fail the task on its own.
                 az role assignment list --assignee "$SP_ID" \
                   --scope "/subscriptions/c8e46005-ce0e-4be5-9ded-0178e19fbe28/resourceGroups/cor-connectivity-dns-prd-we-001" \
-                  --include-inherited -o table
+                  --include-inherited -o table || echo "(no roleAssignments/read at RG scope - expected, see role list above)"
 
           - script: |
               TF_VERSION="1.15.7"

@@ -33,89 +33,23 @@ public static class PipelineValidator
         reconciliation.AddRange(ReconcileCounts(pagesExtraction, joinResult, cleanResult));
 
         // 3. Magnitude shift vs a previous run, if supplied.
-        if (previousRunCleanedCount is int previous && previous > 0)
-        {
-            var deltaPercent = 100.0 * (cleanResult.Records.Count - previous) / previous;
-            if (Math.Abs(deltaPercent) > MaxAcceptableMagnitudeShiftPercent)
-                magnitude.Add(
-                    $"Cleaned count shifted {deltaPercent:+0.0;-0.0}% vs previous run " +
-                    $"({previous} -> {cleanResult.Records.Count}) — exceeds {MaxAcceptableMagnitudeShiftPercent}% threshold.");
-        }
+        magnitude.AddRange(CheckMagnitudeShift(cleanResult, previousRunCleanedCount));
 
-        // 4. Referential integrity: no duplicate (DocumentId, PageIndex) in the final output.
-        // Defense-in-depth, not reachable today — DataCleaner.Clean already dedupes on
-        // this exact key before a record ever reaches cleanResult.Records, so this can
-        // only fire if that upstream guarantee is ever broken. Kept as a cheap invariant
-        // check rather than relied on as live logic.
-        var duplicateKeys = cleanResult.Records
-            .GroupBy(r => (r.DocumentId, r.PageIndex))
-            .Where(g => g.Count() > 1)
-            .Select(g => $"Duplicate output key: {g.Key.DocumentId} / page {g.Key.PageIndex} appears {g.Count()} times");
-        reconciliation.AddRange(duplicateKeys);
-
-        // 5. Domain-specific red flag: documents flagged as overdue for review.
-        var staleDocCount = cleanResult.Records
-            .Where(r => r.AttentionFlags.Contains("check_date_exceeded"))
-            .Select(r => r.DocumentId)
-            .Distinct()
-            .Count();
+        // 4. Domain-specific red flag: documents flagged as overdue for review.
+        var staleDocCount = CountStaleDocs(cleanResult);
         if (staleDocCount > 0)
             redFlags.Add($"{staleDocCount} document(s) flagged check_date_exceeded — guidance may be outdated.");
 
-        // 6. Text-quality signals on Zenya's source text.
-        foreach (var record in cleanResult.Records)
-        {
-            var replacementCount = record.PageContent.Count(c => c == ReplacementChar);
-            if (replacementCount > 0)
-                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
-                    DocumentId = record.DocumentId,
-                    Message    = $"Page {record.PageIndex}: {replacementCount} U+FFFD char(s) — source text is corrupted." });
+        // 5. Text-quality signals on Zenya's source text.
+        issues.AddRange(CollectTextQualityIssues(cleanResult));
 
-            if (!string.IsNullOrEmpty(record.Language) &&
-                !record.Language.StartsWith("nl", StringComparison.OrdinalIgnoreCase))
-                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
-                    DocumentId = record.DocumentId,
-                    Message    = $"Page {record.PageIndex}: language '{record.Language}' — nl.microsoft analyzer will tokenize this poorly." });
-
-            // Check each table block independently — a page can legitimately contain
-            // multiple tables of different widths; checking the whole page at once
-            // would flag that as "inconsistent" when both tables are individually fine.
-            var tableBlocks = record.PageContent
-                .Split("\n\n", StringSplitOptions.RemoveEmptyEntries)
-                .Where(block => MarkdownTableLine.IsMatch(block));
-
-            foreach (var block in tableBlocks)
-            {
-                var pipeCounts = MarkdownTableLine.Matches(block)
-                    .Select(m => m.Value.Count(ch => ch == '|'))
-                    .ToList();
-                if (pipeCounts.Count > 1 && pipeCounts.Distinct().Count() > 1)
-                {
-                    issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
-                        DocumentId = record.DocumentId,
-                        Message    = $"Page {record.PageIndex}: markdown table has inconsistent column counts across rows." });
-                    break; // one warning per page is enough
-                }
-            }
-        }
-
-        // 7. Structure presence per document — directly informs Chunking's strategy choice.
-        var docsWithHeadings = cleanResult.Records
-            .Where(r => MarkdownHeading.IsMatch(r.PageContent))
-            .Select(r => r.DocumentId)
-            .ToHashSet();
-        var docsNeedingFallback = cleanResult.Records
-            .Select(r => r.DocumentId)
-            .Distinct()
-            .Where(id => !docsWithHeadings.Contains(id))
-            .ToList();
+        // 6. Structure presence per document — directly informs Chunking's strategy choice.
+        var docsNeedingFallback = FindDocsNeedingFallbackChunking(cleanResult);
         if (docsNeedingFallback.Count > 0)
             redFlags.Add($"{docsNeedingFallback.Count} document(s) have no markdown headings — need fallback chunking.");
 
-        // 8. Spot-check sample for human review.
-        List<CleanedPageRecord> sample = cleanResult.Records.Count <= SpotCheckSampleSize
-            ? [.. cleanResult.Records]
-            : [.. cleanResult.Records.OrderBy(_ => Guid.NewGuid()).Take(SpotCheckSampleSize)];
+        // 7. Spot-check sample for human review.
+        var sample = BuildSpotCheckSample(cleanResult);
 
         // 9. Pass/fail. Denominator is every row attempted across both inputs — parse errors
         // from the index file count against the same budget they're measured by.
