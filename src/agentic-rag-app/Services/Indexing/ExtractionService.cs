@@ -40,6 +40,7 @@ public class ExtractionService : IExtractionService
         var extractionOutput       = await _extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
 
         // check what documents we have in the index already
+        // = sourceId + last-indexed
         var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
 
         var toProcess      = new List<ExtractionDocument>();
@@ -49,7 +50,10 @@ public class ExtractionService : IExtractionService
         var updated        = 0;
 
         // we now compare => fetched documents vs already in index
-        // we add those missing
+        // we add docs not in the index
+        // if doc is in index + last_modified_date != newer => skip
+        // if not in dex OR forceReindex = true then add
+        // if doc is in index but not in extractionOutput => remove from index
         foreach (var doc in extractionOutput.Docs)
         {
             seenSourceIds.Add(doc.SourceId);
@@ -73,11 +77,7 @@ public class ExtractionService : IExtractionService
             updated++;
         }
 
-        // Docs that were previously indexed but no longer appear in the source — withdrawn/removed
-        // upstream. Their chunks are stale the same way an updated doc's old chunks are - not
-        // deleted here, just flagged. Deletion happens after the replacement content (for updated
-        // docs) is safely re-embedded and re-uploaded, so a failure later in the pipeline never
-        // leaves a document with no chunks at all - see UploadService.UploadDocumentsAsync.
+        // Docs that were previously indexed but no longer appear in the source
         var removedSourceIds = indexedDates.Keys.Where(id => !seenSourceIds.Contains(id)).ToList();
         toDeleteChunks.AddRange(removedSourceIds);
 
