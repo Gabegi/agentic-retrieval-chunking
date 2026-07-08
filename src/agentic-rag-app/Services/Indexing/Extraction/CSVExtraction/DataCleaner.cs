@@ -9,7 +9,7 @@ namespace ProtocolsIndexer.Services;
 // Cleans joined page records: strips boilerplate/markup from content,
 // parses raw string fields into typed values, and de-duplicates pages.
 // One bad page becomes a CleaningError; it never aborts the whole run.
-public static class DataCleaner
+public class DataCleaner : IDataCleaner
 {
     // Standalone "cordaan"/"CORDAAN" logo lines only — lowercase and all-caps are
     // both confirmed logo text; mixed-case "Cordaan" is left untouched since that's
