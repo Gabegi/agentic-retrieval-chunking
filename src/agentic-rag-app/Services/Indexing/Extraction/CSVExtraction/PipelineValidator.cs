@@ -26,37 +26,11 @@ public static class PipelineValidator
         var magnitude     = new List<string>();
         var redFlags      = new List<string>();
 
+        // 1. Collect all errors from all 3 previous steps
         var issues = CollectIssues(pagesExtraction, indexExtraction, joinResult, cleanResult, redFlags);
 
         // 2. Reconcile counts across step boundaries.
-        // Join dedupes its error log per DOCUMENT, not per page — recompute the real
-        // per-page total for unmatched docs before comparing.
-        var unmatchedDocIds    = joinResult.Errors.Select(e => e.DocumentId).ToHashSet();
-        var unmatchedPageCount = pagesExtraction.Records.Count(p => unmatchedDocIds.Contains(p.DocumentId));
-        if (joinResult.Joined.Count + unmatchedPageCount + joinResult.InactivePagesSkipped
-                != pagesExtraction.Records.Count)
-            reconciliation.Add(
-                $"Parse->Join mismatch: {pagesExtraction.Records.Count} pages extracted, but " +
-                $"{joinResult.Joined.Count} joined + {unmatchedPageCount} unmatched + " +
-                $"{joinResult.InactivePagesSkipped} inactive-skipped.");
-
-        // Join -> Clean: every joined record is processed exactly once.
-        if (cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
-                != joinResult.Joined.Count)
-            reconciliation.Add(
-                $"Join->Clean mismatch: {joinResult.Joined.Count} joined, but " +
-                $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored + " +
-                $"{cleanResult.DuplicatePagesSkipped} duplicate-skipped.");
-
-        // 2b. Zero cleaned records is never a legitimate outcome, even an export where
-        // every document happens to be inactive. Unlike the magnitude-shift check below,
-        // this fires with no previous-run baseline required — a first-ever run (or a run
-        // right after a lost/corrupt state blob) shouldn't be able to sail through empty.
-        // Folded into reconciliation (not magnitude) so overrideMagnitudeCheck can never
-        // bypass it — see the magnitude-shift comment below on why an empty run is
-        // dangerous downstream (the diff step deletes anything "missing").
-        if (cleanResult.Records.Count == 0)
-            reconciliation.Add("Zero cleaned records produced — refusing to pass an empty run.");
+        reconciliation.AddRange(ReconcileCounts(pagesExtraction, joinResult, cleanResult));
 
         // 3. Magnitude shift vs a previous run, if supplied.
         if (previousRunCleanedCount is int previous && previous > 0)
@@ -179,6 +153,46 @@ public static class PipelineValidator
             Passed                        = passed,
             PassedExcludingMagnitude      = passedExcludingMagnitude,
         };
+    }
+
+    // 2. Reconcile counts across step boundaries.
+    private static List<string> ReconcileCounts(
+        ExtractionResult<PageRecord> pagesExtraction,
+        JoinResult                   joinResult,
+        CleanResult                  cleanResult)
+    {
+        var reconciliation = new List<string>();
+
+        // Join dedupes its error log per DOCUMENT, not per page — recompute the real
+        // per-page total for unmatched docs before comparing.
+        var unmatchedDocIds    = joinResult.Errors.Select(e => e.DocumentId).ToHashSet();
+        var unmatchedPageCount = pagesExtraction.Records.Count(p => unmatchedDocIds.Contains(p.DocumentId));
+        if (joinResult.Joined.Count + unmatchedPageCount + joinResult.InactivePagesSkipped
+                != pagesExtraction.Records.Count)
+            reconciliation.Add(
+                $"Parse->Join mismatch: {pagesExtraction.Records.Count} pages extracted, but " +
+                $"{joinResult.Joined.Count} joined + {unmatchedPageCount} unmatched + " +
+                $"{joinResult.InactivePagesSkipped} inactive-skipped.");
+
+        // Join -> Clean: every joined record is processed exactly once.
+        if (cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
+                != joinResult.Joined.Count)
+            reconciliation.Add(
+                $"Join->Clean mismatch: {joinResult.Joined.Count} joined, but " +
+                $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored + " +
+                $"{cleanResult.DuplicatePagesSkipped} duplicate-skipped.");
+
+        // Zero cleaned records is never a legitimate outcome, even an export where
+        // every document happens to be inactive. Unlike the magnitude-shift check below,
+        // this fires with no previous-run baseline required — a first-ever run (or a run
+        // right after a lost/corrupt state blob) shouldn't be able to sail through empty.
+        // Folded into reconciliation (not magnitude) so overrideMagnitudeCheck can never
+        // bypass it — see the magnitude-shift comment below on why an empty run is
+        // dangerous downstream (the diff step deletes anything "missing").
+        if (cleanResult.Records.Count == 0)
+            reconciliation.Add("Zero cleaned records produced — refusing to pass an empty run.");
+
+        return reconciliation;
     }
 
     // 1. Aggregate every error/warning bucket into one place.

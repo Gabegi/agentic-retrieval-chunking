@@ -67,3 +67,5 @@ comparison-output/
 *.sqlite
 /src/.vs
 /.vs
+
+.fake
