@@ -1,32 +1,29 @@
 using System.Globalization;
+using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
+using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-public static class CsvExtractor
+// Instance (not static) specifically so encoding detection can log immediately at the
+// point it happens, via an injected ILogger, instead of threading the detected encoding
+// back out through ExtractionResult<T> for some other layer to log later.
+public class CsvExtractor
 {
-    // Default behavior (no MissingFieldFound/BadDataFound overrides): a ragged row
-    // (fewer fields than the header) or malformed field data throws MissingFieldException/
-    // BadDataException instead of silently reading as null. Both land in the try/catch
-    // blocks that already exist below - during csv.Read() they're caught by
-    // EnsureRowIsReadable, during a later GetField() call they're caught by the
-    // record-building catch - so they're logged as row-level failures and the loop
-    // moves on, the same as any other row-level problem.
+    private readonly ILogger<CsvExtractor> _logger;
+
+    public CsvExtractor(ILogger<CsvExtractor> logger)
+    {
+        _logger = logger;
+    }
+
     private static readonly CsvConfiguration Config = new(CultureInfo.InvariantCulture)
     {
         Delimiter       = ",",
         HasHeaderRecord = true,
 
-        // CsvHelper's own GetField("DOCUMENT_ID") name lookup is case-sensitive by
-        // default - EnsureHeadersAreCorrect validating with StringComparer.OrdinalIgnoreCase
-        // doesn't change that, since it's a separate manual scan over the raw
-        // HeaderRecord. Without this, a file with "Document_Id" instead of
-        // "DOCUMENT_ID" would pass the up-front header check and then fail to resolve
-        // on every single GetField call - the exact all-rows failure that check
-        // exists to prevent. Normalizing both sides to uppercase makes CsvHelper's
-        // own matching genuinely case-insensitive too.
         PrepareHeaderForMatch = args => args.Header.ToUpperInvariant(),
     };
 
