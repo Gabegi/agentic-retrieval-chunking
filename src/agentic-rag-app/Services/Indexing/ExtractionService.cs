@@ -35,7 +35,11 @@ public class ExtractionService : IExtractionService
     // 1. Call the source extractor, diff results against the current index state
     private async Task<DiffResult> ExtractAndDiffAsync(bool forceReindex, bool overrideMagnitudeCheck, CancellationToken ct)
     {
+
+        // fetch all documents to process
         var extractionOutput       = await _extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
+
+        // check what documents we have in the index already
         var indexedDates = await _indexDocumentService.GetIndexedDocumentDatesAsync(ct);
 
         var toProcess      = new List<ExtractionDocument>();
@@ -44,6 +48,8 @@ public class ExtractionService : IExtractionService
         var newCount       = 0;
         var updated        = 0;
 
+        // we now compare => fetched documents vs already in index
+        // we add those missing
         foreach (var doc in extractionOutput.Docs)
         {
             seenSourceIds.Add(doc.SourceId);
