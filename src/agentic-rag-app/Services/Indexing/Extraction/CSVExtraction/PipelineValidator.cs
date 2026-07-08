@@ -3,7 +3,7 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-public static class PipelineValidator
+public class PipelineValidator : IPipelineValidator
 {
     private const double MaxAcceptableErrorRatePercent      = 1.0;
     private const double MaxAcceptableMagnitudeShiftPercent = 20.0;
@@ -15,7 +15,7 @@ public static class PipelineValidator
     private static readonly Regex MarkdownTableLine =
         new(@"^\s*\|.*\|\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
-    public static ValidationReport Validate(
+    public ValidationReport Validate(
         ExtractionResult<PageRecord>  pagesExtraction,
         ExtractionResult<IndexRecord> indexExtraction,
         JoinResult                    joinResult,
