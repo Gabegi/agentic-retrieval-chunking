@@ -3,17 +3,6 @@ using ProtocolsIndexer.Models;
 namespace ProtocolsIndexer.Services;
 
 // Merges data (pages) with metadata (index).
-//
-// Page-level content (zenya_pages.csv, one row per page) with document-level
-// metadata (zenya_index.csv, one row per document) by DOCUMENT_ID
-
-// neither file alone has everything a page needs to be indexed. Also classifies every way the two files
-// can disagree: matched+active proceeds to DataCleaner; matched-but-inactive skips the
-// page (DataQualityWarning); 
-
-// a page with no matching index record is an Error; an
-// index record with no matching pages is tracked separately (SkippedIndexRecords); a
-// duplicate DOCUMENT_ID in the index is a DataQualityWarning (first occurrence wins).
 
 // Potential outcomes
     // Matched + Active → AddJoined → the only bucket that continues to DataCleaner. This is your "data + metadata both present" set.
