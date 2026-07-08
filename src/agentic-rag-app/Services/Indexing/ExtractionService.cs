@@ -12,15 +12,20 @@ public class ExtractionService : IExtractionService
     // adding branching here.
     private readonly IExtractionOrchestrator    _extractor;
     private readonly IIndexDocumentService      _indexDocumentService;
+    private readonly IRunReportWriter           _reportWriter;
     private readonly ILogger<ExtractionService> _logger;
+
+    private const string ReportFolder = "indexing/extraction-diff";
 
     public ExtractionService(
         IExtractionOrchestrator    extractor,
         IIndexDocumentService      indexDocumentService,
+        IRunReportWriter           reportWriter,
         ILogger<ExtractionService> logger)
     {
         _extractor             = extractor;
         _indexDocumentService  = indexDocumentService;
+        _reportWriter          = reportWriter;
         _logger                = logger;
     }
 
