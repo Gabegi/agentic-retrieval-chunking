@@ -214,7 +214,8 @@ public class CsvExtractor : ICsvExtractor
         var version = csv.GetField("VERSION") ?? "";
         if (string.IsNullOrWhiteSpace(version))
             return "";
-        return int.TryParse(csv.GetField("REVISION"), out var revision) ? $"{version}.{revision}" : version;
+        return int.TryParse(csv.GetField("REVISION"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var revision)
+            ? $"{version}.{revision}" : version;
     }
 
 
