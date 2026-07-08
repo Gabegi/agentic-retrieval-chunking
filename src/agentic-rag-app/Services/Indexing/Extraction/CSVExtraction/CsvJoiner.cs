@@ -20,13 +20,13 @@ namespace ProtocolsIndexer.Services;
     // NotFound → AddError → tracked, not joined. Whether that then gets written to blob for tracking is a caller decision outside this method — Join() just classifies it.
     // Inactive → AddDataQualityWarning + skip count → same idea, tracked but excluded from joined output.
     // Index record, zero matching pages → AddSkippedIndexRecord → tracked separately.
-public static class CsvJoiner
+public class CsvJoiner : ICsvJoiner
 {
     private enum MatchStatus { NotFound, Inactive, Matched }
 
     private readonly record struct PageMatch(string DocumentId, MatchStatus Status, JoinedPageRecord? Joined);
 
-    public static JoinResult Join(IReadOnlyList<PageRecord> pages, IReadOnlyList<IndexRecord> index)
+    public JoinResult Join(IReadOnlyList<PageRecord> pages, IReadOnlyList<IndexRecord> index)
     {
         var result = new JoinResult();
 
