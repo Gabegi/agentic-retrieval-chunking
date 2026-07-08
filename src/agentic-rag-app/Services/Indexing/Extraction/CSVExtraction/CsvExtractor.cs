@@ -10,7 +10,7 @@ namespace ProtocolsIndexer.Services;
 // Instance (not static) specifically so encoding detection can log immediately at the
 // point it happens, via an injected ILogger, instead of threading the detected encoding
 // back out through ExtractionResult<T> for some other layer to log later.
-public class CsvExtractor
+public class CsvExtractor : ICsvExtractor
 {
     private readonly ILogger<CsvExtractor> _logger;
 
@@ -49,7 +49,7 @@ public class CsvExtractor
         };
     }
 
-    public static ExtractionResult<PageRecord> ExtractPages(Stream stream) =>
+    public ExtractionResult<PageRecord> ExtractPages(Stream stream) =>
         Extract(stream, PagesRequiredHeaders, csv => new PageRecord
         {
             DocumentId      = RequireDocumentId(csv),
@@ -68,7 +68,7 @@ public class CsvExtractor
     // metadata (title/version/summary/etc.) that CsvJoiner later attaches to every
     // page of the matching DOCUMENT_ID from ExtractPages. Same per-row error handling
     // as ExtractPages: a bad row is recorded and skipped, not fatal to the whole file.
-    public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream) =>
+    public ExtractionResult<IndexRecord> ExtractIndex(Stream stream) =>
         Extract(stream, IndexRequiredHeaders, csv => new IndexRecord
         {
             DocumentId        = RequireDocumentId(csv),
@@ -98,7 +98,7 @@ public class CsvExtractor
     // 3. Try to build a PageRecord from that row's fields (needs DOCUMENT_ID + valid PAGE_INDEX):
     //      - succeeds -> add it as a PageRecord
     //      - fails    -> log it as an ExtractionError, with DocumentId if we could read one
-    private static ExtractionResult<T> Extract<T>(Stream stream, string[] requiredHeaders, Func<CsvReader, T> build)
+    private ExtractionResult<T> Extract<T>(Stream stream, string[] requiredHeaders, Func<CsvReader, T> build)
     {
         var result = new ExtractionResult<T>();
         using var csv = EnsureHeadersAreCorrect(stream, requiredHeaders);
@@ -161,11 +161,22 @@ public class CsvExtractor
     //    row loop to start calling csv.Read() for data rows.
     //
     // So it does two things: open/position the reader, and fail fast on a bad header.
-    private static CsvReader EnsureHeadersAreCorrect(Stream stream, string[] requiredHeaders)
+    //
+    // Encoding: explicit constructor args (not the parameterless StreamReader(Stream)
+    // overload) so the BOM-detection behavior is visible in code rather than hiding
+    // behind a default. detectEncodingFromByteOrderMarks inspects the file's first
+    // bytes for a UTF-8/UTF-16LE/UTF-16BE BOM and switches to it; with none present it
+    // falls back to the Encoding.UTF8 passed here. csv.Read() below is the first actual
+    // read from the stream, which is what triggers that detection - StreamReader.CurrentEncoding
+    // only reflects the real answer once read from, not at construction time.
+    private CsvReader EnsureHeadersAreCorrect(Stream stream, string[] requiredHeaders)
     {
-        var csv = new CsvReader(new StreamReader(stream), Config);
-        csv.Read();       // advance to the header row
+        var streamReader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var csv = new CsvReader(streamReader, Config);
+        csv.Read();       // advance to the header row - also triggers the encoding detection above
         csv.ReadHeader(); // capture it into HeaderRecord (one-time, not per data row)
+
+        _logger.LogInformation("CSV encoding detected: {Encoding}", streamReader.CurrentEncoding.WebName);
 
         var missing = requiredHeaders
             .Where(c => csv.HeaderRecord is null
