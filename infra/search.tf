@@ -27,13 +27,10 @@ resource "azurerm_private_endpoint" "search" {
     is_manual_connection           = false
   }
 
-  # Commented out until the platform team creates privatelink.search.windows.net
-  # in the hub - confirmed 2026-07-07 it doesn't exist there at all yet (not
-  # just an unlinked zone). Uncomment once it exists (data.tf).
-  # private_dns_zone_group {
-  #   name                 = "default"
-  #   private_dns_zone_ids = [data.azurerm_private_dns_zone.search.id]
-  # }
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [data.azurerm_private_dns_zone.search.id]
+  }
 
   tags = local.common_tags
 }
