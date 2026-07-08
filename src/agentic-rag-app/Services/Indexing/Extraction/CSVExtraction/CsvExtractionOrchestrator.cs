@@ -17,6 +17,10 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     private readonly BlobContainerClient                _container;
     private readonly BlobContainerClient                _stateContainer;
     private readonly IRunReportWriter                   _reportWriter;
+    private readonly ICsvExtractor                      _csvExtractor;
+    private readonly ICsvJoiner                         _csvJoiner;
+    private readonly IDataCleaner                       _dataCleaner;
+    private readonly IPipelineValidator                 _pipelineValidator;
     private readonly ILogger<CsvExtractionOrchestrator> _logger;
 
     public string Source => "csv";
