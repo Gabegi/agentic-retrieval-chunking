@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Services;
@@ -7,6 +8,11 @@ namespace RagApp.UnitTests.CsvExtraction;
 [TestClass]
 public class PipelineValidatorTests
 {
+    private static CsvExtractor      BuildExtractor() => new(NullLogger<CsvExtractor>.Instance);
+    private static CsvJoiner         BuildJoiner()    => new();
+    private static DataCleaner       BuildCleaner()   => new();
+    private static PipelineValidator BuildValidator() => new();
+
     // Full header set including the optional-but-not-TryGetField columns (LANGUAGE,
     // REVISION) that CsvExtractor reads with GetField rather than TryGetField - omitting
     // them entirely (as opposed to leaving the value blank) throws MissingFieldException.
@@ -19,7 +25,7 @@ public class PipelineValidatorTests
     // the baseline every test below perturbs one piece of.
     private static (ExtractionResult<PageRecord> Pages, ExtractionResult<IndexRecord> Index, JoinResult Join, CleanResult Clean) HappyPath()
     {
-        var pages = CsvExtractor.ExtractPages(ToStream(
+        var pages = BuildExtractor().ExtractPages(ToStream(
             PagesHeader + "\n" +
             "doc1,Title,QC,Folder,20240101120000,0,Some markdown content,rel,nl-NL\n"));
         var index = CsvExtractor.ExtractIndex(ToStream(
@@ -74,7 +80,7 @@ public class PipelineValidatorTests
     [TestMethod]
     public void JoinError_IsSurfacedAsIssueAndCountsTowardErrorRate()
     {
-        var pages = CsvExtractor.ExtractPages(ToStream(
+        var pages = BuildExtractor().ExtractPages(ToStream(
             PagesHeader + "\n" +
             "doc1,Title,QC,Folder,20240101120000,0,Content,rel,nl-NL\n"));
         var index = new ExtractionResult<IndexRecord>(); // no matching index record for doc1
@@ -219,7 +225,7 @@ public class PipelineValidatorTests
         // up empty is that the sole document is inactive. errorRate would be 0% and there's
         // no previous-run baseline for the magnitude check to compare against, so without
         // the explicit zero-records guard this would pass vacuously with nothing indexed.
-        var pages = CsvExtractor.ExtractPages(ToStream(
+        var pages = BuildExtractor().ExtractPages(ToStream(
             PagesHeader + "\n" +
             "doc1,Title,QC,Folder,20240101120000,0,Some content,rel,nl-NL\n"));
         var index = CsvExtractor.ExtractIndex(ToStream(
