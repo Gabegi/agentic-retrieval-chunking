@@ -47,7 +47,7 @@ public class DataCleaner : IDataCleaner
     // Entry point. Walks all pages, skipping duplicates (same DocumentId +
     // PageIndex) and converting each remaining page to a CleanedPageRecord.
     // Parse failures are collected as errors; empty content only warns.
-    public static CleanResult Clean(IReadOnlyList<JoinedPageRecord> pages)
+    public CleanResult Clean(IReadOnlyList<JoinedPageRecord> pages)
     {
         var result   = new CleanResult();
         var seenKeys = new HashSet<(string DocId, int Page)>();
