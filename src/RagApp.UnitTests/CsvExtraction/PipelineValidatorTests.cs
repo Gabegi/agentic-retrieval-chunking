@@ -31,8 +31,8 @@ public class PipelineValidatorTests
         var index = BuildExtractor().ExtractIndex(ToStream(
             IndexHeader + "\n" +
             "doc1,Protocol,Summary,7,0,,[]\n"));
-        var join  = CsvJoiner.Join(pages.Records, index.Records);
-        var clean = DataCleaner.Clean(join.Joined);
+        var join  = BuildJoiner().Join(pages.Records, index.Records);
+        var clean = BuildCleaner().Clean(join.Joined);
         return (pages, index, join, clean);
     }
 
@@ -68,8 +68,8 @@ public class PipelineValidatorTests
     {
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
-        var join  = CsvJoiner.Join(pages.Records, index.Records);
-        var clean = DataCleaner.Clean(join.Joined);
+        var join  = BuildJoiner().Join(pages.Records, index.Records);
+        var clean = BuildCleaner().Clean(join.Joined);
 
         var report = PipelineValidator.Validate(pages, index, join, clean);
 
@@ -84,8 +84,8 @@ public class PipelineValidatorTests
             PagesHeader + "\n" +
             "doc1,Title,QC,Folder,20240101120000,0,Content,rel,nl-NL\n"));
         var index = new ExtractionResult<IndexRecord>(); // no matching index record for doc1
-        var join  = CsvJoiner.Join(pages.Records, index.Records);
-        var clean = DataCleaner.Clean(join.Joined);
+        var join  = BuildJoiner().Join(pages.Records, index.Records);
+        var clean = BuildCleaner().Clean(join.Joined);
 
         var report = PipelineValidator.Validate(pages, index, join, clean);
 
@@ -99,8 +99,8 @@ public class PipelineValidatorTests
         var index = BuildExtractor().ExtractIndex(ToStream(
             IndexHeader + "\n" +
             "doc1,Protocol,Summary,7,0,,[]\n"));
-        var join  = CsvJoiner.Join(pages.Records, index.Records);
-        var clean = DataCleaner.Clean(join.Joined);
+        var join  = BuildJoiner().Join(pages.Records, index.Records);
+        var clean = BuildCleaner().Clean(join.Joined);
 
         var report = PipelineValidator.Validate(pages, index, join, clean);
 
@@ -115,7 +115,7 @@ public class PipelineValidatorTests
         {
             JoinedPage("doc1", "content", attentionFlagsRaw: "[\"check_date_exceeded\"]"),
         };
-        var clean = DataCleaner.Clean(flaggedJoin);
+        var clean = BuildCleaner().Clean(flaggedJoin);
 
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
@@ -131,7 +131,7 @@ public class PipelineValidatorTests
     public void ContentWithoutHeadings_NeedsFallbackChunking()
     {
         var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "Plain text, no headings at all.") };
-        var clean = DataCleaner.Clean(joined);
+        var clean = BuildCleaner().Clean(joined);
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
@@ -145,7 +145,7 @@ public class PipelineValidatorTests
     public void ContentWithMarkdownHeading_DoesNotNeedFallbackChunking()
     {
         var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "# Heading\nSome content under it.") };
-        var clean = DataCleaner.Clean(joined);
+        var clean = BuildCleaner().Clean(joined);
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
@@ -159,7 +159,7 @@ public class PipelineValidatorTests
     public void ReplacementCharacterInContent_IsTextQualityError()
     {
         var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "Corrupted � text") };
-        var clean = DataCleaner.Clean(joined);
+        var clean = BuildCleaner().Clean(joined);
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
@@ -174,7 +174,7 @@ public class PipelineValidatorTests
     public void NonDutchLanguage_IsTextQualityWarning()
     {
         var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "Some content", language: "en-US") };
-        var clean = DataCleaner.Clean(joined);
+        var clean = BuildCleaner().Clean(joined);
         var pages = new ExtractionResult<PageRecord>();
         var index = new ExtractionResult<IndexRecord>();
         var join  = new JoinResult();
@@ -231,8 +231,8 @@ public class PipelineValidatorTests
         var index = BuildExtractor().ExtractIndex(ToStream(
             IndexHeader + ",ACTIVE\n" +
             "doc1,Protocol,Summary,7,0,,[],false\n"));
-        var join  = CsvJoiner.Join(pages.Records, index.Records);
-        var clean = DataCleaner.Clean(join.Joined);
+        var join  = BuildJoiner().Join(pages.Records, index.Records);
+        var clean = BuildCleaner().Clean(join.Joined);
 
         var report = PipelineValidator.Validate(pages, index, join, clean);
 
