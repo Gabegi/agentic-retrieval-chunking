@@ -209,12 +209,18 @@ public class CsvExtractor : ICsvExtractor
 
     // "VERSION.REVISION" (e.g. "7.0"). REVISION isn't in the required-columns list — if it's
     // missing/unparseable, fall back to bare VERSION rather than failing the whole row over it.
+    //
+    // TryGetField, not GetField: same reason as ACTIVE below - REVISION isn't a required
+    // header, and with MissingFieldFound at its throwing default, GetField would throw on
+    // every row for any export that omits this column entirely, instead of reaching the
+    // "fall back to bare VERSION" logic this comment already promises.
     private static string FormatVersion(CsvReader csv)
     {
         var version = csv.GetField("VERSION") ?? "";
         if (string.IsNullOrWhiteSpace(version))
             return "";
-        return int.TryParse(csv.GetField("REVISION"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var revision)
+        var revisionRaw = csv.TryGetField<string>("REVISION", out var raw) ? raw : null;
+        return int.TryParse(revisionRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var revision)
             ? $"{version}.{revision}" : version;
     }
 
