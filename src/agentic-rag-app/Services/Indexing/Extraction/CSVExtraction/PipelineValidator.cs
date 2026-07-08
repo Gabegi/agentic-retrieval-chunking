@@ -79,6 +79,7 @@ public static class PipelineValidator
         // passed — takes that result and adds a third condition: magnitude.Count == 0 (no >20% swing vs. the previous run, from step 3)
         var passed        = passedExcludingMagnitude && magnitude.Count == 0;
 
+
         return new ValidationReport
         {
             RunAtUtc                      = DateTime.UtcNow,
