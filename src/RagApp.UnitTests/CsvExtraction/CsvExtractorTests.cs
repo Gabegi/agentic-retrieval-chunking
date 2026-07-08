@@ -1,5 +1,8 @@
 using System.Text;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Moq;
 using ProtocolsIndexer.Models;
 using ProtocolsIndexer.Services;
 
@@ -8,6 +11,8 @@ namespace RagApp.UnitTests.CsvExtraction;
 [TestClass]
 public class CsvExtractorTests
 {
+    private static CsvExtractor BuildExtractor() => new(NullLogger<CsvExtractor>.Instance);
+
     private static Stream ToStream(string csv) => new MemoryStream(Encoding.UTF8.GetBytes(csv));
 
     private const string PagesHeader =
@@ -22,7 +27,7 @@ public class CsvExtractorTests
         var csv = PagesHeader + "\n" +
                   "doc1,Title,QC1,Folder/Path,20240101120000,0,Some content,rel/path,nl-NL\n";
 
-        var result = CsvExtractor.ExtractPages(ToStream(csv));
+        var result = BuildExtractor().ExtractPages(ToStream(csv));
 
         Assert.AreEqual(1, result.Records.Count);
         Assert.AreEqual(0, result.Errors.Count);
@@ -39,7 +44,7 @@ public class CsvExtractorTests
     {
         var csv = "DOCUMENT_ID,TITLE\ndoc1,Title\n";
 
-        Assert.ThrowsExactly<InvalidOperationException>(() => CsvExtractor.ExtractPages(ToStream(csv)));
+        Assert.ThrowsExactly<InvalidOperationException>(() => BuildExtractor().ExtractPages(ToStream(csv)));
     }
 
     [TestMethod]
@@ -49,7 +54,7 @@ public class CsvExtractorTests
         var csv = lowerHeader + "\n" +
                   "doc1,Title,QC1,Folder/Path,20240101120000,0,Some content,rel/path,nl-NL\n";
 
-        var result = CsvExtractor.ExtractPages(ToStream(csv));
+        var result = BuildExtractor().ExtractPages(ToStream(csv));
 
         Assert.AreEqual(1, result.Records.Count);
         Assert.AreEqual(0, result.Errors.Count);
@@ -61,7 +66,7 @@ public class CsvExtractorTests
         var csv = PagesHeader + "\n" +
                   ",Title,QC1,Folder/Path,20240101120000,0,Some content,rel/path,nl-NL\n";
 
-        var result = CsvExtractor.ExtractPages(ToStream(csv));
+        var result = BuildExtractor().ExtractPages(ToStream(csv));
 
         Assert.AreEqual(0, result.Records.Count);
         Assert.AreEqual(1, result.Errors.Count);
@@ -74,7 +79,7 @@ public class CsvExtractorTests
         var csv = PagesHeader + "\n" +
                   " doc1 ,Title,QC1,Folder/Path,20240101120000,0,Some content,rel/path,nl-NL\n";
 
-        var result = CsvExtractor.ExtractPages(ToStream(csv));
+        var result = BuildExtractor().ExtractPages(ToStream(csv));
 
         Assert.AreEqual(1, result.Records.Count);
         Assert.AreEqual("doc1", result.Records[0].DocumentId);
@@ -86,7 +91,7 @@ public class CsvExtractorTests
         var csv = PagesHeader + "\n" +
                   "doc1,Title,QC1,Folder/Path,20240101120000,not-a-number,Some content,rel/path,nl-NL\n";
 
-        var result = CsvExtractor.ExtractPages(ToStream(csv));
+        var result = BuildExtractor().ExtractPages(ToStream(csv));
 
         Assert.AreEqual(0, result.Records.Count);
         Assert.AreEqual(1, result.Errors.Count);
@@ -101,7 +106,7 @@ public class CsvExtractorTests
                   ",Title,QC1,Folder/Path,20240101120000,1,Content two,rel/path,nl-NL\n" +
                   "doc3,Title,QC1,Folder/Path,20240101120000,2,Content three,rel/path,nl-NL\n";
 
-        var result = CsvExtractor.ExtractPages(ToStream(csv));
+        var result = BuildExtractor().ExtractPages(ToStream(csv));
 
         Assert.AreEqual(2, result.Records.Count);
         Assert.AreEqual(1, result.Errors.Count);
