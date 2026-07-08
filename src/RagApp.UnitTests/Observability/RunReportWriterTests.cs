@@ -21,7 +21,11 @@ public class RunReportWriterTests
     {
         var blob = new Mock<BlobClient>();
         blob.Setup(b => b.UploadAsync(It.IsAny<Stream>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(BlobsModelFactory.BlobContentInfo(new ETag("etag"), DateTimeOffset.UtcNow, [], "", 0, null, null), Mock.Of<Response>()));
+            .ReturnsAsync(Response.FromValue(
+                BlobsModelFactory.BlobContentInfo(
+                    eTag: new ETag("etag"), lastModified: DateTimeOffset.UtcNow, contentHash: [],
+                    encryptionKeySha256: "", encryptionScope: "", blobSequenceNumber: 0, versionId: ""),
+                Mock.Of<Response>()));
 
         var container = new Mock<BlobContainerClient>();
         container.Setup(c => c.CreateIfNotExistsAsync(

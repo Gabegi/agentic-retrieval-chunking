@@ -1,4 +1,4 @@
-using Azure.Core;
+using System.ClientModel.Primitives;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using ProtocolsIndexer.Services;
 

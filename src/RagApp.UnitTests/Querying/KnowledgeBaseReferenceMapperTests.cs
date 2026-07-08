@@ -1,5 +1,5 @@
+using System.ClientModel.Primitives;
 using System.Text.Json;
-using Azure.Core;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using ProtocolsIndexer.Services;
 
