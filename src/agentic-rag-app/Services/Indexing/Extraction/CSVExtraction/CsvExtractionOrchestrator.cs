@@ -47,12 +47,20 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         BlobContainerClient                container,
         BlobContainerClient                stateContainer,
         IRunReportWriter                   reportWriter,
+        ICsvExtractor                      csvExtractor,
+        ICsvJoiner                         csvJoiner,
+        IDataCleaner                       dataCleaner,
+        IPipelineValidator                 pipelineValidator,
         ILogger<CsvExtractionOrchestrator> logger)
     {
-        _container      = container;
-        _stateContainer = stateContainer;
-        _reportWriter   = reportWriter;
-        _logger         = logger;
+        _container         = container;
+        _stateContainer    = stateContainer;
+        _reportWriter      = reportWriter;
+        _csvExtractor      = csvExtractor;
+        _csvJoiner         = csvJoiner;
+        _dataCleaner       = dataCleaner;
+        _pipelineValidator = pipelineValidator;
+        _logger            = logger;
     }
 
     public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
