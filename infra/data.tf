@@ -63,15 +63,13 @@ data "azurerm_resource_group" "data" {
 # --- Private DNS zones (hub, owned by platform team) -----------------------
 # Subscription cor-connectivity-prd, RG cor-connectivity-dns-prd-we-001.
 # Confirmed via pipeline diagnostic (2026-07-07): the SP has Private DNS
-# Zone Contributor scoped individually on these 4 zones, so their private
+# Zone Contributor scoped individually on these zones, so their private
 # endpoints attach a private_dns_zone_group directly (search.tf, storage.tf,
 # keyvault.tf, function_app.tf) rather than waiting on the platform team's
 # policy-based remediation. privatelink.queue/table.core.windows.net and
-# privatelink.search.windows.net still don't exist in the hub at all
-# (confirmed 2026-07-07, same diagnostic) - that's a bigger ask than linking
-# (docs/platform-team-dns-verzoek.md), so no data source for them yet; the
-# stfunc_queue/stfunc_table/search private endpoints stay without a zone
-# group until the platform team creates those zones.
+# privatelink.search.windows.net were created by the platform team on
+# 2026-07-08 (docs/platform-team-dns-verzoek.md); the stfunc_queue/
+# stfunc_table/search private endpoints now attach zone groups too.
 
 data "azurerm_private_dns_zone" "azurewebsites" {
   provider            = azurerm.hub
