@@ -34,7 +34,7 @@ public class KnowledgeServiceTests
         StorageAccountUrl         = "https://storage.example.com",
         StorageContainer          = "container",
         SearchIndexName           = "my-index",
-        KnowledgeSourceName       = "my-knowledge-source",
+        SearchIndexKnowledgeSourceName       = "my-knowledge-source",
         KnowledgeBaseName         = "my-knowledge-base",
         OpenAiGptDeployment       = "gpt",
         OpenAiGptModelName        = "gpt-model",
@@ -50,16 +50,16 @@ public class KnowledgeServiceTests
     }
 
     [TestMethod]
-    public async Task EnsureKnowledgeSourceAsync_CreatesOrUpdatesWithConfiguredName()
+    public async Task EnsureSearchIndexKnowledgeSourceAsync_CreatesOrUpdatesWithConfiguredName()
     {
         var (service, client) = BuildService();
-        client.Setup(c => c.CreateOrUpdateKnowledgeSourceAsync(It.IsAny<KnowledgeSource>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((KnowledgeSource ks, bool _, CancellationToken _) => Response.FromValue(ks, Mock.Of<Response>()));
+        client.Setup(c => c.CreateOrUpdateSearchIndexKnowledgeSourceAsync(It.IsAny<SearchIndexKnowledgeSource>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((SearchIndexKnowledgeSource ks, bool _, CancellationToken _) => Response.FromValue(ks, Mock.Of<Response>()));
 
-        await service.EnsureKnowledgeSourceAsync();
+        await service.EnsureSearchIndexKnowledgeSourceAsync();
 
-        client.Verify(c => c.CreateOrUpdateKnowledgeSourceAsync(
-            It.Is<KnowledgeSource>(ks => ks.Name == "my-knowledge-source"), false, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(c => c.CreateOrUpdateSearchIndexKnowledgeSourceAsync(
+            It.Is<SearchIndexKnowledgeSource>(ks => ks.Name == "my-knowledge-source"), false, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
