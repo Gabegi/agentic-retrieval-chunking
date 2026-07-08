@@ -67,6 +67,10 @@ open questions and, until we get answers, the assumptions the pipeline currently
    produce something else (e.g. Windows-1252)? If the latter, this hard rejection would
    need to become a whitelist of accepted encodings instead of a single one.
 
+9. **Does the export ever use `NULL`/`N/A`/`-` for "no value" instead of an empty cell?**
+   Typed fields would reject these as parse errors, but plain string fields (`TITLE`,
+   `SUMMARY`, etc.) would accept them as real content.
+
 ## Working assumption until we hear back
 
 **A document whose `ACTIVE` value parses as `false` is treated as withdrawn — its
