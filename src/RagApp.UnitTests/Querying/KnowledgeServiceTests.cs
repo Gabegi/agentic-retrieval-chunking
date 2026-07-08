@@ -2,6 +2,7 @@ using System.Reflection;
 using Azure;
 using Azure.Core;
 using Azure.Search.Documents.Indexes;
+using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
