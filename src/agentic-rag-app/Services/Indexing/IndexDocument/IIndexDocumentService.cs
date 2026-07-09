@@ -4,7 +4,7 @@ namespace ProtocolsIndexer.Services;
 
 public interface IIndexDocumentService
 {
-    Task<Dictionary<string, DateTimeOffset>> GetIndexedDocumentDatesAsync(CancellationToken ct = default);
+    Task<Dictionary<string, DateTimeOffset>> GetCurrentIndexedDocumentDatesAsync(CancellationToken ct = default);
     Task<(int Succeeded, int Failed)> UpsertDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default);
 
     // The two halves of what used to be one "delete everything for these documents" call.
