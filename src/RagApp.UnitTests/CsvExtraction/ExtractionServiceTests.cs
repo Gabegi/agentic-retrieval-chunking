@@ -22,6 +22,7 @@ public class ExtractionServiceTests
         ReconciliationProblems: 0,
         StaleDocCount:          0,
         MojibakeRepairedPages:  0,
+        DetectedTableCount:     0,
         DocsWithoutHeadings:    0,
         MissingTitleCount:      0,
         MissingVersionCount:    0,
@@ -171,6 +172,7 @@ public class ExtractionServiceTests
             ReconciliationProblems: 1,
             StaleDocCount:          2,
             MojibakeRepairedPages:  6,
+            DetectedTableCount:     7,
             DocsWithoutHeadings:    4,
             MissingTitleCount:      1,
             MissingVersionCount:    2,
@@ -189,6 +191,7 @@ public class ExtractionServiceTests
         Assert.AreEqual(1, stats.ReconciliationProblems);
         Assert.AreEqual(2, stats.StaleDocCount);
         Assert.AreEqual(6, stats.MojibakeRepairedPages);
+        Assert.AreEqual(7, stats.DetectedTableCount);
         Assert.AreEqual(4, stats.DocsWithoutHeadings);
         Assert.AreEqual(1, stats.MissingTitleCount);
         Assert.AreEqual(2, stats.MissingVersionCount);
