@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using ProtocolsIndexer.Models;
 
@@ -264,6 +265,17 @@ public class PipelineValidator : IPipelineValidator
                 issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
                     DocumentId = record.DocumentId,
                     Message    = $"Page {record.PageIndex}: {replacementCount} U+FFFD char(s) — source text is corrupted." });
+
+            // Control characters (outside normal whitespace) and unassigned code points — corruption
+            // U+FFFD doesn't catch, because the decoder didn't fail outright, it just produced a
+            // character that has no business appearing in prose text.
+            var corruptCharCount = record.PageContent.Count(c =>
+                c is not ('\n' or '\r' or '\t')
+                && CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.Control or UnicodeCategory.OtherNotAssigned);
+            if (corruptCharCount > 0)
+                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
+                    DocumentId = record.DocumentId,
+                    Message    = $"Page {record.PageIndex}: {corruptCharCount} control/unassigned character(s) — likely encoding corruption." });
 
             // Flags any page whose Language field isn't Dutch
             if (!string.IsNullOrEmpty(record.Language) &&
