@@ -25,3 +25,4 @@ public class PdfValidationReport
     public IReadOnlyList<string>               SkippedIndexDocuments            { get; init; } = [];  // "BlobName" of index records with no pages
     public int                                 MojibakeRepairedPages            { get; init; }
     public int                                 DetectedTableCount               { get; init; }
+}
