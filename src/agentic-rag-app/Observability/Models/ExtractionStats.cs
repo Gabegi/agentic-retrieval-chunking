@@ -18,6 +18,7 @@ public record ExtractionResults(
     int ValidationWarnings,
     int ReconciliationProblems,
     int StaleDocCount,
+    int MojibakeRepairedPages,
     int DocsWithoutHeadings,
     int MissingTitleCount,
     int MissingVersionCount,
