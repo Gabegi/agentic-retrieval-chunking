@@ -56,6 +56,12 @@ internal static class Instrumentation
     internal static readonly Counter<long> MojibakeRepairedPages =
         Meter.CreateCounter<long>("indexer.mojibake_repaired_pages", description: "Pages where known mojibake patterns were auto-repaired");
 
+    // Total table-like blocks detected this run (histogram over runs, not per-doc). No ground
+    // truth for "expected" count exists yet — watch for a drop vs. recent runs, same as
+    // IndexDocumentCount below; a table getting flattened into prose surfaces here as a dip.
+    internal static readonly Histogram<long> DetectedTableCount =
+        Meter.CreateHistogram<long>("indexer.detected_table_count", unit: "tables", description: "Total markdown table blocks detected across all cleaned pages this run");
+
     // Docs missing key metadata fields. Tags: source, field (title|version|department).
     // Missing title is the worst: it is prepended to every chunk and is the primary BM25 signal.
     internal static readonly Counter<long> MissingMetadata =

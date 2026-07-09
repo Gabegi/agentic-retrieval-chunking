@@ -146,6 +146,7 @@ public class ExtractionService : IExtractionService
         ReconciliationProblems: diff.Output.ReconciliationProblems,
         StaleDocCount:          diff.Output.StaleDocCount,
         MojibakeRepairedPages:  diff.Output.MojibakeRepairedPages,
+        DetectedTableCount:     diff.Output.DetectedTableCount,
         DocsWithoutHeadings:    diff.Output.DocsWithoutHeadings,
         MissingTitleCount:      diff.Output.MissingTitleCount,
         MissingVersionCount:    diff.Output.MissingVersionCount,

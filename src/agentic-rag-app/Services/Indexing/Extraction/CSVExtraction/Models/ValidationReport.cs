@@ -23,4 +23,5 @@ public class ValidationReport
     public IReadOnlyList<string>            SkippedIndexDocuments             { get; init; } = [];  // "DocumentTypeName (DocumentId)" of index docs with no pages
     public int                              StaleDocCount                     { get; init; }
     public int                              MojibakeRepairedPages             { get; init; }
+    public int                              DetectedTableCount                { get; init; }
 }

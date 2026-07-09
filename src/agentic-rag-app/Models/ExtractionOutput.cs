@@ -7,6 +7,7 @@ public record ExtractionOutput(
     int                                ReconciliationProblems,
     int                                StaleDocCount,
     int                                MojibakeRepairedPages,
+    int                                DetectedTableCount,
     int                                DocsWithoutHeadings,
     int                                MissingTitleCount,
     int                                MissingVersionCount,

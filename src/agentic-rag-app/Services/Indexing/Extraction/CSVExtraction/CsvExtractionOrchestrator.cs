@@ -159,6 +159,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             ReconciliationProblems: report.ReconciliationProblems.Count,
             StaleDocCount:          report.StaleDocCount,
             MojibakeRepairedPages:  report.MojibakeRepairedPages,
+            DetectedTableCount:     report.DetectedTableCount,
             DocsWithoutHeadings:    report.DocumentsNeedingFallbackChunking.Count,
             MissingTitleCount:      missingTitle,
             MissingVersionCount:    missingVersion,
@@ -219,6 +220,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         Instrumentation.StaleDocs.Add(report.StaleDocCount, sourceTag);
         Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
         Instrumentation.MojibakeRepairedPages.Add(report.MojibakeRepairedPages, sourceTag);
+        Instrumentation.DetectedTableCount.Record(report.DetectedTableCount, sourceTag);
 
         // Metadata completeness — count docs missing title, version, department. Title
         // and FolderPath are page-CSV fields and can legitimately vary page-to-page for

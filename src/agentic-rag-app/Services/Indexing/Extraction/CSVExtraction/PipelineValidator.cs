@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using ProtocolsIndexer.Models;
 
@@ -47,6 +48,11 @@ public class PipelineValidator : IPipelineValidator
 
         // 5. Collect Text (char and language) + table format issues
         issues.AddRange(TextNTableQualityCheck(cleanResult));
+
+        // 5b. Total tables detected this run — trended over time via dashboard, not gated;
+        // a drop here (with no ground truth for "expected" count) is a signal worth a look,
+        // not proof a table got flattened into prose.
+        var detectedTableCount = CountDetectedTables(cleanResult);
 
         // 6. docsNeedingFallback = zero headings across every single page of that document
         var docsWithNoPagesWithHeadings = DocsWithNoPagesWithHeading(cleanResult);
@@ -98,6 +104,7 @@ public class PipelineValidator : IPipelineValidator
                 .ToList(),
             StaleDocCount                 = staleDocCount,
             MojibakeRepairedPages         = cleanResult.MojibakeRepairedPages,
+            DetectedTableCount            = detectedTableCount,
             Passed                        = passed,
             PassedExcludingMagnitude      = passedExcludingMagnitude,
         };
@@ -265,6 +272,17 @@ public class PipelineValidator : IPipelineValidator
                     DocumentId = record.DocumentId,
                     Message    = $"Page {record.PageIndex}: {replacementCount} U+FFFD char(s) — source text is corrupted." });
 
+            // Control characters (outside normal whitespace) and unassigned code points — corruption
+            // U+FFFD doesn't catch, because the decoder didn't fail outright, it just produced a
+            // character that has no business appearing in prose text.
+            var corruptCharCount = record.PageContent.Count(c =>
+                c is not ('\n' or '\r' or '\t')
+                && CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.Control or UnicodeCategory.OtherNotAssigned);
+            if (corruptCharCount > 0)
+                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
+                    DocumentId = record.DocumentId,
+                    Message    = $"Page {record.PageIndex}: {corruptCharCount} control/unassigned character(s) — likely encoding corruption." });
+
             // Flags any page whose Language field isn't Dutch
             if (!string.IsNullOrEmpty(record.Language) &&
                 !record.Language.StartsWith("nl", StringComparison.OrdinalIgnoreCase))
@@ -296,6 +314,15 @@ public class PipelineValidator : IPipelineValidator
 
         return issues;
     }
+
+    // Total table-like blocks across every cleaned page this run — same block definition
+    // TextNTableQualityCheck already uses for the column-consistency check, so both checks
+    // agree on what "a table" means.
+    private static int CountDetectedTables(CleanResult cleanResult) =>
+        cleanResult.Records.Sum(record =>
+            record.PageContent
+                .Split("\n\n", StringSplitOptions.RemoveEmptyEntries)
+                .Count(block => MarkdownTableLine.IsMatch(block)));
 
     // 6. document flagged if none of its pages has a heading
     // matters because chunking = chunks done per header
