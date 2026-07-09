@@ -51,6 +51,11 @@ internal static class Instrumentation
     internal static readonly Counter<long> DocsWithoutHeadings =
         Meter.CreateCounter<long>("indexer.docs_without_headings", description: "Docs with no markdown headings — chunked without structural guidance");
 
+    // Pages where known mojibake patterns were auto-repaired. Non-zero is expected on
+    // Dutch text with accented characters; watch for a run-over-run jump, not the absolute count.
+    internal static readonly Counter<long> MojibakeRepairedPages =
+        Meter.CreateCounter<long>("indexer.mojibake_repaired_pages", description: "Pages where known mojibake patterns were auto-repaired");
+
     // Docs missing key metadata fields. Tags: source, field (title|version|department).
     // Missing title is the worst: it is prepended to every chunk and is the primary BM25 signal.
     internal static readonly Counter<long> MissingMetadata =

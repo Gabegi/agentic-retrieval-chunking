@@ -97,6 +97,7 @@ public class PipelineValidator : IPipelineValidator
                 .Select(r => $"{r.DocumentTypeName} ({r.DocumentId})")
                 .ToList(),
             StaleDocCount                 = staleDocCount,
+            MojibakeRepairedPages         = cleanResult.MojibakeRepairedPages,
             Passed                        = passed,
             PassedExcludingMagnitude      = passedExcludingMagnitude,
         };

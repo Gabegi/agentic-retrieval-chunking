@@ -238,6 +238,7 @@ public class IndexingFunction
             ValidationWarnings:      ext?.ValidationWarnings      ?? 0,
             ReconciliationProblems:  ext?.ReconciliationProblems  ?? 0,
             StaleDocCount:           ext?.StaleDocCount           ?? 0,
+            MojibakeRepairedPages:   ext?.MojibakeRepairedPages   ?? 0,
             DocsWithoutHeadings:     ext?.DocsWithoutHeadings     ?? 0,
             MissingTitleCount:       ext?.MissingTitleCount       ?? 0,
             MissingVersionCount:     ext?.MissingVersionCount     ?? 0,

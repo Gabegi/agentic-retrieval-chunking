@@ -11,9 +11,11 @@ public class CleanResult
     public IReadOnlyList<CleaningWarning>   Warnings => _warnings;
 
     public int DuplicatePagesSkipped { get; private set; }
+    public int MojibakeRepairedPages { get; private set; }
 
     internal void AddRecord(CleanedPageRecord r)  => _records.Add(r);
     internal void AddError(CleaningError e)        => _errors.Add(e);
     internal void AddWarning(CleaningWarning w)    => _warnings.Add(w);
     internal void CountDuplicateSkipped()          => DuplicatePagesSkipped++;
+    internal void CountMojibakeRepaired()          => MojibakeRepairedPages++;
 }

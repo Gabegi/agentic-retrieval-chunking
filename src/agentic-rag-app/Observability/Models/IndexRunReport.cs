@@ -46,6 +46,11 @@ public record IndexRunReport(
     // Retrieval will surface it as if it were current — flag to content owners.
     int StaleDocCount,
 
+    // Quality signal: pages where known mojibake patterns were auto-repaired. Non-zero is
+    // expected on Dutch text with accented characters — watch for a run-over-run jump, not
+    // the absolute count, since a jump means an upstream encoding problem got worse.
+    int MojibakeRepairedPages,
+
     // Quality signal: docs with no markdown headings get chunked with no structural guidance.
     // These chunks may be lower quality. Check whether the source has headings at all,
     // or whether the extraction step failed to preserve them.
