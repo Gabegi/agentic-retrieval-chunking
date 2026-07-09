@@ -86,11 +86,14 @@ public class DataCleaner : IDataCleaner
             var (content, mojibakeFixed) = CleanPageContent(page.PageContent ?? "");
 
             if (mojibakeFixed)
+            {
+                result.CountMojibakeRepaired();
                 result.AddWarning(new CleaningWarning
                 {
                     DocumentId = page.DocumentId,
                     Message    = $"Page {page.PageIndex}: repaired mojibake in source text (e.g. 'â€™' -> \"'\").",
                 });
+            }
 
             if (string.IsNullOrWhiteSpace(content))
                 result.AddWarning(new CleaningWarning
