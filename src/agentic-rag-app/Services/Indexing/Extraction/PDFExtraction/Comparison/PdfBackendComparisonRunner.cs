@@ -78,11 +78,7 @@ public class PdfBackendComparisonRunner
             return new ComparisonRow(extractor.Name, sw.ElapsedMilliseconds, extraction.EstimatedCostUsd,
                 Report: null, CleanResult: null, Error: extraction.Error.Message);
 
-        var pagesResult = new ExtractionResult<PdfPageRecord>();
-        foreach (var page in extraction.Pages) pagesResult.AddRecord(page);
-
-        var indexResult = new ExtractionResult<PdfIndexRecord>();
-        if (extraction.Index != null) indexResult.AddRecord(extraction.Index);
+        var (pagesResult, indexResult) = PdfExtractionAggregation.Aggregate([extraction]);
 
         var joinResult  = _joiner.Join(pagesResult.Records, indexResult.Records);
         var cleanResult = _cleaner.Clean(joinResult.Joined);

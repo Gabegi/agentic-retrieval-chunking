@@ -22,11 +22,11 @@ public class PdfPipelineValidatorTests
     // the baseline every test below perturbs one piece of.
     private static (ExtractionResult<PdfPageRecord> Pages, ExtractionResult<PdfIndexRecord> Index, PdfJoinResult Join, PdfCleanResult Clean) HappyPath()
     {
-        var pages = new ExtractionResult<PdfPageRecord>();
-        pages.AddRecord(new PdfPageRecord { BlobName = "doc1.pdf", PageIndex = 0, PageContent = "## Heading\nSome markdown content" });
-
-        var index = new ExtractionResult<PdfIndexRecord>();
-        index.AddRecord(new PdfIndexRecord { BlobName = "doc1.pdf", Title = "Title", Version = "1.0" });
+        var fileExtraction = new PdfFileExtraction(
+            Pages: [new PdfPageRecord { BlobName = "doc1.pdf", PageIndex = 0, PageContent = "## Heading\nSome markdown content" }],
+            Index: new PdfIndexRecord { BlobName = "doc1.pdf", Title = "Title", Version = "1.0" },
+            Error: null);
+        var (pages, index) = PdfExtractionAggregation.Aggregate([fileExtraction]);
 
         var join  = BuildJoiner().Join(pages.Records, index.Records);
         var clean = BuildCleaner().Clean(join.Joined);
@@ -61,9 +61,11 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void JoinError_IsSurfacedAsIssueAndCountsTowardErrorRate()
     {
-        var pages = new ExtractionResult<PdfPageRecord>();
-        pages.AddRecord(new PdfPageRecord { BlobName = "doc1.pdf", PageIndex = 0, PageContent = "Content" });
-        var index = new ExtractionResult<PdfIndexRecord>(); // no matching index record for doc1
+        var fileExtraction = new PdfFileExtraction(
+            Pages: [new PdfPageRecord { BlobName = "doc1.pdf", PageIndex = 0, PageContent = "Content" }],
+            Index: null, // no matching index record for doc1
+            Error: null);
+        var (pages, index) = PdfExtractionAggregation.Aggregate([fileExtraction]);
         var join  = BuildJoiner().Join(pages.Records, index.Records);
         var clean = BuildCleaner().Clean(join.Joined);
 
@@ -75,9 +77,8 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void SkippedIndexRecord_ProducesWarningAndRedFlag()
     {
-        var pages = new ExtractionResult<PdfPageRecord>();
-        var index = new ExtractionResult<PdfIndexRecord>();
-        index.AddRecord(new PdfIndexRecord { BlobName = "doc1.pdf", Title = "Title" });
+        var fileExtraction = new PdfFileExtraction(Pages: [], Index: new PdfIndexRecord { BlobName = "doc1.pdf", Title = "Title" }, Error: null);
+        var (pages, index) = PdfExtractionAggregation.Aggregate([fileExtraction]);
         var join  = BuildJoiner().Join(pages.Records, index.Records);
         var clean = BuildCleaner().Clean(join.Joined);
 
