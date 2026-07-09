@@ -17,6 +17,10 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     private readonly BlobContainerClient                _container;
     private readonly BlobContainerClient                _stateContainer;
     private readonly IRunReportWriter                   _reportWriter;
+    private readonly ICsvExtractor                      _csvExtractor;
+    private readonly ICsvJoiner                         _csvJoiner;
+    private readonly IDataCleaner                       _dataCleaner;
+    private readonly IPipelineValidator                 _pipelineValidator;
     private readonly ILogger<CsvExtractionOrchestrator> _logger;
 
     public string Source => "csv";
@@ -43,18 +47,24 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         BlobContainerClient                container,
         BlobContainerClient                stateContainer,
         IRunReportWriter                   reportWriter,
+        ICsvExtractor                      csvExtractor,
+        ICsvJoiner                         csvJoiner,
+        IDataCleaner                       dataCleaner,
+        IPipelineValidator                 pipelineValidator,
         ILogger<CsvExtractionOrchestrator> logger)
     {
-        _container      = container;
-        _stateContainer = stateContainer;
-        _reportWriter   = reportWriter;
-        _logger         = logger;
+        _container         = container;
+        _stateContainer    = stateContainer;
+        _reportWriter      = reportWriter;
+        _csvExtractor      = csvExtractor;
+        _csvJoiner         = csvJoiner;
+        _dataCleaner       = dataCleaner;
+        _pipelineValidator = pipelineValidator;
+        _logger            = logger;
     }
 
     public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
     {
-        // Shared by every blob write below (per-stage and combined) so a single run's
-        // artifacts land together under the same ReportFolder/{date}/{time}-* prefix.
         var runAt = DateTimeOffset.UtcNow;
 
         // Stream directly from blob storage instead of buffering the whole file into a
@@ -69,97 +79,23 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         await using var pagesStream = await pagesStreamTask;
         await using var indexStream = await indexStreamTask;
 
-        // Per-stage blobs are written as soon as each stage finishes, independent of
-        // whether the run later passes overall validation - so a stage's problems are
-        // visible even if a later stage throws or the run gets killed before the
-        // combined report below is written.
-        var pagesResult = CsvExtractor.ExtractPages(pagesStream);
-        if (pagesResult.Errors.Count > 0)
-            await WriteStageReportAsync("pages", runAt, pagesResult.Errors, ct);
-
-        var indexResult = CsvExtractor.ExtractIndex(indexStream);
-        if (indexResult.Errors.Count > 0)
-            await WriteStageReportAsync("index", runAt, indexResult.Errors, ct);
-
-        var joinResult = CsvJoiner.Join(pagesResult.Records, indexResult.Records);
-        if (joinResult.Errors.Count > 0 || joinResult.DataQualityWarnings.Count > 0 || joinResult.SkippedIndexRecords.Count > 0)
-            await WriteStageReportAsync("join", runAt, new
-            {
-                joinResult.Errors,
-                joinResult.DataQualityWarnings,
-                joinResult.SkippedIndexRecords,
-            }, ct);
-
-        var cleanResult = DataCleaner.Clean(joinResult.Joined);
-        if (cleanResult.Errors.Count > 0 || cleanResult.Warnings.Count > 0)
-            await WriteStageReportAsync("clean", runAt, new { cleanResult.Errors, cleanResult.Warnings }, ct);
+        var pagesResult = _csvExtractor.ExtractPages(pagesStream);
+        var indexResult = _csvExtractor.ExtractIndex(indexStream);
+        var joinResult  = _csvJoiner.Join(pagesResult.Records, indexResult.Records);
+        var cleanResult = _dataCleaner.Clean(joinResult.Joined);
 
         var (previousCount, previousETag) = await PreviousRunCount(ct);
-        var report = PipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
+        var report = _pipelineValidator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
 
-        // Full, uncapped issue list (NotFound/Inactive/Duplicate/SkippedIndexRecords) written
-        // straight to blob - unlike the Issues returned below, this never passes through the
-        // Durable Table Storage-backed activity return, so it isn't subject to the 100-item cap.
+        // Write report in blob
         if (_reportWriter.IsEnabled)
         {
             await _reportWriter.WriteReportAsync(
-                $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-join-issues.json", report.Issues, ct);
+                $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-validation-report.json", report, ct);
         }
 
-        foreach (var warning in report.MagnitudeWarnings)
-            _logger.LogWarning("{Warning}", warning);
-
-        // A magnitude-only failure can be deliberately let through by the caller; error-rate
-        // and reconciliation failures never are, regardless of overrideMagnitudeCheck.
-        var magnitudeOverrideApplied = !report.Passed && overrideMagnitudeCheck && report.PassedExcludingMagnitude;
-        var effectivePassed          = report.Passed || magnitudeOverrideApplied;
-
-        if (magnitudeOverrideApplied)
-            _logger.LogWarning(
-                "VALIDATION OVERRIDE APPLIED — magnitude-shift gate bypassed by explicit operator request. " +
-                "{Cleaned} records this run. Warnings: {Warnings}",
-                cleanResult.Records.Count, string.Join(" | ", report.MagnitudeWarnings));
-
-        _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
-            effectivePassed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
-
-        foreach (var issue in report.Issues.Take(MaxLoggedIssues))
-            _logger.Log(
-                issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
-                "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
-        if (report.Issues.Count > MaxLoggedIssues)
-            _logger.LogWarning("…{More} more issue(s) not logged (see the run report for the full list).",
-                report.Issues.Count - MaxLoggedIssues);
-
-        // Emit validation metrics before the pass/fail gate below - a failed run is
-        // exactly the case these metrics matter most for, and a throw would otherwise
-        // skip every one of them.
-        var errors   = report.Issues.Count(i => i.Severity == "Error");
-        var warnings = report.Issues.Count(i => i.Severity != "Error");
-
-        var sourceTag = new KeyValuePair<string, object?>("source", Source);
-
-        // Unconditional, not guarded with "> 0": these are counters, and a healthy run
-        // (zero errors/stale docs) should still emit a zero data point. Otherwise a
-        // dashboard/alert can't tell "this metric is healthy at zero" apart from "this
-        // metric stopped reporting entirely".
-        Instrumentation.ValidationIssues.Add(errors,   sourceTag, new("severity", "error"));
-        Instrumentation.ValidationIssues.Add(warnings, sourceTag, new("severity", "warning"));
-        Instrumentation.StaleDocs.Add(report.StaleDocCount, sourceTag);
-        Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
-
-        // Metadata completeness — count docs missing title, version, department. Title
-        // and FolderPath are page-CSV fields and can legitimately vary page-to-page for
-        // the same document, so a document only counts as "missing" if EVERY one of its
-        // pages lacks that field, not just whichever page happens to come first.
-        var docs = cleanResult.Records.ToList();
-        var missingTitle      = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
-        var missingVersion    = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Version)));
-        var missingDepartment = docs.GroupBy(r => r.DocumentId).Count(g => g.All(r => string.IsNullOrWhiteSpace(r.FolderPath)));
-
-        Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
-        Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
-        Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
+        var (effectivePassed, errors, warnings, missingTitle, missingVersion, missingDepartment) =
+            LogAndEmitValidationTelemetry(report, cleanResult, overrideMagnitudeCheck);
 
         if (!effectivePassed)
             throw new InvalidOperationException(
@@ -171,6 +107,20 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         // instead of comparing against the same stale count.
         await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
 
+        return BuildExtractionOutput(report, cleanResult, errors, warnings, missingTitle, missingVersion, missingDepartment);
+    }
+
+    // Maps the validated, cleaned records into the source-agnostic ExtractionOutput
+    // returned to the caller - the actual "product" of this whole pipeline.
+    private static ExtractionOutput BuildExtractionOutput(
+        ValidationReport report,
+        CleanResult      cleanResult,
+        int              errors,
+        int              warnings,
+        int              missingTitle,
+        int              missingVersion,
+        int              missingDepartment)
+    {
         var extractionDocs = cleanResult.Records
             .Select(r => new ExtractionDocument(
                 SourceId: r.DocumentId,
@@ -217,14 +167,72 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
             SpotCheckSample:        spotCheck);
     }
 
-    // Writes one stage's own errors/warnings to its own blob, named distinctly from the
-    // combined "-join-issues.json" report below so the two never collide. Caller only
-    // invokes this when there's actually something to report, so a healthy run doesn't
-    // leave behind four empty blobs per execution.
-    private Task WriteStageReportAsync(string stage, DateTimeOffset runAt, object payload, CancellationToken ct) =>
-        _reportWriter.IsEnabled
-            ? _reportWriter.WriteReportAsync($"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-stage-{stage}.json", payload, ct)
-            : Task.CompletedTask;
+    // Everything this run logs and emits as metrics, in one place: whether the caller's
+    // magnitude override actually applied, the magnitude-shift audit trail, a pass/fail
+    // summary line, one log line per issue (capped), and the OTel counters
+    // dashboards/alerts read. Runs regardless of pass/fail, before the caller's throw,
+    // so a failed run still gets full telemetry. Returns effectivePassed plus the counts
+    // ExtractionOutput needs further down, so callers don't have to recompute any of it.
+    private (bool EffectivePassed, int Errors, int Warnings, int MissingTitle, int MissingVersion, int MissingDepartment)
+        LogAndEmitValidationTelemetry(
+            ValidationReport report,
+            CleanResult      cleanResult,
+            bool             overrideMagnitudeCheck)
+    {
+        // A magnitude-only failure can be deliberately let through by the caller; error-rate
+        // and reconciliation failures never are, regardless of overrideMagnitudeCheck.
+        var magnitudeOverrideApplied = !report.Passed && overrideMagnitudeCheck && report.PassedExcludingMagnitude;
+        var effectivePassed          = report.Passed || magnitudeOverrideApplied;
+
+        foreach (var warning in report.MagnitudeWarnings)
+            _logger.LogWarning("{Warning}", warning);
+
+        if (magnitudeOverrideApplied)
+            _logger.LogWarning(
+                "VALIDATION OVERRIDE APPLIED — magnitude-shift gate bypassed by explicit operator request. " +
+                "{Cleaned} records this run. Warnings: {Warnings}",
+                cleanResult.Records.Count, string.Join(" | ", report.MagnitudeWarnings));
+
+        _logger.LogInformation("CSV validation {Result} — {Cleaned} records, {Issues} issues",
+            effectivePassed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
+
+        foreach (var issue in report.Issues.Take(MaxLoggedIssues))
+            _logger.Log(
+                issue.Severity == "Error" ? LogLevel.Error : LogLevel.Warning,
+                "[{Stage}] {DocId}: {Message}", issue.Stage, issue.DocumentId, issue.Message);
+        if (report.Issues.Count > MaxLoggedIssues)
+            _logger.LogWarning("…{More} more issue(s) not logged (see the run report for the full list).",
+                report.Issues.Count - MaxLoggedIssues);
+
+        var errors   = report.Issues.Count(i => i.Severity == "Error");
+        var warnings = report.Issues.Count(i => i.Severity != "Error");
+
+        var sourceTag = new KeyValuePair<string, object?>("source", Source);
+
+        // Unconditional, not guarded with "> 0": these are counters, and a healthy run
+        // (zero errors/stale docs) should still emit a zero data point. Otherwise a
+        // dashboard/alert can't tell "this metric is healthy at zero" apart from "this
+        // metric stopped reporting entirely".
+        Instrumentation.ValidationIssues.Add(errors,   sourceTag, new("severity", "error"));
+        Instrumentation.ValidationIssues.Add(warnings, sourceTag, new("severity", "warning"));
+        Instrumentation.StaleDocs.Add(report.StaleDocCount, sourceTag);
+        Instrumentation.DocsWithoutHeadings.Add(report.DocumentsNeedingFallbackChunking.Count, sourceTag);
+
+        // Metadata completeness — count docs missing title, version, department. Title
+        // and FolderPath are page-CSV fields and can legitimately vary page-to-page for
+        // the same document, so a document only counts as "missing" if EVERY one of its
+        // pages lacks that field, not just whichever page happens to come first.
+        var byDocument        = cleanResult.Records.GroupBy(r => r.DocumentId).ToList();
+        var missingTitle      = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
+        var missingVersion    = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Version)));
+        var missingDepartment = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.FolderPath)));
+
+        Instrumentation.MissingMetadata.Add(missingTitle,      sourceTag, new("field", "title"));
+        Instrumentation.MissingMetadata.Add(missingVersion,    sourceTag, new("field", "version"));
+        Instrumentation.MissingMetadata.Add(missingDepartment, sourceTag, new("field", "department"));
+
+        return (effectivePassed, errors, warnings, missingTitle, missingVersion, missingDepartment);
+    }
 
     // Holds the count of cleaned records from the last successful run
     // Returns that count

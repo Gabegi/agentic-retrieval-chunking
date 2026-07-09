@@ -131,12 +131,23 @@ var host = new HostBuilder()
         services.AddSingleton<IChunkingStrategy, ChunkingStrategy1>();
         services.AddSingleton<IChunkingService, ChunkingService>();
 
+        // CSV pipeline stages - stateless, so singletons are safe.
+        services.AddSingleton<ICsvExtractor,     CsvExtractor>();
+        services.AddSingleton<ICsvJoiner,        CsvJoiner>();
+        services.AddSingleton<IDataCleaner,      DataCleaner>();
+        services.AddSingleton<IPipelineValidator, PipelineValidator>();
+
         // Extraction source — exactly one IExtractionOrchestrator is active at a time. To
         // switch (e.g. to a PDF extractor), replace this registration; ExtractionService takes
         // whichever IExtractionOrchestrator is registered here, no other change needed.
         services.AddSingleton<IExtractionOrchestrator>(sp => new CsvExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documentscsv"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
+            sp.GetRequiredService<IRunReportWriter>(),
+            sp.GetRequiredService<ICsvExtractor>(),
+            sp.GetRequiredService<ICsvJoiner>(),
+            sp.GetRequiredService<IDataCleaner>(),
+            sp.GetRequiredService<IPipelineValidator>(),
             sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
 
         // RAG pipeline

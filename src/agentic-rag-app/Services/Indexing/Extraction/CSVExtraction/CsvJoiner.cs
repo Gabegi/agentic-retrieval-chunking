@@ -3,30 +3,19 @@ using ProtocolsIndexer.Models;
 namespace ProtocolsIndexer.Services;
 
 // Merges data (pages) with metadata (index).
-//
-// Page-level content (zenya_pages.csv, one row per page) with document-level
-// metadata (zenya_index.csv, one row per document) by DOCUMENT_ID
-
-// neither file alone has everything a page needs to be indexed. Also classifies every way the two files
-// can disagree: matched+active proceeds to DataCleaner; matched-but-inactive skips the
-// page (DataQualityWarning); 
-
-// a page with no matching index record is an Error; an
-// index record with no matching pages is tracked separately (SkippedIndexRecords); a
-// duplicate DOCUMENT_ID in the index is a DataQualityWarning (first occurrence wins).
 
 // Potential outcomes
     // Matched + Active → AddJoined → the only bucket that continues to DataCleaner. This is your "data + metadata both present" set.
     // NotFound → AddError → tracked, not joined. Whether that then gets written to blob for tracking is a caller decision outside this method — Join() just classifies it.
     // Inactive → AddDataQualityWarning + skip count → same idea, tracked but excluded from joined output.
     // Index record, zero matching pages → AddSkippedIndexRecord → tracked separately.
-public static class CsvJoiner
+public class CsvJoiner : ICsvJoiner
 {
     private enum MatchStatus { NotFound, Inactive, Matched }
 
     private readonly record struct PageMatch(string DocumentId, MatchStatus Status, JoinedPageRecord? Joined);
 
-    public static JoinResult Join(IReadOnlyList<PageRecord> pages, IReadOnlyList<IndexRecord> index)
+    public JoinResult Join(IReadOnlyList<PageRecord> pages, IReadOnlyList<IndexRecord> index)
     {
         var result = new JoinResult();
 

@@ -1,32 +1,27 @@
 using System.Globalization;
+using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
+using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-public static class CsvExtractor
+// Instance, not static, so encoding detection can log immediately via an injected ILogger.
+public class CsvExtractor : ICsvExtractor
 {
-    // Default behavior (no MissingFieldFound/BadDataFound overrides): a ragged row
-    // (fewer fields than the header) or malformed field data throws MissingFieldException/
-    // BadDataException instead of silently reading as null. Both land in the try/catch
-    // blocks that already exist below - during csv.Read() they're caught by
-    // EnsureRowIsReadable, during a later GetField() call they're caught by the
-    // record-building catch - so they're logged as row-level failures and the loop
-    // moves on, the same as any other row-level problem.
+    private readonly ILogger<CsvExtractor> _logger;
+
+    public CsvExtractor(ILogger<CsvExtractor> logger)
+    {
+        _logger = logger;
+    }
+
     private static readonly CsvConfiguration Config = new(CultureInfo.InvariantCulture)
     {
         Delimiter       = ",",
         HasHeaderRecord = true,
 
-        // CsvHelper's own GetField("DOCUMENT_ID") name lookup is case-sensitive by
-        // default - EnsureHeadersAreCorrect validating with StringComparer.OrdinalIgnoreCase
-        // doesn't change that, since it's a separate manual scan over the raw
-        // HeaderRecord. Without this, a file with "Document_Id" instead of
-        // "DOCUMENT_ID" would pass the up-front header check and then fail to resolve
-        // on every single GetField call - the exact all-rows failure that check
-        // exists to prevent. Normalizing both sides to uppercase makes CsvHelper's
-        // own matching genuinely case-insensitive too.
         PrepareHeaderForMatch = args => args.Header.ToUpperInvariant(),
     };
 
@@ -52,7 +47,7 @@ public static class CsvExtractor
         };
     }
 
-    public static ExtractionResult<PageRecord> ExtractPages(Stream stream) =>
+    public ExtractionResult<PageRecord> ExtractPages(Stream stream) =>
         Extract(stream, PagesRequiredHeaders, csv => new PageRecord
         {
             DocumentId      = RequireDocumentId(csv),
@@ -62,7 +57,7 @@ public static class CsvExtractor
             LastModifiedRaw = csv.GetField("LAST_MODIFIED_DATETIME") ?? "",
             PageIndex       = ParsePageIndex(csv),
             PageContent     = csv.GetField("PAGE_CONTENT") ?? "",
-            Language        = csv.GetField("LANGUAGE") ?? "",
+            Language        = GetOptionalField(csv, "LANGUAGE"),
             RelativePath    = csv.GetField("RELATIVE_PATH") ?? "",
         });
 
@@ -71,7 +66,7 @@ public static class CsvExtractor
     // metadata (title/version/summary/etc.) that CsvJoiner later attaches to every
     // page of the matching DOCUMENT_ID from ExtractPages. Same per-row error handling
     // as ExtractPages: a bad row is recorded and skipped, not fatal to the whole file.
-    public static ExtractionResult<IndexRecord> ExtractIndex(Stream stream) =>
+    public ExtractionResult<IndexRecord> ExtractIndex(Stream stream) =>
         Extract(stream, IndexRequiredHeaders, csv => new IndexRecord
         {
             DocumentId        = RequireDocumentId(csv),
@@ -83,16 +78,6 @@ public static class CsvExtractor
             Active            = ParseActive(csv),
         });
 
-
-    // Shared read loop for both ExtractPages and ExtractIndex. The only thing that
-    // differs between them is which headers are required and how to build a T from
-    // a successfully-read row (build) - everything else (advancing rows via
-    // EnsureRowIsReadable, catching a row-level build failure - e.g. a ragged row's
-    // GetField() throwing MissingFieldException, or RequireDocumentId/ParsePageIndex/
-    // ParseActive rejecting a bad value - and logging it as an ExtractionError) is
-    // identical, so it lives here once instead of twice.
-
-
      // 1. Checks correct headers are there once, up front (EnsureHeadersAreCorrect)
     // 2. Per row, try to read it (csv.Read()):
     //      - throws        -> row is unparseable garbage; log an error (no DocumentId), keep going
@@ -101,7 +86,7 @@ public static class CsvExtractor
     // 3. Try to build a PageRecord from that row's fields (needs DOCUMENT_ID + valid PAGE_INDEX):
     //      - succeeds -> add it as a PageRecord
     //      - fails    -> log it as an ExtractionError, with DocumentId if we could read one
-    private static ExtractionResult<T> Extract<T>(Stream stream, string[] requiredHeaders, Func<CsvReader, T> build)
+    private ExtractionResult<T> Extract<T>(Stream stream, string[] requiredHeaders, Func<CsvReader, T> build)
     {
         var result = new ExtractionResult<T>();
         using var csv = EnsureHeadersAreCorrect(stream, requiredHeaders);
@@ -164,11 +149,40 @@ public static class CsvExtractor
     //    row loop to start calling csv.Read() for data rows.
     //
     // So it does two things: open/position the reader, and fail fast on a bad header.
-    private static CsvReader EnsureHeadersAreCorrect(Stream stream, string[] requiredHeaders)
+
+    private CsvReader EnsureHeadersAreCorrect(Stream stream, string[] requiredHeaders)
     {
-        var csv = new CsvReader(new StreamReader(stream), Config);
-        csv.Read();       // advance to the header row
+        var streamReader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var csv = new CsvReader(streamReader, Config);
+        csv.Read();       // advance to the header row - also triggers the encoding detection below
         csv.ReadHeader(); // capture it into HeaderRecord (one-time, not per data row)
+
+        // Zenya's export is expected to always be UTF-8 (BOM or no BOM - both decode to
+        // this same CodePage). Anything else means either the wrong file landed
+        if (streamReader.CurrentEncoding.CodePage != Encoding.UTF8.CodePage)
+            throw new InvalidOperationException(
+                $"CSV is encoded as '{streamReader.CurrentEncoding.WebName}', expected UTF-8.");
+
+        _logger.LogInformation("CSV encoding detected: {Encoding}", streamReader.CurrentEncoding.WebName);
+
+        // A wrong delimiter (e.g. a semicolon-delimited export against our hardcoded comma)
+        // fails
+        if (csv.HeaderRecord is { Length: 1 } && requiredHeaders.Length > 1)
+            throw new InvalidOperationException(
+                $"CSV header parsed as a single column ('{csv.HeaderRecord[0]}') — " +
+                $"check that the delimiter is '{Config.Delimiter}'.");
+
+        // Two columns sharing a name (e.g. two "DOCUMENT_ID" columns) would otherwise leave
+        // GetField's resolution among them as unverified, implicit CsvHelper behavior. Name
+        // the actual problem explicitly instead, same principle as the delimiter check above.
+        var duplicates = (csv.HeaderRecord ?? [])
+            .GroupBy(h => h, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+        if (duplicates.Count > 0)
+            throw new InvalidOperationException(
+                $"CSV header has duplicate column name(s): {string.Join(", ", duplicates)}.");
 
         var missing = requiredHeaders
             .Where(c => csv.HeaderRecord is null
@@ -184,15 +198,7 @@ public static class CsvExtractor
     // Shared by both ExtractPages and ExtractIndex - DOCUMENT_ID is the join key
     // CsvJoiner matches pages to index rows on, so an empty one makes the row
     // useless downstream regardless of which file it came from.
-    //
-    // Trim() matters here specifically because CsvJoiner keys its lookup dictionary
-    // on this value via plain string equality (record.DocumentId / page.DocumentId,
-    // no normalization at the join site itself) - so "abc123" from one file and
-    // "abc123 " (stray trailing space) from the other would compare unequal and
-    // fail to match, even though they're the same document. Trimming once here,
-    // at the single choke point both ExtractPages and ExtractIndex go through,
-    // guarantees both sides of the join always compare on the same normalized
-    // value - fixing it at either individual call site wouldn't cover the other.
+
     private static string RequireDocumentId(CsvReader csv)
     {
         var docId = (csv.GetField("DOCUMENT_ID") ?? "").Trim();
@@ -206,44 +212,42 @@ public static class CsvExtractor
     private static int ParsePageIndex(CsvReader csv)
     {
         var raw = csv.GetField("PAGE_INDEX");
-        if (!int.TryParse(raw, out var value))
+        if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
             throw new FormatException($"PAGE_INDEX '{raw}' is not a valid integer.");
         return value;
     }
 
     // "VERSION.REVISION" (e.g. "7.0"). REVISION isn't in the required-columns list — if it's
     // missing/unparseable, fall back to bare VERSION rather than failing the whole row over it.
+    //
+    // TryGetField, not GetField: same reason as ACTIVE below - REVISION isn't a required
+    // header, and with MissingFieldFound at its throwing default, GetField would throw on
+    // every row for any export that omits this column entirely, instead of reaching the
+    // "fall back to bare VERSION" logic this comment already promises.
     private static string FormatVersion(CsvReader csv)
     {
         var version = csv.GetField("VERSION") ?? "";
         if (string.IsNullOrWhiteSpace(version))
             return "";
-        return int.TryParse(csv.GetField("REVISION"), out var revision) ? $"{version}.{revision}" : version;
+        var revisionRaw = csv.TryGetField<string>("REVISION", out var raw) ? raw : null;
+        return int.TryParse(revisionRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var revision)
+            ? $"{version}.{revision}" : version;
     }
 
-    // ACTIVE has no required-column entry, so a genuinely missing value silently
-    // defaults to active - this field simply doesn't appear in every export, and
-    // that's fine. But a value that IS present and just doesn't parse as
-    // "true"/"false" (e.g. the export switching to "0"/"1", "Y"/"N", or Dutch
-    // "ja"/"nee") is a different problem: Active is the one thing keeping withdrawn
-    // protocols out of the search index, so silently guessing "active" for garbled
-    // data fails in exactly the wrong direction and would do so with zero signal.
-    // That case throws instead, same as any other row-level validation failure -
-    // it rejects the row (logged as an ExtractionError) rather than defaulting
-    // through it unnoticed.
+
     private static bool ParseActive(CsvReader csv)
     {
-        // TryGetField, not GetField: ACTIVE isn't a required header, and with
-        // MissingFieldFound restored to its default (throwing), GetField would throw
-        // on every row for any export that omits this column entirely. TryGetField
-        // returns false instead, so "column doesn't exist" and "column exists but
-        // this row's value is blank" both fall through to the same "assume active"
-        // default - only a value that's actually present and unparseable throws.
         if (!csv.TryGetField<string>("ACTIVE", out var raw) || string.IsNullOrWhiteSpace(raw))
             return true;
         if (!bool.TryParse(raw, out var active))
             throw new FormatException($"ACTIVE '{raw}' is not a valid true/false value.");
         return active;
     }
+
+    // TryGetField, not GetField: same reasoning as ACTIVE/REVISION - name isn't in the
+    // required-columns list, so a column entirely absent from the file must default
+    // gracefully instead of throwing on every single row.
+    private static string GetOptionalField(CsvReader csv, string name) =>
+        csv.TryGetField<string>(name, out var value) ? value ?? "" : "";
 
 }
