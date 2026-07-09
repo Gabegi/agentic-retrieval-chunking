@@ -20,4 +20,5 @@ public interface IPdfExtractor
 public record PdfFileExtraction(
     IReadOnlyList<PdfPageRecord> Pages,
     PdfIndexRecord?              Index,
-    ExtractionError?             Error);
+    ExtractionError?             Error,
+    decimal?                     EstimatedCostUsd = null); // set by paid backends (e.g. Document Intelligence) for the comparison report
