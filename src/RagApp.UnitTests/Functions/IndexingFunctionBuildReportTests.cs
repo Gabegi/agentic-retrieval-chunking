@@ -44,6 +44,7 @@ public class IndexingFunctionBuildReportTests
         ValidationWarnings:     6,
         ReconciliationProblems: 7,
         StaleDocCount:          8,
+        MojibakeRepairedPages:  13,
         DocsWithoutHeadings:    9,
         MissingTitleCount:      10,
         MissingVersionCount:    11,
