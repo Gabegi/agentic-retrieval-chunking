@@ -1,3 +1,4 @@
+using Azure.AI.DocumentIntelligence;
 using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
@@ -9,6 +10,7 @@ using Microsoft.Azure.Functions.Worker.OpenTelemetry;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Azure.Monitor.OpenTelemetry.Exporter;
+using Microsoft.Extensions.Configuration;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -19,6 +21,19 @@ using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Observability;
 using ProtocolsIndexer.Observability.Reports;
 using ProtocolsIndexer.Services;
+
+// Dev-only entry point: compares PdfPig vs Document Intelligence extraction over a
+// sample blob container, using the same production PdfJoiner/PdfCleaner/
+// PdfPipelineValidator the real pipeline will use — see docs/pdf-extraction-pipeline.md.
+// Runs a lightweight, standalone host instead of the Functions worker host, so it can
+// be invoked locally (`dotnet run -- --compare-pdf-backends <containerName>`) without
+// deploying. Left in permanently as a re-validation tool, not removed once a backend
+// is chosen.
+if (args.Contains("--compare-pdf-backends"))
+{
+    await RunPdfBackendComparisonAsync(args);
+    return;
+}
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
@@ -161,3 +176,51 @@ var host = new HostBuilder()
     .Build();
 
 await host.RunAsync();
+
+// Builds a minimal, standalone DI container (not the Functions worker host) with just
+// what the comparison needs, so it can run without a deployed/running Function App.
+async Task RunPdfBackendComparisonAsync(string[] cliArgs)
+{
+    var containerName = cliArgs
+        .SkipWhile(a => a != "--compare-pdf-backends")
+        .Skip(1)
+        .FirstOrDefault() ?? "samples";
+
+    var rawConfig = new ConfigurationBuilder()
+        .AddJsonFile("local.settings.json", optional: true)
+        .AddEnvironmentVariables()
+        .Build();
+
+    // local.settings.json nests app settings under "Values"; env vars don't.
+    string? GetSetting(string key) => rawConfig[$"Values:{key}"] ?? rawConfig[key];
+
+    var storageAccountUrl = GetSetting("STORAGE_ACCOUNT_URL")
+        ?? throw new InvalidOperationException(
+            "STORAGE_ACCOUNT_URL not set — set it as an env var or in local.settings.json to run --compare-pdf-backends.");
+    var documentIntelligenceEndpoint = GetSetting("DOCUMENT_INTELLIGENCE_ENDPOINT") ?? "";
+
+    var compareServices = new ServiceCollection();
+    TokenCredential compareCredential = new DefaultAzureCredential();
+
+    compareServices.AddLogging(b => b.AddConsole());
+    compareServices.AddSingleton(compareCredential);
+    compareServices.AddSingleton(_ => new BlobServiceClient(new Uri(storageAccountUrl), compareCredential));
+    compareServices.AddSingleton(sp =>
+        sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient(containerName));
+
+    compareServices.AddSingleton<IPdfExtractor, PdfPigExtractor>();
+    if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint))
+    {
+        compareServices.AddSingleton(_ =>
+            new DocumentIntelligenceClient(new Uri(documentIntelligenceEndpoint), compareCredential));
+        compareServices.AddSingleton<IPdfExtractor, DocumentIntelligenceExtractor>();
+    }
+
+    compareServices.AddSingleton<IPdfJoiner, PdfJoiner>();
+    compareServices.AddSingleton<IPdfCleaner, PdfCleaner>();
+    compareServices.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
+    compareServices.AddSingleton<PdfBackendComparisonRunner>();
+
+    await using var compareProvider = compareServices.BuildServiceProvider();
+    await compareProvider.GetRequiredService<PdfBackendComparisonRunner>().CompareAsync();
+}
