@@ -49,6 +49,11 @@ public class PipelineValidator : IPipelineValidator
         // 5. Collect Text (char and language) + table format issues
         issues.AddRange(TextNTableQualityCheck(cleanResult));
 
+        // 5b. Total tables detected this run — trended over time via dashboard, not gated;
+        // a drop here (with no ground truth for "expected" count) is a signal worth a look,
+        // not proof a table got flattened into prose.
+        var detectedTableCount = CountDetectedTables(cleanResult);
+
         // 6. docsNeedingFallback = zero headings across every single page of that document
         var docsWithNoPagesWithHeadings = DocsWithNoPagesWithHeading(cleanResult);
         if (docsWithNoPagesWithHeadings.Count > 0)
