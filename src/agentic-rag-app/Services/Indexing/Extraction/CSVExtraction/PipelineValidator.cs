@@ -104,6 +104,7 @@ public class PipelineValidator : IPipelineValidator
                 .ToList(),
             StaleDocCount                 = staleDocCount,
             MojibakeRepairedPages         = cleanResult.MojibakeRepairedPages,
+            DetectedTableCount            = detectedTableCount,
             Passed                        = passed,
             PassedExcludingMagnitude      = passedExcludingMagnitude,
         };
@@ -313,6 +314,15 @@ public class PipelineValidator : IPipelineValidator
 
         return issues;
     }
+
+    // Total table-like blocks across every cleaned page this run — same block definition
+    // TextNTableQualityCheck already uses for the column-consistency check, so both checks
+    // agree on what "a table" means.
+    private static int CountDetectedTables(CleanResult cleanResult) =>
+        cleanResult.Records.Sum(record =>
+            record.PageContent
+                .Split("\n\n", StringSplitOptions.RemoveEmptyEntries)
+                .Count(block => MarkdownTableLine.IsMatch(block)));
 
     // 6. document flagged if none of its pages has a heading
     // matters because chunking = chunks done per header
