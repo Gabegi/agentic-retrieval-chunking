@@ -51,6 +51,11 @@ public record IndexRunReport(
     // the absolute count, since a jump means an upstream encoding problem got worse.
     int MojibakeRepairedPages,
 
+    // Quality signal: total markdown table blocks detected this run. No ground truth for
+    // "expected" count yet — watch for a drop vs. recent runs; a table flattened into prose
+    // surfaces here as a dip.
+    int DetectedTableCount,
+
     // Quality signal: docs with no markdown headings get chunked with no structural guidance.
     // These chunks may be lower quality. Check whether the source has headings at all,
     // or whether the extraction step failed to preserve them.
