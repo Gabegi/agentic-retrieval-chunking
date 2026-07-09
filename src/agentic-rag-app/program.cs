@@ -165,6 +165,21 @@ var host = new HostBuilder()
             sp.GetRequiredService<IPipelineValidator>(),
             sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
 
+        // PDF extraction backends — comparison-only for now (see
+        // docs/pdf-extraction-pipeline.md). Both registered so the
+        // --compare-pdf-backends tool can resolve IEnumerable<IPdfExtractor>; neither
+        // is wired into IExtractionOrchestrator yet — CSV remains the sole active source.
+        services.AddSingleton<IPdfExtractor, PdfPigExtractor>();
+        if (!string.IsNullOrWhiteSpace(config.DocumentIntelligenceEndpoint))
+        {
+            services.AddSingleton(_ =>
+                new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
+            services.AddSingleton<IPdfExtractor, DocumentIntelligenceExtractor>();
+        }
+        services.AddSingleton<IPdfJoiner,            PdfJoiner>();
+        services.AddSingleton<IPdfCleaner,           PdfCleaner>();
+        services.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
+
         // RAG pipeline
         services.AddSingleton<IExtractionService, ExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
