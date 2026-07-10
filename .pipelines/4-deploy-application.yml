@@ -74,6 +74,12 @@ stages:
                   --priority 100 \
                   --scm-site true
 
+          # Temporary, diagnostic: capture Kudu's own log stream for the
+          # duration of the zip deploy, to see the actual failure (e.g. the
+          # ZipFS/siteversion.txt content-share-mount signature) instead of
+          # just the generic 500/503 the CLI reports. Only works here because
+          # the SCM firewall rule above is open for this runner right now -
+          # remove once the deploy is reliably green.
           - task: AzureCLI@2
             displayName: 'Deploy to Function App'
             inputs:
@@ -81,10 +87,23 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
+                az webapp log tail -n $(functionAppName) -g $(functionAppRg) > $(Build.ArtifactStagingDirectory)/kudu-tail.log 2>&1 &
+                TAIL_PID=$!
+
+                set +e
                 az functionapp deployment source config-zip \
                   --resource-group $(functionAppRg) \
                   --name $(functionAppName) \
                   --src $(Build.ArtifactStagingDirectory)/protocol-indexer.zip
+                DEPLOY_EXIT=$?
+                set -e
+
+                sleep 10
+                kill $TAIL_PID 2>/dev/null || true
+                echo "=== Kudu log tail captured during deploy ==="
+                cat $(Build.ArtifactStagingDirectory)/kudu-tail.log || true
+
+                exit $DEPLOY_EXIT
 
           - task: AzureCLI@2
             displayName: 'Close SCM firewall for this runner'
