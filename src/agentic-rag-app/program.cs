@@ -165,6 +165,21 @@ var host = new HostBuilder()
             sp.GetRequiredService<IPipelineValidator>(),
             sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
 
+        // PDF extraction backends — comparison-only for now (see
+        // docs/pdf-extraction-pipeline.md). Both registered so the
+        // --compare-pdf-backends tool can resolve IEnumerable<IPdfExtractor>; neither
+        // is wired into IExtractionOrchestrator yet — CSV remains the sole active source.
+        services.AddSingleton<IPdfExtractor, PdfPigExtractor>();
+        if (!string.IsNullOrWhiteSpace(config.DocumentIntelligenceEndpoint))
+        {
+            services.AddSingleton(_ =>
+                new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
+            services.AddSingleton<IPdfExtractor, DocumentIntelligenceExtractor>();
+        }
+        services.AddSingleton<IPdfJoiner,            PdfJoiner>();
+        services.AddSingleton<IPdfCleaner,           PdfCleaner>();
+        services.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
+
         // RAG pipeline
         services.AddSingleton<IExtractionService, ExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
@@ -176,3 +191,51 @@ var host = new HostBuilder()
     .Build();
 
 await host.RunAsync();
+
+// Builds a minimal, standalone DI container (not the Functions worker host) with just
+// what the comparison needs, so it can run without a deployed/running Function App.
+async Task RunPdfBackendComparisonAsync(string[] cliArgs)
+{
+    var containerName = cliArgs
+        .SkipWhile(a => a != "--compare-pdf-backends")
+        .Skip(1)
+        .FirstOrDefault() ?? "samples";
+
+    var rawConfig = new ConfigurationBuilder()
+        .AddJsonFile("local.settings.json", optional: true)
+        .AddEnvironmentVariables()
+        .Build();
+
+    // local.settings.json nests app settings under "Values"; env vars don't.
+    string? GetSetting(string key) => rawConfig[$"Values:{key}"] ?? rawConfig[key];
+
+    var storageAccountUrl = GetSetting("STORAGE_ACCOUNT_URL")
+        ?? throw new InvalidOperationException(
+            "STORAGE_ACCOUNT_URL not set — set it as an env var or in local.settings.json to run --compare-pdf-backends.");
+    var documentIntelligenceEndpoint = GetSetting("DOCUMENT_INTELLIGENCE_ENDPOINT") ?? "";
+
+    var compareServices = new ServiceCollection();
+    TokenCredential compareCredential = new DefaultAzureCredential();
+
+    compareServices.AddLogging(b => b.AddConsole());
+    compareServices.AddSingleton(compareCredential);
+    compareServices.AddSingleton(_ => new BlobServiceClient(new Uri(storageAccountUrl), compareCredential));
+    compareServices.AddSingleton(sp =>
+        sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient(containerName));
+
+    compareServices.AddSingleton<IPdfExtractor, PdfPigExtractor>();
+    if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint))
+    {
+        compareServices.AddSingleton(_ =>
+            new DocumentIntelligenceClient(new Uri(documentIntelligenceEndpoint), compareCredential));
+        compareServices.AddSingleton<IPdfExtractor, DocumentIntelligenceExtractor>();
+    }
+
+    compareServices.AddSingleton<IPdfJoiner, PdfJoiner>();
+    compareServices.AddSingleton<IPdfCleaner, PdfCleaner>();
+    compareServices.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
+    compareServices.AddSingleton<PdfBackendComparisonRunner>();
+
+    await using var compareProvider = compareServices.BuildServiceProvider();
+    await compareProvider.GetRequiredService<PdfBackendComparisonRunner>().CompareAsync();
+}
