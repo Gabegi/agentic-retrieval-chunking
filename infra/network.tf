@@ -48,15 +48,15 @@ resource "azurerm_subnet" "app" {
 #   }
 # }
 
-resource "azurerm_subnet_network_security_group_association" "app" {
-  subnet_id                 = azurerm_subnet.app.id
-  network_security_group_id = azurerm_network_security_group.app.id
-}
+# resource "azurerm_subnet_network_security_group_association" "app" {
+#   subnet_id                 = azurerm_subnet.app.id
+#   network_security_group_id = azurerm_network_security_group.app.id
+# }
 
-resource "azurerm_subnet_route_table_association" "app" {
-  subnet_id      = azurerm_subnet.app.id
-  route_table_id = data.azurerm_route_table.spoke.id
-}
+# resource "azurerm_subnet_route_table_association" "app" {
+#   subnet_id      = azurerm_subnet.app.id
+#   route_table_id = data.azurerm_route_table.spoke.id
+# }
 
 # Regional VNet Integration + vnet_route_all_enabled (function_app.tf) sends
 # ALL egress through this route table, even to destinations in the same VNet -
