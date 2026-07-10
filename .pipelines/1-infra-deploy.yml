@@ -132,9 +132,9 @@ stages:
                 echo "=== private DNS A records: privatelink.azurewebsites.net ==="
                 az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" -o table
 
-                echo "=== func storage account: public network access + network rules ==="
+                echo "=== func storage account: public network access + network rules (incl. any Service Endpoint / virtual network rules) ==="
                 az storage account show -g "$FUNC_RG" -n "$FUNC_STORAGE" \
-                  --query "{publicNetworkAccess:publicNetworkAccess, defaultAction:networkRuleSet.defaultAction, bypass:networkRuleSet.bypass}" -o json
+                  --query "{publicNetworkAccess:publicNetworkAccess, defaultAction:networkRuleSet.defaultAction, bypass:networkRuleSet.bypass, virtualNetworkRules:networkRuleSet.virtualNetworkRules}" -o json
 
                 echo "=== func storage account: content file share exists? (data-plane call - expected to fail from this runner, no VNet path to a private-endpoint-only account) ==="
                 ACCOUNT_KEY=$(az storage account keys list -g "$FUNC_RG" -n "$FUNC_STORAGE" --query "[0].value" -o tsv)
