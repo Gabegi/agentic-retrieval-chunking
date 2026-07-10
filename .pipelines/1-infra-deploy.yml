@@ -29,6 +29,10 @@ variables:
         value: 'corsttfcapprdwe'
       - name: backendContainer
         value: 'terraform-state-app'
+      - name: networkRg
+        value: 'cor-cap-network-prd-we-001'
+      - name: routeTableName
+        value: 'cor-rt-spoke-cap-prd-we-001'
   - ${{ else }}:
       - name: envName
         value: 'development'
@@ -44,6 +48,10 @@ variables:
         value: 'corsttfcapdevwe'
       - name: backendContainer
         value: 'terraform-state-app'
+      - name: networkRg
+        value: 'cor-cap-network-dev-we-001'
+      - name: routeTableName
+        value: 'cor-rt-spoke-cap-dev-we-001'
 
 stages:
 
@@ -130,6 +138,39 @@ stages:
                 az role assignment list --assignee "$SP_ID" \
                   --scope "/subscriptions/c8e46005-ce0e-4be5-9ded-0178e19fbe28/resourceGroups/cor-connectivity-dns-prd-we-001" \
                   --include-inherited -o table || echo "(no roleAssignments/read at RG scope - expected, see role list above)"
+
+          # Temporary, read-only: the SMB/445 zip-deploy failure to the Function
+          # App's content share (see 4-deploy-application.yml) traces to
+          # cor-rt-spoke-cap-*'s default-to-firewall 0.0.0.0/0 UDR capturing
+          # traffic to the private endpoints in cor-snet-cap-pe-001 too, since
+          # Regional VNet Integration + Route All sends ALL egress through the
+          # subnet's route table rather than preferring the more-specific
+          # intra-VNet system route a normal NIC would use. The fix is a UDR
+          # for that subnet's prefix with next hop type VnetLocal - but this
+          # route table lives in the platform team's network RG and is only
+          # read here via a data source, so before adding it in Terraform (or
+          # asking the platform team to), confirm whether this SP already has
+          # write access. Remove this step once that's confirmed either way.
+          - task: AzureCLI@2
+            displayName: 'DIAGNOSTIC: confirm SP access to spoke route table'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                SP_ID=$(az account show --query user.name -o tsv)
+                SUB_ID=$(az account show --query id -o tsv)
+                RT_ID=$(az network route-table show \
+                  --resource-group $(networkRg) \
+                  --name $(routeTableName) \
+                  --query id -o tsv)
+                echo "Route table resource ID: $RT_ID"
+                echo "--- role assignments for this SP directly on the route table ---"
+                az role assignment list --assignee "$SP_ID" --scope "$RT_ID" --include-inherited -o table
+                echo "--- role assignments for this SP on the network resource group ---"
+                az role assignment list --assignee "$SP_ID" \
+                  --scope "/subscriptions/$SUB_ID/resourceGroups/$(networkRg)" \
+                  --include-inherited -o table || echo "(no roleAssignments/read at RG scope - see role list above)"
 
           - script: |
               TF_VERSION="1.15.7"
