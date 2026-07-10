@@ -90,6 +90,15 @@ stages:
                 echo "=== Function App VNet integration ==="
                 az functionapp vnet-integration list -g "$FUNC_RG" -n "$FUNC_APP" -o json
 
+                echo "=== Function App plan (Consumption/Premium/Flex/Dedicated?) ==="
+                az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" --query "{sku:sku, kind:kind}" -o json
+                PLAN_ID=$(az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" --query "serverFarmId" -o tsv)
+                az appservice plan show --ids "$PLAN_ID" --query "{name:name, sku:sku}" -o json
+
+                echo "=== WEBSITE_VNET_ROUTE_ALL / WEBSITE_CONTENTOVERVNET ==="
+                az functionapp config appsettings list -g "$FUNC_RG" -n "$FUNC_APP" \
+                  --query "[?name=='WEBSITE_VNET_ROUTE_ALL' || name=='WEBSITE_CONTENTOVERVNET']" -o table
+
                 echo "=== Function App app setting names (values omitted) ==="
                 az functionapp config appsettings list -g "$FUNC_RG" -n "$FUNC_APP" --query "[].name" -o table
 
