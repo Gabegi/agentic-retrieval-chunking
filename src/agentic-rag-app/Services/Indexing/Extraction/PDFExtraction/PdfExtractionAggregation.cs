@@ -26,6 +26,9 @@ public static class PdfExtractionAggregation
 
             foreach (var page in file.Pages) pages.AddRecord(page);
             if (file.Index != null) index.AddRecord(file.Index);
+
+            foreach (var pageError in file.PageErrors) pages.AddError(pageError);
+            foreach (var warning in file.Warnings) pages.AddWarning(warning);
         }
 
         return (pages, index);

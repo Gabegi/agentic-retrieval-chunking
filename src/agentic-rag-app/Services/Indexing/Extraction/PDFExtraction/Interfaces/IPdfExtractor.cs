@@ -21,4 +21,11 @@ public record PdfFileExtraction(
     IReadOnlyList<PdfPageRecord> Pages,
     PdfIndexRecord?              Index,
     ExtractionError?             Error,
-    decimal?                     EstimatedCostUsd = null); // set by paid backends (e.g. Document Intelligence) for the comparison report
+    decimal?                     EstimatedCostUsd = null) // set by paid backends (e.g. Document Intelligence) for the comparison report
+{
+    // Per-page failures/soft-quality signals that don't fail the whole file (e.g. one
+    // unreadable page, a likely-scanned page). Folded into the aggregate ExtractionResult
+    // by PdfExtractionAggregation, same bucket a file-level Error would land in.
+    public IReadOnlyList<ExtractionError>   PageErrors { get; init; } = [];
+    public IReadOnlyList<ExtractionWarning> Warnings   { get; init; } = [];
+}
