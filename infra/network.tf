@@ -28,6 +28,24 @@ resource "azurerm_network_security_group" "app" {
   location            = var.location
   resource_group_name = data.azurerm_resource_group.network.name
   tags                = local.common_tags
+
+  # This subnet is delegated to Microsoft.Web/serverFarms purely for the
+  # Function App's outbound VNet integration - nothing should ever originate
+  # an inbound connection to it (inbound to the app itself goes through its
+  # own private endpoint in the separate PE subnet). Azure's implicit default
+  # rules already deny non-VNet inbound, but that reliance is silent; this
+  # rule makes the intent explicit and auditable rather than incidental.
+  security_rule {
+    name                       = "DenyInternetInbound"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "app" {
