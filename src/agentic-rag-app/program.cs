@@ -1,3 +1,4 @@
+using Azure.AI.DocumentIntelligence;
 using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
@@ -9,6 +10,7 @@ using Microsoft.Azure.Functions.Worker.OpenTelemetry;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Azure.Monitor.OpenTelemetry.Exporter;
+using Microsoft.Extensions.Configuration;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -19,6 +21,19 @@ using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Observability;
 using ProtocolsIndexer.Observability.Reports;
 using ProtocolsIndexer.Services;
+
+// Dev-only entry point: compares PdfPig vs Document Intelligence extraction over a
+// sample blob container, using the same production PdfJoiner/PdfCleaner/
+// PdfPipelineValidator the real pipeline will use — see docs/pdf-extraction-pipeline.md.
+// Runs a lightweight, standalone host instead of the Functions worker host, so it can
+// be invoked locally (`dotnet run -- --compare-pdf-backends <containerName>`) without
+// deploying. Left in permanently as a re-validation tool, not removed once a backend
+// is chosen.
+if (args.Contains("--compare-pdf-backends"))
+{
+    await RunPdfBackendComparisonAsync(args);
+    return;
+}
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
