@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -64,9 +65,8 @@ public class PdfPigExtractor : IPdfExtractor
         var errors   = new List<ExtractionError>();
         var warnings = new List<ExtractionWarning>();
 
-        var pdf = OpenAndValidate(pdfBytes, blobName, out var openError);
-        if (pdf is null)
-            return Failed(blobName, openError!);
+        if (!TryOpenAndValidate(pdfBytes, blobName, out var pdf, out var openError))
+            return Failed(blobName, openError);
 
         using (pdf)
         {
@@ -156,34 +156,48 @@ public class PdfPigExtractor : IPdfExtractor
         new([], null, new ExtractionError { DocumentId = blobName, Message = message });
 
     // Step 1: open the PDF and confirm it's usable — a real, parseable PDF with at
-    // least one page. Returns null (with `error` set) if either check fails; the
-    // caller owns disposal of the returned document on success.
-    private PdfDocument? OpenAndValidate(byte[] pdfBytes, string blobName, out string? error)
+    // least one page. `pdf`/`error` are [NotNullWhen]-annotated against the bool
+    // return so the caller doesn't need a null-forgiving `!` to use either one —
+    // the compiler enforces the "exactly one of these is non-null" invariant
+    // instead of it just being a convention. Caller owns disposal of `pdf` on
+    // success (true).
+    private bool TryOpenAndValidate(
+        byte[] pdfBytes, string blobName,
+        [NotNullWhen(true)]  out PdfDocument? pdf,
+        [NotNullWhen(false)] out string?      error)
     {
-        PdfDocument pdf;
+        // `opened` is a plain local, not the out parameter — lets the catch block
+        // read it safely (out parameters can't be read before they're definitely
+        // assigned) to dispose a document that opened fine but failed a later
+        // check in this same try, without leaking it.
+        PdfDocument? opened = null;
         try
         {
-            pdf = PdfDocument.Open(pdfBytes);
+            opened = PdfDocument.Open(pdfBytes);
+
+            if (opened.NumberOfPages == 0)
+            {
+                opened.Dispose();
+                pdf   = null;
+                error = "PDF contains zero pages.";
+                return false;
+            }
+
+            _logger.LogInformation(
+                "Opened PDF '{Blob}': {Pages} page(s), version {Version}",
+                blobName, opened.NumberOfPages, opened.Version);
+
+            pdf   = opened;
+            error = null;
+            return true;
         }
         catch (Exception ex)
         {
+            opened?.Dispose();
+            pdf   = null;
             error = $"Not a parseable PDF: {ex.Message}";
-            return null;
+            return false;
         }
-
-        if (pdf.NumberOfPages == 0)
-        {
-            pdf.Dispose();
-            error = "PDF contains zero pages.";
-            return null;
-        }
-
-        _logger.LogInformation(
-            "Opened PDF '{Blob}': {Pages} page(s), version {Version}",
-            blobName, pdf.NumberOfPages, pdf.Version);
-
-        error = null;
-        return pdf;
     }
 
     private static double GetDominantFontSize(PdfDocument pdf) =>
