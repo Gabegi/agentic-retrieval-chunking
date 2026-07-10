@@ -155,26 +155,20 @@ public class PdfPigExtractor : IPdfExtractor
     private static PdfFileExtraction Failed(string blobName, string message) =>
         new([], null, new ExtractionError { DocumentId = blobName, Message = message });
 
-    // Step 1: open the PDF and confirm it's usable — a real, parseable PDF with at
-    // least one page. `pdf`/`error` are [NotNullWhen]-annotated against the bool
-    // return so the caller doesn't need a null-forgiving `!` to use either one —
-    // the compiler enforces the "exactly one of these is non-null" invariant
-    // instead of it just being a convention. Caller owns disposal of `pdf` on
-    // success (true).
+    // 1: Open document & structurally validate the document
     private bool TryOpenAndValidate(
         byte[] pdfBytes, string blobName,
         [NotNullWhen(true)]  out PdfDocument? pdf,
         [NotNullWhen(false)] out string?      error)
     {
-        // `opened` is a plain local, not the out parameter — lets the catch block
-        // read it safely (out parameters can't be read before they're definitely
-        // assigned) to dispose a document that opened fine but failed a later
-        // check in this same try, without leaking it.
+      
         PdfDocument? opened = null;
         try
         {
+            // Open document
             opened = PdfDocument.Open(pdfBytes);
 
+            // checks # of pages
             if (opened.NumberOfPages == 0)
             {
                 opened.Dispose();
