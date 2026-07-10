@@ -71,6 +71,13 @@ resource "azurerm_windows_function_app" "indexer" {
     "WEBSITE_CONTENTOVERVNET"                  = "1"
     "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING" = azurerm_storage_account.func.primary_connection_string
     "WEBSITE_CONTENTSHARE"                     = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
+    # WEBSITE_CONTENTOVERVNET alone doesn't make the site's own DNS resolution
+    # (used by Kudu to resolve the content share's *.file.core.windows.net)
+    # honor the VNet-linked private DNS zone - that needs this resolver
+    # explicitly, or it falls back to public DNS and hits the storage
+    # account's public endpoint, which public_network_access_enabled = false
+    # on azurerm_storage_account.func then rejects.
+    "WEBSITE_DNS_SERVER" = "168.63.129.16"
     "ProtocolsStorage__blobServiceUri"         = azurerm_storage_account.data.primary_blob_endpoint
     "STORAGE_ACCOUNT_URL"                      = azurerm_storage_account.data.primary_blob_endpoint
     "SEARCH_ENDPOINT"                          = "https://${azurerm_search_service.main.name}.search.windows.net"
