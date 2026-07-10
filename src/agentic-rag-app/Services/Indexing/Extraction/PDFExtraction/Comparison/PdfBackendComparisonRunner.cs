@@ -71,7 +71,7 @@ public class PdfBackendComparisonRunner
     private ComparisonRow RunOne(IPdfExtractor extractor, string blobName, byte[] bytes)
     {
         var sw         = Stopwatch.StartNew();
-        var extraction = extractor.Extract(blobName, bytes);
+        var extraction = extractor.ExtractPDFAsync(blobName, bytes);
         sw.Stop();
 
         if (extraction.Error != null)

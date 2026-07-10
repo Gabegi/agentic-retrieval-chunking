@@ -30,7 +30,7 @@ public class PdfPigExtractorTests
     public void LargeBoldLine_IsDetectedAsHeading()
     {
         var bytes  = BuildSamplePdf("Introductie", "This is regular body text about the topic.");
-        var result = new PdfPigExtractor().Extract("doc1.pdf", bytes);
+        var result = new PdfPigExtractor().ExtractPDFAsync("doc1.pdf", bytes);
 
         Assert.IsNull(result.Error);
         Assert.AreEqual(1, result.Pages.Count);
@@ -42,7 +42,7 @@ public class PdfPigExtractorTests
     public void PageIndex_MatchesPdfPageNumber()
     {
         var bytes  = BuildSamplePdf("Heading", "Body text.");
-        var result = new PdfPigExtractor().Extract("doc1.pdf", bytes);
+        var result = new PdfPigExtractor().ExtractPDFAsync("doc1.pdf", bytes);
 
         Assert.AreEqual(1, result.Pages[0].PageIndex);
     }
@@ -51,7 +51,7 @@ public class PdfPigExtractorTests
     public void BlobName_IsCarriedOntoEveryPage()
     {
         var bytes  = BuildSamplePdf("Heading", "Body text.");
-        var result = new PdfPigExtractor().Extract("some/blob/doc1.pdf", bytes);
+        var result = new PdfPigExtractor().ExtractPDFAsync("some/blob/doc1.pdf", bytes);
 
         Assert.IsTrue(result.Pages.All(p => p.BlobName == "some/blob/doc1.pdf"));
     }
@@ -59,8 +59,9 @@ public class PdfPigExtractorTests
     [TestMethod]
     public void KnownSectionVocabulary_IsDetectedAsHeadingRegardlessOfFontSize()
     {
-        // "Samenvatting" is in the default known-section vocabulary, so even at body
-        // font size it should still be recognized as a heading.
+        // There's no default known-section vocabulary (no confirmed template to build
+        // one from), but a caller-supplied vocabulary should still be matched exactly,
+        // even at body font size.
         var builder     = new PdfDocumentBuilder();
         var page        = builder.AddPage(PageSize.A4);
         var regularFont = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -68,7 +69,7 @@ public class PdfPigExtractorTests
         page.AddText("Body text follows.", 10, new PdfPoint(50, 650), regularFont);
         var bytes = builder.Build();
 
-        var result = new PdfPigExtractor().Extract("doc1.pdf", bytes);
+        var result = new PdfPigExtractor(knownSections: ["Samenvatting"]).ExtractPDFAsync("doc1.pdf", bytes);
 
         StringAssert.Contains(result.Pages[0].PageContent, "## Samenvatting");
     }
@@ -76,7 +77,7 @@ public class PdfPigExtractorTests
     [TestMethod]
     public void CorruptBytes_ProducesFileLevelErrorNotException()
     {
-        var result = new PdfPigExtractor().Extract("corrupt.pdf", "not a real pdf"u8.ToArray());
+        var result = new PdfPigExtractor().ExtractPDFAsync("corrupt.pdf", "not a real pdf"u8.ToArray());
 
         Assert.IsNotNull(result.Error);
         Assert.AreEqual(0, result.Pages.Count);
