@@ -10,7 +10,7 @@ public interface IPdfExtractor
 {
     string Name { get; } // "PdfPig" | "DocumentIntelligence" — used by the comparison runner
 
-    PdfFileExtraction Extract(string blobName, byte[] pdfBytes);
+    PdfFileExtraction ExtractPDF(string blobName, byte[] pdfBytes);
 }
 
 // One PDF file's extraction outcome. Error is set (and Pages/Index empty) when the
