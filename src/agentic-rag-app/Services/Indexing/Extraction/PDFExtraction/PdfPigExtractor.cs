@@ -59,7 +59,7 @@ public class PdfPigExtractor : IPdfExtractor
             : new HashSet<string>(knownSections, StringComparer.OrdinalIgnoreCase);
     }
 
-    public PdfFileExtraction Extract(string blobName, byte[] pdfBytes)
+    public PdfFileExtraction ExtractPDF(string blobName, byte[] pdfBytes)
     {
         var errors   = new List<ExtractionError>();
         var warnings = new List<ExtractionWarning>();
