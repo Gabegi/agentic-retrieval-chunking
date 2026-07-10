@@ -64,25 +64,12 @@ public class PdfPigExtractor : IPdfExtractor
         var errors   = new List<ExtractionError>();
         var warnings = new List<ExtractionWarning>();
 
-        PdfDocument pdf;
-        try
-        {
-            pdf = PdfDocument.Open(pdfBytes);
-        }
-        catch (Exception ex)
-        {
-            return Failed(blobName, $"Not a parseable PDF: {ex.Message}");
-        }
+        var pdf = OpenAndValidate(pdfBytes, blobName, out var openError);
+        if (pdf is null)
+            return Failed(blobName, openError!);
 
         using (pdf)
         {
-            if (pdf.NumberOfPages == 0)
-                return Failed(blobName, "PDF contains zero pages.");
-
-            _logger.LogInformation(
-                "Opened PDF '{Blob}': {Pages} page(s), version {Version}",
-                blobName, pdf.NumberOfPages, pdf.Version);
-
             var knownSections    = GetKnownSections(pdf, blobName);
             var dominantFontSize = GetDominantFontSize(pdf);
 
@@ -167,6 +154,37 @@ public class PdfPigExtractor : IPdfExtractor
 
     private static PdfFileExtraction Failed(string blobName, string message) =>
         new([], null, new ExtractionError { DocumentId = blobName, Message = message });
+
+    // Step 1: open the PDF and confirm it's usable — a real, parseable PDF with at
+    // least one page. Returns null (with `error` set) if either check fails; the
+    // caller owns disposal of the returned document on success.
+    private PdfDocument? OpenAndValidate(byte[] pdfBytes, string blobName, out string? error)
+    {
+        PdfDocument pdf;
+        try
+        {
+            pdf = PdfDocument.Open(pdfBytes);
+        }
+        catch (Exception ex)
+        {
+            error = $"Not a parseable PDF: {ex.Message}";
+            return null;
+        }
+
+        if (pdf.NumberOfPages == 0)
+        {
+            pdf.Dispose();
+            error = "PDF contains zero pages.";
+            return null;
+        }
+
+        _logger.LogInformation(
+            "Opened PDF '{Blob}': {Pages} page(s), version {Version}",
+            blobName, pdf.NumberOfPages, pdf.Version);
+
+        error = null;
+        return pdf;
+    }
 
     private static double GetDominantFontSize(PdfDocument pdf) =>
         pdf.GetPages()

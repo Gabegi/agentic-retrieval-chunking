@@ -30,7 +30,7 @@ public class PdfPigExtractorTests
     public void LargeBoldLine_IsDetectedAsHeading()
     {
         var bytes  = BuildSamplePdf("Introductie", "This is regular body text about the topic.");
-        var result = new PdfPigExtractor().ExtractPDFAsync("doc1.pdf", bytes);
+        var result = new PdfPigExtractor().ExtractPDF("doc1.pdf", bytes);
 
         Assert.IsNull(result.Error);
         Assert.AreEqual(1, result.Pages.Count);
@@ -42,7 +42,7 @@ public class PdfPigExtractorTests
     public void PageIndex_MatchesPdfPageNumber()
     {
         var bytes  = BuildSamplePdf("Heading", "Body text.");
-        var result = new PdfPigExtractor().ExtractPDFAsync("doc1.pdf", bytes);
+        var result = new PdfPigExtractor().ExtractPDF("doc1.pdf", bytes);
 
         Assert.AreEqual(1, result.Pages[0].PageIndex);
     }
@@ -51,7 +51,7 @@ public class PdfPigExtractorTests
     public void BlobName_IsCarriedOntoEveryPage()
     {
         var bytes  = BuildSamplePdf("Heading", "Body text.");
-        var result = new PdfPigExtractor().ExtractPDFAsync("some/blob/doc1.pdf", bytes);
+        var result = new PdfPigExtractor().ExtractPDF("some/blob/doc1.pdf", bytes);
 
         Assert.IsTrue(result.Pages.All(p => p.BlobName == "some/blob/doc1.pdf"));
     }
@@ -69,7 +69,7 @@ public class PdfPigExtractorTests
         page.AddText("Body text follows.", 10, new PdfPoint(50, 650), regularFont);
         var bytes = builder.Build();
 
-        var result = new PdfPigExtractor(knownSections: ["Samenvatting"]).ExtractPDFAsync("doc1.pdf", bytes);
+        var result = new PdfPigExtractor(knownSections: ["Samenvatting"]).ExtractPDF("doc1.pdf", bytes);
 
         StringAssert.Contains(result.Pages[0].PageContent, "## Samenvatting");
     }
@@ -77,7 +77,7 @@ public class PdfPigExtractorTests
     [TestMethod]
     public void CorruptBytes_ProducesFileLevelErrorNotException()
     {
-        var result = new PdfPigExtractor().ExtractPDFAsync("corrupt.pdf", "not a real pdf"u8.ToArray());
+        var result = new PdfPigExtractor().ExtractPDF("corrupt.pdf", "not a real pdf"u8.ToArray());
 
         Assert.IsNotNull(result.Error);
         Assert.AreEqual(0, result.Pages.Count);

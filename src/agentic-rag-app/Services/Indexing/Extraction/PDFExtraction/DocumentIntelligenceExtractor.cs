@@ -23,7 +23,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         _client = client;
     }
 
-    public PdfFileExtraction ExtractPDFAsync(string blobName, byte[] pdfBytes)
+    public PdfFileExtraction ExtractPDF(string blobName, byte[] pdfBytes)
     {
         try
         {
