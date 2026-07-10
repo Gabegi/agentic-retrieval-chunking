@@ -115,22 +115,6 @@ stages:
                   --priority 100 \
                   --scm-site true
 
-                # Access-restriction changes trigger a restart of the SCM site to
-                # apply the new rule. Deploying immediately can race that restart
-                # and drop the zip-deploy connection mid-transfer (surfaces as
-                # "the specified network name is no longer available"). Poll the
-                # SCM site until it responds before moving on.
-                SCM_URL="https://$(functionAppName).scm.azurewebsites.net"
-                for i in $(seq 1 30); do
-                  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SCM_URL")
-                  if [ "$STATUS" != "000" ]; then
-                    echo "SCM site reachable (HTTP $STATUS) after $i attempt(s)"
-                    break
-                  fi
-                  echo "SCM site not yet reachable, retrying in 5s..."
-                  sleep 5
-                done
-
           - task: AzureCLI@2
             displayName: 'Deploy to Function App'
             inputs:
@@ -138,21 +122,10 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                MAX_ATTEMPTS=3
-                for attempt in $(seq 1 $MAX_ATTEMPTS); do
-                  echo "Deploy attempt $attempt of $MAX_ATTEMPTS"
-                  if az functionapp deployment source config-zip \
-                    --resource-group $(functionAppRg) \
-                    --name $(functionAppName) \
-                    --src $(Build.ArtifactStagingDirectory)/protocol-indexer.zip; then
-                    echo "Deployment succeeded"
-                    exit 0
-                  fi
-                  echo "Deployment failed, retrying in 15s..."
-                  sleep 15
-                done
-                echo "Deployment failed after $MAX_ATTEMPTS attempts"
-                exit 1
+                az functionapp deployment source config-zip \
+                  --resource-group $(functionAppRg) \
+                  --name $(functionAppName) \
+                  --src $(Build.ArtifactStagingDirectory)/protocol-indexer.zip
 
           - task: AzureCLI@2
             displayName: 'Close SCM firewall for this runner'
