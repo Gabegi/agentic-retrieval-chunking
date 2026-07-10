@@ -44,10 +44,6 @@ variables:
         value: 'corsttfcapdevwe'
       - name: backendContainer
         value: 'terraform-state-app'
-      - name: networkRg
-        value: 'cor-cap-network-dev-we-001'
-      - name: routeTableName
-        value: 'cor-rt-spoke-cap-dev-we-001'
 
 stages:
 
