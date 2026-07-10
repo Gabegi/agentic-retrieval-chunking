@@ -39,15 +39,7 @@ resource "azurerm_windows_function_app" "indexer" {
   # key-based connection string - Azure Files/SMB has no managed-identity
   # auth path - plus WEBSITE_CONTENTOVERVNET so the platform reaches it via
   # the private endpoint (azurerm_private_endpoint.stfunc_file in storage.tf)
-  # instead of the public endpoint. That private endpoint now has its
-  # private_dns_zone_group attached (storage.tf). We previously tried a
-  # public-endpoint + trusted-service-bypass workaround; reverted it, since
-  # Azure Files mounts over SMB (445), and the VNet's vnet_route_all_enabled
-  # forces that through the hub firewall too - opening the storage account
-  # alone doesn't help if that firewall blocks 445 outbound. Fixed instead by
-  # azurerm_route.pe_subnet_local (network.tf), which keeps traffic to the pe
-  # subnet's private endpoints on the VNet-local path instead of hairpinning
-  # through the firewall.
+  # instead of the public endpoint.
 
   identity {
     type = "SystemAssigned"
