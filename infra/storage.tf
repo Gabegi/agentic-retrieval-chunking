@@ -11,14 +11,9 @@
 # Both are private-endpoint-only (no public network access). Each private
 # endpoint below attaches its private_dns_zone_group directly rather than
 # waiting on the platform team's policy-based zone linking
-# (docs/platform-team-dns-verzoek.md). We previously tried a
-# public-endpoint + trusted-service-bypass workaround for both; reverted it
-# (SMB/445 for the file share likely also needs a hub-firewall egress rule
-# beyond just the storage account's own firewall, and opening the accounts
-# up don't fix that, so it wasn't a viable path). Fixed instead by
-# azurerm_route.pe_subnet_local (network.tf) - a UDR that keeps traffic to
-# this subnet's private endpoints VNet-local instead of routing it to the
-# firewall.
+# (docs/platform-team-dns-verzoek.md). Their traffic is kept VNet-local by
+# azurerm_route.pe_subnet_local (network.tf) rather than hairpinning through
+# the hub firewall.
 # ---------------------------------------------------------------------------
 
 resource "azurerm_storage_account" "func" {

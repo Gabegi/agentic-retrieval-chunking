@@ -59,16 +59,13 @@ resource "azurerm_subnet_route_table_association" "app" {
 }
 
 # Regional VNet Integration + vnet_route_all_enabled (function_app.tf) sends
-# ALL egress from the app subnet through this route table's rules, even to
-# destinations inside the same VNet - unlike a normal NIC, which would prefer
-# the more-specific implicit system route to a sibling subnet. Without this,
-# traffic to the private endpoints in the pe subnet (storage, search, key
-# vault, the Function App's own inbound PE) follows the existing
-# 0.0.0.0/0 default-to-firewall route and hairpins through the hub firewall,
-# which blocks SMB/445 - breaking the Function App's own content-share mount
-# (see storage.tf, function_app.tf). This route is more specific than that
-# default route, so it wins for the pe subnet's prefix while every other
-# destination still goes to the firewall for inspection.
+# ALL egress through this route table, even to destinations in the same VNet -
+# unlike a normal NIC, which would prefer the more-specific system route to a
+# sibling subnet. Without this, traffic to the pe subnet's private endpoints
+# hairpins through the hub firewall via the 0.0.0.0/0 default route, which
+# blocks SMB/445 and breaks the Function App's content-share mount. This
+# route's prefix is more specific, so it wins for that destination while
+# everything else still goes to the firewall.
 resource "azurerm_route" "pe_subnet_local" {
   name                   = "pe-subnet-local"
   resource_group_name    = data.azurerm_resource_group.network.name
