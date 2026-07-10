@@ -15,7 +15,10 @@
 # public-endpoint + trusted-service-bypass workaround for both; reverted it
 # (SMB/445 for the file share likely also needs a hub-firewall egress rule
 # beyond just the storage account's own firewall, and opening the accounts
-# up don't fix that, so it wasn't a viable path).
+# up don't fix that, so it wasn't a viable path). Fixed instead by
+# azurerm_route.pe_subnet_local (network.tf) - a UDR that keeps traffic to
+# this subnet's private endpoints VNet-local instead of routing it to the
+# firewall.
 # ---------------------------------------------------------------------------
 
 resource "azurerm_storage_account" "func" {

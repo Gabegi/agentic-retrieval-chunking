@@ -44,7 +44,10 @@ resource "azurerm_windows_function_app" "indexer" {
   # public-endpoint + trusted-service-bypass workaround; reverted it, since
   # Azure Files mounts over SMB (445), and the VNet's vnet_route_all_enabled
   # forces that through the hub firewall too - opening the storage account
-  # alone doesn't help if that firewall blocks 445 outbound.
+  # alone doesn't help if that firewall blocks 445 outbound. Fixed instead by
+  # azurerm_route.pe_subnet_local (network.tf), which keeps traffic to the pe
+  # subnet's private endpoints on the VNet-local path instead of hairpinning
+  # through the firewall.
 
   identity {
     type = "SystemAssigned"
