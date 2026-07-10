@@ -77,7 +77,6 @@ resource "azurerm_windows_function_app" "indexer" {
     # explicitly, or it falls back to public DNS and hits the storage
     # account's public endpoint, which public_network_access_enabled = false
     # on azurerm_storage_account.func then rejects.
-    "WEBSITE_DNS_SERVER" = "168.63.129.16"
     "ProtocolsStorage__blobServiceUri"         = azurerm_storage_account.data.primary_blob_endpoint
     "STORAGE_ACCOUNT_URL"                      = azurerm_storage_account.data.primary_blob_endpoint
     "SEARCH_ENDPOINT"                          = "https://${azurerm_search_service.main.name}.search.windows.net"
