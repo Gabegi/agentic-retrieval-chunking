@@ -73,16 +73,39 @@ resource "azurerm_private_endpoint" "api" {
 # --- Role assignments -------------------------------------------------------
 # Read-only on Search (query only, no index management) and OpenAI calls for
 # RAG generation. No storage access yet - add if the API ends up fetching raw
-# source documents rather than just querying the index.
+# source documents rather than just querying the index. Both scoped to the
+# same principal (the API app's identity) and looped via for_each, same
+# pattern as azurerm_role_assignment.func in function_app.tf. Renaming api_X
+# to api["X"] below is a pure Terraform-address move (scope/role/principal_id
+# unchanged per entry) - the moved blocks make it a no-op against the real
+# role assignments.
 
-resource "azurerm_role_assignment" "api_search_index_reader" {
-  scope                = azurerm_search_service.main.id
-  role_definition_name = "Search Index Data Reader"
-  principal_id         = azurerm_linux_web_app.query.identity[0].principal_id
+moved {
+  from = azurerm_role_assignment.api_search_index_reader
+  to   = azurerm_role_assignment.api["search_index_reader"]
 }
 
-resource "azurerm_role_assignment" "api_openai_user" {
-  scope                = data.azurerm_cognitive_account_project.rag.id
-  role_definition_name = "Cognitive Services OpenAI User"
-  principal_id         = azurerm_linux_web_app.query.identity[0].principal_id
+moved {
+  from = azurerm_role_assignment.api_openai_user
+  to   = azurerm_role_assignment.api["openai_user"]
+}
+
+locals {
+  api_role_assignments = {
+    search_index_reader = {
+      scope = azurerm_search_service.main.id
+      role  = "Search Index Data Reader"
+    }
+    openai_user = {
+      scope = data.azurerm_cognitive_account_project.rag.id
+      role  = "Cognitive Services OpenAI User"
+    }
+  }
+}
+
+resource "azurerm_role_assignment" "api" {
+  for_each              = local.api_role_assignments
+  scope                 = each.value.scope
+  role_definition_name  = each.value.role
+  principal_id          = azurerm_linux_web_app.query.identity[0].principal_id
 }
