@@ -8,8 +8,13 @@
 # delegated subnet, since delegation is exclusive per subnet.
 # ---------------------------------------------------------------------------
 
-# Renamed from azurerm_subnet.app - same address space, same underlying
-# subnet, just no longer shared with the API.
+# Renamed from azurerm_subnet.app. Azure can't rename a subnet in place, so
+# despite the moved block this still forces a destroy+create - and the old
+# subnet's name (cor-snet-cap-app-001) can't be freed for reuse here anyway
+# since the Function App's live VNet integration blocks its deletion until
+# something else takes its place. create_before_destroy + a new CIDR (was
+# 10.243.5.0/24, now .7.0/24) lets the new subnet come up first, the
+# Function App cut over to it, and only then the old one gets deleted.
 moved {
   from = azurerm_subnet.app
   to   = azurerm_subnet.func
@@ -29,7 +34,7 @@ resource "azurerm_subnet" "func" {
   name                 = "cor-snet-cap-func-${local.instance}"
   resource_group_name  = data.azurerm_resource_group.network.name
   virtual_network_name = data.azurerm_virtual_network.main.name
-  address_prefixes     = ["10.243.5.0/24"]
+  address_prefixes     = ["10.243.7.0/24"]
 
   delegation {
     name = "webapp-delegation"
@@ -38,6 +43,10 @@ resource "azurerm_subnet" "func" {
       name    = "Microsoft.Web/serverFarms"
       actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
     }
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -57,12 +66,33 @@ resource "azurerm_subnet" "api" {
   }
 }
 
-# Shared rule, shared NSG - both subnets are outbound-only VNet integration
-# for App Service-family compute, so the "nothing should ever originate
-# inbound here" intent is identical for both. Inbound to either app goes
-# through its own private endpoint in the separate PE subnet, not here.
-resource "azurerm_network_security_group" "app" {
-  name                = "cor-nsg-app-cap-${local.env}-${local.region}-${local.instance}"
+# Separate NSGs per subnet (rather than the shared one this replaced) so
+# rule changes for one workload can't accidentally affect the other's blast
+# radius - same reasoning as the subnet split above. Both still start from
+# the same "nothing should ever originate inbound here" rule: outbound-only
+# VNet integration for App Service-family compute, inbound to either app
+# goes through its own private endpoint in the separate PE subnet, not here.
+resource "azurerm_network_security_group" "api" {
+  name                = "cor-nsg-api-cap-${local.env}-${local.region}-${local.instance}"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.network.name
+  tags                = local.common_tags
+
+  security_rule {
+    name                       = "DenyInternetInbound"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_network_security_group" "func" {
+  name                = "cor-nsg-func-cap-${local.env}-${local.region}-${local.instance}"
   location            = var.location
   resource_group_name = data.azurerm_resource_group.network.name
   tags                = local.common_tags
@@ -82,12 +112,12 @@ resource "azurerm_network_security_group" "app" {
 
 resource "azurerm_subnet_network_security_group_association" "func" {
   subnet_id                 = azurerm_subnet.func.id
-  network_security_group_id = azurerm_network_security_group.app.id
+  network_security_group_id = azurerm_network_security_group.func.id
 }
 
 resource "azurerm_subnet_network_security_group_association" "api" {
   subnet_id                 = azurerm_subnet.api.id
-  network_security_group_id = azurerm_network_security_group.app.id
+  network_security_group_id = azurerm_network_security_group.api.id
 }
 
 resource "azurerm_subnet_route_table_association" "func" {
