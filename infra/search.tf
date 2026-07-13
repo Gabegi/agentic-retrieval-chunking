@@ -1,4 +1,4 @@
-resource "azurerm_search_service" "foundry_iq_main" {
+resource "azurerm_search_service" "main" {
   name                = "cor-srch-cap-${local.env}-${local.region}-${local.instance}"
   location            = var.location
   resource_group_name = data.azurerm_resource_group.data.name
@@ -22,7 +22,7 @@ resource "azurerm_private_endpoint" "search" {
 
   private_service_connection {
     name                           = "cor-pep-srch-cap-${local.env}-${local.region}-${local.instance}-psc"
-    private_connection_resource_id = azurerm_search_service.foundry_iq_main.id
+    private_connection_resource_id = azurerm_search_service.main.id
     subresource_names              = ["searchService"]
     is_manual_connection           = false
   }
