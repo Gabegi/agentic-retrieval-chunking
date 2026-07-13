@@ -51,7 +51,7 @@ resource "azurerm_windows_function_app" "indexer" {
       use_dotnet_isolated_runtime = true
     }
     always_on                         = true
-    vnet_route_all_enabled             = true
+    vnet_route_all_enabled            = true
     ip_restriction_default_action     = "Deny"
     scm_ip_restriction_default_action = "Deny"
 
@@ -142,7 +142,7 @@ resource "azurerm_storage_management_policy" "func" {
         delete_after_days_since_modification_greater_than = 7
       }
       version {
-        delete_after_days_since_creation_greater_than = 7
+        delete_after_days_since_creation = 7
       }
     }
   }
@@ -165,7 +165,7 @@ resource "azurerm_role_assignment" "func_storage_owner" {
 }
 
 resource "azurerm_role_assignment" "func_indexing_pipeline_contributor" {
-  scope                = azurerm_storage_container.indexing_pipeline.resource_manager_id
+  scope                = azurerm_storage_container.indexing_pipeline.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
 }
