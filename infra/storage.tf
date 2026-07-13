@@ -6,8 +6,10 @@
 #     content share (Elastic Premium always needs one; Azure Files/SMB has no
 #     managed-identity auth, so this piece stays key-based - see
 #     function_app.tf).
-#   - data: source documents, chunks, reports, and saved intermediate state
-#     for the indexing/query pipeline (blob only, organized by container).
+#   - data: source documents, chunks, and reports for the indexing/query
+#     pipeline (blob only, organized by container). Pipeline checkpoint
+#     state lives in the func account's indexing-pipeline container instead
+#     (see azurerm_storage_container.indexing_pipeline, function_app.tf).
 # Both are private-endpoint-only (no public network access). Each private
 # endpoint below attaches its private_dns_zone_group directly rather than
 # waiting on the platform team's policy-based zone linking
@@ -92,12 +94,6 @@ resource "azurerm_storage_container" "chunks" {
 
 resource "azurerm_storage_container" "reports" {
   name                  = "reports"
-  storage_account_id    = azurerm_storage_account.data.id
-  container_access_type = "private"
-}
-
-resource "azurerm_storage_container" "state" {
-  name                  = "state"
   storage_account_id    = azurerm_storage_account.data.id
   container_access_type = "private"
 }
