@@ -8,14 +8,66 @@
 # delegated subnet, since delegation is exclusive per subnet.
 # ---------------------------------------------------------------------------
 
-# PHASE 2: cor-snet-cap-app-001 (and the Function App attached to it) were
-# destroyed in phase 1, so this is a plain fresh create now, not a rename -
-# no moved block needed, there's nothing left in state to move from.
-resource "azurerm_subnet" "func" {
-  name                 = "cor-snet-cap-func-${local.instance}"
+# One subnet + NSG + pair of associations per workload, looped via for_each
+# rather than copy-pasted per workload - both entries are otherwise identical
+# (same delegation, same "deny internet inbound" NSG rule), differing only in
+# name and address space. Add a workload by adding a map entry, not by
+# copying a block. Renaming .func/.api to .workload["func"/"api"] below is a
+# pure Terraform-address move (name/address_prefixes/rule unchanged) - the
+# moved blocks make it a no-op against the real Azure resources.
+locals {
+  workload_subnets = {
+    func = "10.243.5.0/24"
+    api  = "10.243.6.0/24"
+  }
+}
+
+moved {
+  from = azurerm_subnet.func
+  to   = azurerm_subnet.workload["func"]
+}
+
+moved {
+  from = azurerm_subnet.api
+  to   = azurerm_subnet.workload["api"]
+}
+
+moved {
+  from = azurerm_network_security_group.func
+  to   = azurerm_network_security_group.workload["func"]
+}
+
+moved {
+  from = azurerm_network_security_group.api
+  to   = azurerm_network_security_group.workload["api"]
+}
+
+moved {
+  from = azurerm_subnet_network_security_group_association.func
+  to   = azurerm_subnet_network_security_group_association.workload["func"]
+}
+
+moved {
+  from = azurerm_subnet_network_security_group_association.api
+  to   = azurerm_subnet_network_security_group_association.workload["api"]
+}
+
+moved {
+  from = azurerm_subnet_route_table_association.func
+  to   = azurerm_subnet_route_table_association.workload["func"]
+}
+
+moved {
+  from = azurerm_subnet_route_table_association.api
+  to   = azurerm_subnet_route_table_association.workload["api"]
+}
+
+resource "azurerm_subnet" "workload" {
+  for_each             = local.workload_subnets
+  name                 = "cor-snet-cap-${each.key}-${local.instance}"
   resource_group_name  = data.azurerm_resource_group.network.name
   virtual_network_name = data.azurerm_virtual_network.main.name
-  address_prefixes     = ["10.243.5.0/24"]
+  address_prefixes     = [each.value]
 
   delegation {
     name = "webapp-delegation"
@@ -27,30 +79,14 @@ resource "azurerm_subnet" "func" {
   }
 }
 
-resource "azurerm_subnet" "api" {
-  name                 = "cor-snet-cap-api-${local.instance}"
-  resource_group_name  = data.azurerm_resource_group.network.name
-  virtual_network_name = data.azurerm_virtual_network.main.name
-  address_prefixes     = ["10.243.6.0/24"]
-
-  delegation {
-    name = "webapp-delegation"
-
-    service_delegation {
-      name    = "Microsoft.Web/serverFarms"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
-    }
-  }
-}
-
-# Separate NSGs per subnet (rather than the shared one this replaced) so
-# rule changes for one workload can't accidentally affect the other's blast
-# radius - same reasoning as the subnet split above. Both still start from
-# the same "nothing should ever originate inbound here" rule: outbound-only
-# VNet integration for App Service-family compute, inbound to either app
+# Separate NSGs per subnet (rather than one shared NSG) so rule changes for
+# one workload can't accidentally affect the other's blast radius. Both start
+# from the same "nothing should ever originate inbound here" rule: outbound-
+# only VNet integration for App Service-family compute, inbound to either app
 # goes through its own private endpoint in the separate PE subnet, not here.
-resource "azurerm_network_security_group" "api" {
-  name                = "cor-nsg-api-cap-${local.env}-${local.region}-${local.instance}"
+resource "azurerm_network_security_group" "workload" {
+  for_each            = local.workload_subnets
+  name                = "cor-nsg-${each.key}-cap-${local.env}-${local.region}-${local.instance}"
   location            = var.location
   resource_group_name = data.azurerm_resource_group.network.name
   tags                = local.common_tags
@@ -68,41 +104,14 @@ resource "azurerm_network_security_group" "api" {
   }
 }
 
-resource "azurerm_network_security_group" "func" {
-  name                = "cor-nsg-func-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = data.azurerm_resource_group.network.name
-  tags                = local.common_tags
-
-  security_rule {
-    name                       = "DenyInternetInbound"
-    priority                   = 200
-    direction                  = "Inbound"
-    access                     = "Deny"
-    protocol                   = "*"
-    source_port_range          = "*"
-    destination_port_range     = "*"
-    source_address_prefix      = "Internet"
-    destination_address_prefix = "*"
-  }
+resource "azurerm_subnet_network_security_group_association" "workload" {
+  for_each                   = local.workload_subnets
+  subnet_id                  = azurerm_subnet.workload[each.key].id
+  network_security_group_id = azurerm_network_security_group.workload[each.key].id
 }
 
-resource "azurerm_subnet_network_security_group_association" "func" {
-  subnet_id                 = azurerm_subnet.func.id
-  network_security_group_id = azurerm_network_security_group.func.id
-}
-
-resource "azurerm_subnet_network_security_group_association" "api" {
-  subnet_id                 = azurerm_subnet.api.id
-  network_security_group_id = azurerm_network_security_group.api.id
-}
-
-resource "azurerm_subnet_route_table_association" "func" {
-  subnet_id      = azurerm_subnet.func.id
-  route_table_id = data.azurerm_route_table.spoke.id
-}
-
-resource "azurerm_subnet_route_table_association" "api" {
-  subnet_id      = azurerm_subnet.api.id
+resource "azurerm_subnet_route_table_association" "workload" {
+  for_each       = local.workload_subnets
+  subnet_id      = azurerm_subnet.workload[each.key].id
   route_table_id = data.azurerm_route_table.spoke.id
 }

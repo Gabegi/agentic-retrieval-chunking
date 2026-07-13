@@ -18,7 +18,7 @@ resource "azurerm_linux_web_app" "query" {
   resource_group_name            = azurerm_resource_group.api.name
   location                       = var.location
   service_plan_id                = azurerm_service_plan.api.id
-  virtual_network_subnet_id      = azurerm_subnet.api.id
+  virtual_network_subnet_id      = azurerm_subnet.workload["api"].id
   public_network_access_enabled  = false
   https_only                     = true
 
