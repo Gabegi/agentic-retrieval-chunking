@@ -106,6 +106,13 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
   }
 }
 
+#  needed for any EP1 (Elastic Premium) Windows Function App's content share
+resource "azurerm_storage_share" "func_indexer" {
+  name               = "func-protocols-indexer"
+  storage_account_id = azurerm_storage_account.func_indexer.id
+  quota              = 100
+}
+
 # Temporary blob storage for large Durable payloads (extracted docs + chunks between activities)
 resource "azurerm_storage_container" "indexing_pipeline" {
   name                  = "indexing-pipeline"
@@ -113,53 +120,76 @@ resource "azurerm_storage_container" "indexing_pipeline" {
   container_access_type = "private"
 }
 
+# Payloads here are intermediate/disposable - expire them rather than let
+# them accumulate indefinitely on an account with no other cleanup.
+resource "azurerm_storage_management_policy" "func_indexer" {
+  storage_account_id = azurerm_storage_account.func_indexer.id
+
+  rule {
+    name    = "expire-indexing-pipeline"
+    enabled = true
+
+    filters {
+      blob_types   = ["blockBlob"]
+      prefix_match = ["indexing-pipeline/"]
+    }
+
+    actions {
+      base_blob {
+        delete_after_days_since_modification_greater_than = 7
+      }
+      version {
+        delete_after_days_since_creation = 7
+      }
+    }
+  }
+}
+
 # ── Role assignments ──────────────────────────────────────────────────────────
+# All scoped to the same principal (the indexer's identity) and looped via
+# for_each rather than one resource block each - only scope/role vary.
 
-resource "azurerm_role_assignment" "func_indexer_storage_owner" {
-  scope                = azurerm_storage_account.func_indexer.id
-  role_definition_name = "Storage Blob Data Owner"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+locals {
+  func_indexer_role_assignments = {
+    storage_owner = {
+      scope = azurerm_storage_account.func_indexer.id
+      role  = "Storage Blob Data Owner"
+    }
+    # Durable Functions store orchestration state in queues and tables
+    storage_queue_contributor = {
+      scope = azurerm_storage_account.func_indexer.id
+      role  = "Storage Queue Data Contributor"
+    }
+    storage_table_contributor = {
+      scope = azurerm_storage_account.func_indexer.id
+      role  = "Storage Table Data Contributor"
+    }
+    documents_blob_reader = {
+      scope = azurerm_storage_account.documents.id
+      role  = "Storage Blob Data Reader"
+    }
+    search_index_contributor = {
+      scope = azurerm_search_service.main.id
+      role  = "Search Index Data Contributor"
+    }
+    search_service_contributor = {
+      scope = azurerm_search_service.main.id
+      role  = "Search Service Contributor"
+    }
+    openai_user = {
+      scope = azurerm_cognitive_account.openai.id
+      role  = "Cognitive Services OpenAI User"
+    }
+    document_intelligence_user = {
+      scope = azurerm_cognitive_account.document_intelligence.id
+      role  = "Cognitive Services User"
+    }
+  }
 }
 
-# Durable Functions store orchestration state in queues and tables
-resource "azurerm_role_assignment" "func_indexer_storage_queue_contributor" {
-  scope                = azurerm_storage_account.func_indexer.id
-  role_definition_name = "Storage Queue Data Contributor"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexer_storage_table_contributor" {
-  scope                = azurerm_storage_account.func_indexer.id
-  role_definition_name = "Storage Table Data Contributor"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexer_blob_reader" {
-  scope                = azurerm_storage_account.documents.id
-  role_definition_name = "Storage Blob Data Reader"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexer_search_index_contributor" {
-  scope                = azurerm_search_service.main.id
-  role_definition_name = "Search Index Data Contributor"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexer_search_service_contributor" {
-  scope                = azurerm_search_service.main.id
-  role_definition_name = "Search Service Contributor"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexer_openai_user" {
-  scope                = azurerm_cognitive_account.openai.id
-  role_definition_name = "Cognitive Services OpenAI User"
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexer_document_intelligence" {
-  scope                = azurerm_cognitive_account.document_intelligence.id
-  role_definition_name = "Cognitive Services User"
+resource "azurerm_role_assignment" "func_indexer" {
+  for_each             = local.func_indexer_role_assignments
+  scope                = each.value.scope
+  role_definition_name = each.value.role
   principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
 }
