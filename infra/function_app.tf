@@ -79,7 +79,7 @@ resource "azurerm_windows_function_app" "indexer" {
     # on azurerm_storage_account.func then rejects.
     "ProtocolsStorage__blobServiceUri"         = azurerm_storage_account.data.primary_blob_endpoint
     "STORAGE_ACCOUNT_URL"                      = azurerm_storage_account.data.primary_blob_endpoint
-    "SEARCH_ENDPOINT"                          = "https://${azurerm_search_service.main.name}.search.windows.net"
+    "SEARCH_ENDPOINT"                          = "https://${azurerm_search_service.foundry_iq_main.name}.search.windows.net"
     "OPENAI_ENDPOINT"                          = data.azurerm_cognitive_account.foundry.endpoint
     "OPENAI_EMBEDDING_DEPLOYMENT"              = var.openai_embedding_deployment
     "OPENAI_GPT_DEPLOYMENT"                    = var.openai_gpt_deployment
@@ -179,13 +179,13 @@ resource "azurerm_role_assignment" "func_data_storage_contributor" {
 }
 
 resource "azurerm_role_assignment" "func_search_index_contributor" {
-  scope                = azurerm_search_service.main.id
+  scope                = azurerm_search_service.foundry_iq_main.id
   role_definition_name = "Search Index Data Contributor"
   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
 }
 
 resource "azurerm_role_assignment" "func_search_service_contributor" {
-  scope                = azurerm_search_service.main.id
+  scope                = azurerm_search_service.foundry_iq_main.id
   role_definition_name = "Search Service Contributor"
   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
 }

@@ -37,7 +37,7 @@ resource "azurerm_linux_web_app" "query" {
 
   app_settings = {
     "APPLICATIONINSIGHTS_CONNECTION_STRING" = data.azurerm_application_insights.foundry.connection_string
-    "SEARCH_ENDPOINT"                       = "https://${azurerm_search_service.main.name}.search.windows.net"
+    "SEARCH_ENDPOINT"                       = "https://${azurerm_search_service.foundry_iq_main.name}.search.windows.net"
     "OPENAI_ENDPOINT"                       = data.azurerm_cognitive_account.foundry.endpoint
     "OPENAI_GPT_DEPLOYMENT"                 = var.openai_gpt_deployment
     "OPENAI_GPT_MODEL_NAME"                 = var.openai_gpt_model_name
@@ -71,7 +71,7 @@ resource "azurerm_private_endpoint" "api" {
 # source documents rather than just querying the index.
 
 resource "azurerm_role_assignment" "api_search_index_reader" {
-  scope                = azurerm_search_service.main.id
+  scope                = azurerm_search_service.foundry_iq_main.id
   role_definition_name = "Search Index Data Reader"
   principal_id         = azurerm_linux_web_app.query.identity[0].principal_id
 }
