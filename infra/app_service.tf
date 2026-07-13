@@ -75,20 +75,7 @@ resource "azurerm_private_endpoint" "api" {
 # RAG generation. No storage access yet - add if the API ends up fetching raw
 # source documents rather than just querying the index. Both scoped to the
 # same principal (the API app's identity) and looped via for_each, same
-# pattern as azurerm_role_assignment.func in function_app.tf. Renaming api_X
-# to api["X"] below is a pure Terraform-address move (scope/role/principal_id
-# unchanged per entry) - the moved blocks make it a no-op against the real
-# role assignments.
-
-moved {
-  from = azurerm_role_assignment.api_search_index_reader
-  to   = azurerm_role_assignment.api["search_index_reader"]
-}
-
-moved {
-  from = azurerm_role_assignment.api_openai_user
-  to   = azurerm_role_assignment.api["openai_user"]
-}
+# pattern as azurerm_role_assignment.func in function_app.tf.
 
 locals {
   api_role_assignments = {

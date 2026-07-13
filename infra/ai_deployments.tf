@@ -7,69 +7,77 @@
 # actually available (gpt-5.5 exists but has 0 quota in this sub/region).
 # ---------------------------------------------------------------------------
 
-resource "azurerm_cognitive_deployment" "embedding" {
-  name                 = var.openai_embedding_deployment
-  cognitive_account_id = data.azurerm_cognitive_account.foundry.id
+# Looped via for_each rather than one resource block each - only the model
+# and capacity vary per deployment. Renaming the old per-deployment resources
+# (azurerm_cognitive_deployment.embedding/querying/extraction/evaluation) to
+# openai[...] below is a pure Terraform-address move (name/model/sku
+# unchanged per entry) - the moved blocks make it a no-op against the real
+# deployments.
 
-  model {
-    format  = "OpenAI"
-    name    = "text-embedding-3-large"
-    version = "1"
-  }
+moved {
+  from = azurerm_cognitive_deployment.embedding
+  to   = azurerm_cognitive_deployment.openai["embedding"]
+}
 
-  sku {
-    name     = "GlobalStandard"
-    capacity = 350
+moved {
+  from = azurerm_cognitive_deployment.querying
+  to   = azurerm_cognitive_deployment.openai["querying"]
+}
+
+moved {
+  from = azurerm_cognitive_deployment.extraction
+  to   = azurerm_cognitive_deployment.openai["extraction"]
+}
+
+moved {
+  from = azurerm_cognitive_deployment.evaluation
+  to   = azurerm_cognitive_deployment.openai["evaluation"]
+}
+
+locals {
+  openai_deployments = {
+    embedding = {
+      name          = var.openai_embedding_deployment
+      model_name    = "text-embedding-3-large"
+      model_version = "1"
+      capacity      = 350
+    }
+    querying = {
+      name          = var.openai_gpt_deployment
+      model_name    = "gpt-5.4"
+      model_version = "2026-03-05"
+      capacity      = 10
+    }
+    extraction = {
+      name          = var.openai_extraction_deployment
+      model_name    = "gpt-5.4"
+      model_version = "2026-03-05"
+      capacity      = 40
+    }
+    # Deliberately a different model/version from "querying"/"extraction"
+    # (gpt-5.4) to avoid self-preference bias in eval scores.
+    evaluation = {
+      name          = var.openai_eval_deployment
+      model_name    = "gpt-5.1"
+      model_version = "2025-11-13"
+      capacity      = 10
+    }
   }
 }
 
-
-resource "azurerm_cognitive_deployment" "querying" {
-  name                 = var.openai_gpt_deployment
+resource "azurerm_cognitive_deployment" "openai" {
+  for_each             = local.openai_deployments
+  name                 = each.value.name
   cognitive_account_id = data.azurerm_cognitive_account.foundry.id
 
   model {
     format  = "OpenAI"
-    name    = "gpt-5.4"
-    version = "2026-03-05"
+    name    = each.value.model_name
+    version = each.value.model_version
   }
 
   sku {
     name     = "GlobalStandard"
-    capacity = 10
-  }
-}
-
-resource "azurerm_cognitive_deployment" "extraction" {
-  name                 = var.openai_extraction_deployment
-  cognitive_account_id = data.azurerm_cognitive_account.foundry.id
-
-  model {
-    format  = "OpenAI"
-    name    = "gpt-5.4"
-    version = "2026-03-05"
-  }
-
-  sku {
-    name     = "GlobalStandard"
-    capacity = 40
-  }
-}
-
-resource "azurerm_cognitive_deployment" "evaluation" {
-  name                 = var.openai_eval_deployment
-  cognitive_account_id = data.azurerm_cognitive_account.foundry.id
-
-  # Deliberately a different model/version from "querying"/"extraction"
-  # (gpt-5.4) to avoid self-preference bias in eval scores.
-  model {
-    format  = "OpenAI"
-    name    = "gpt-5.1"
-    version = "2025-11-13"
-  }
-
-  sku {
-    name     = "GlobalStandard"
-    capacity = 10
+    capacity = each.value.capacity
   }
 }

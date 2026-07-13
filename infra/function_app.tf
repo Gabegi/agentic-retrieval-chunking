@@ -18,20 +18,6 @@ resource "azurerm_service_plan" "func" {
   tags = local.common_tags
 }
 
-# Pre-created via Terraform rather than left to the Functions host's runtime
-# auto-create-on-first-boot behavior. azurerm_storage_share uses the ARM
-# management plane (same as azurerm_storage_container elsewhere in this repo,
-# e.g. indexing_pipeline below) rather than the storage data plane, so it
-# works from the CI runner despite azurerm_storage_account.func having
-# public_network_access_enabled = false - unlike Kudu's own auto-create,
-# which depends on the Function App's own VNet-integration + private DNS
-# path actually resolving correctly at boot time.
-resource "azurerm_storage_share" "func_content" {
-  name               = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
-  storage_account_id = azurerm_storage_account.func.id
-  quota              = 100
-}
-
 resource "azurerm_windows_function_app" "indexer" {
   name                          = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
   resource_group_name           = data.azurerm_resource_group.data.name
@@ -106,6 +92,22 @@ resource "azurerm_windows_function_app" "indexer" {
   tags = local.common_tags
 }
 
+#  need this on any EP1 Function App 
+resource "azurerm_storage_share" "func_content" {
+  name               = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
+  storage_account_id = azurerm_storage_account.func.id
+  quota              = 100
+}
+
+# Temporary blob storage for large Durable payloads (extracted docs + chunks
+# between activities) - lives on the function's own storage, not the shared
+# data storage account.
+resource "azurerm_storage_container" "indexing_pipeline" {
+  name                  = "indexing-pipeline"
+  storage_account_id    = azurerm_storage_account.func.id
+  container_access_type = "private"
+}
+
 resource "azurerm_private_endpoint" "func" {
   name                          = "cor-pep-func-cap-${local.env}-${local.region}-${local.instance}"
   location                      = var.location
@@ -126,15 +128,6 @@ resource "azurerm_private_endpoint" "func" {
   }
 
   tags = local.common_tags
-}
-
-# Temporary blob storage for large Durable payloads (extracted docs + chunks
-# between activities) - lives on the function's own storage, not the shared
-# data storage account.
-resource "azurerm_storage_container" "indexing_pipeline" {
-  name                  = "indexing-pipeline"
-  storage_account_id    = azurerm_storage_account.func.id
-  container_access_type = "private"
 }
 
 # Payloads here are intermediate/disposable - expire them rather than let
@@ -165,49 +158,6 @@ resource "azurerm_storage_management_policy" "func" {
 # --- Role assignments -------------------------------------------------------
 # All scoped to the same principal (the indexer's identity) and looped via
 # for_each rather than one resource block each - only scope/role vary.
-# Renaming func_X to func["X"] below is a pure Terraform-address move
-# (scope/role/principal_id unchanged per entry) - the moved blocks make it a
-# no-op against the real role assignments.
-
-moved {
-  from = azurerm_role_assignment.func_storage_owner
-  to   = azurerm_role_assignment.func["storage_owner"]
-}
-
-moved {
-  from = azurerm_role_assignment.func_indexing_pipeline_contributor
-  to   = azurerm_role_assignment.func["indexing_pipeline_contributor"]
-}
-
-moved {
-  from = azurerm_role_assignment.func_storage_queue_contributor
-  to   = azurerm_role_assignment.func["storage_queue_contributor"]
-}
-
-moved {
-  from = azurerm_role_assignment.func_storage_table_contributor
-  to   = azurerm_role_assignment.func["storage_table_contributor"]
-}
-
-moved {
-  from = azurerm_role_assignment.func_data_storage_contributor
-  to   = azurerm_role_assignment.func["data_storage_contributor"]
-}
-
-moved {
-  from = azurerm_role_assignment.func_search_index_contributor
-  to   = azurerm_role_assignment.func["search_index_contributor"]
-}
-
-moved {
-  from = azurerm_role_assignment.func_search_service_contributor
-  to   = azurerm_role_assignment.func["search_service_contributor"]
-}
-
-moved {
-  from = azurerm_role_assignment.func_openai_user
-  to   = azurerm_role_assignment.func["openai_user"]
-}
 
 locals {
   func_role_assignments = {
