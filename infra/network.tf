@@ -8,47 +8,46 @@
 # delegated subnet, since delegation is exclusive per subnet.
 # ---------------------------------------------------------------------------
 
-# Renamed from azurerm_subnet.app. Azure can't rename a subnet in place, so
-# despite the moved block this still forces a destroy+create - and the old
-# subnet's name (cor-snet-cap-app-001) can't be freed for reuse here anyway
-# since the Function App's live VNet integration blocks its deletion until
-# something else takes its place. create_before_destroy + a new CIDR (was
-# 10.243.5.0/24, now .7.0/24) lets the new subnet come up first, the
-# Function App cut over to it, and only then the old one gets deleted.
-moved {
-  from = azurerm_subnet.app
-  to   = azurerm_subnet.func
-}
+# PHASE 1 of a deliberate two-apply destroy/recreate (accepted downtime -
+# Azure can't rename a subnet in place, and the old cor-snet-cap-app-001
+# can't be deleted while the Function App's VNet integration is still
+# attached to it). Commented out below (along with its NSG/route-table
+# associations, and virtual_network_subnet_id in function_app.tf) so this
+# apply destroys them and detaches the Function App. PHASE 2 (next apply):
+# uncomment everything below and in function_app.tf as-is - same name
+# (cor-snet-cap-func-001) and CIDR (10.243.5.0/24), free again once this
+# destroy completes.
 
-moved {
-  from = azurerm_subnet_network_security_group_association.app
-  to   = azurerm_subnet_network_security_group_association.func
-}
-
-moved {
-  from = azurerm_subnet_route_table_association.app
-  to   = azurerm_subnet_route_table_association.func
-}
-
-resource "azurerm_subnet" "func" {
-  name                 = "cor-snet-cap-func-${local.instance}"
-  resource_group_name  = data.azurerm_resource_group.network.name
-  virtual_network_name = data.azurerm_virtual_network.main.name
-  address_prefixes     = ["10.243.7.0/24"]
-
-  delegation {
-    name = "webapp-delegation"
-
-    service_delegation {
-      name    = "Microsoft.Web/serverFarms"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
-    }
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
+# moved {
+#   from = azurerm_subnet.app
+#   to   = azurerm_subnet.func
+# }
+#
+# moved {
+#   from = azurerm_subnet_network_security_group_association.app
+#   to   = azurerm_subnet_network_security_group_association.func
+# }
+#
+# moved {
+#   from = azurerm_subnet_route_table_association.app
+#   to   = azurerm_subnet_route_table_association.func
+# }
+#
+# resource "azurerm_subnet" "func" {
+#   name                 = "cor-snet-cap-func-${local.instance}"
+#   resource_group_name  = data.azurerm_resource_group.network.name
+#   virtual_network_name = data.azurerm_virtual_network.main.name
+#   address_prefixes     = ["10.243.5.0/24"]
+#
+#   delegation {
+#     name = "webapp-delegation"
+#
+#     service_delegation {
+#       name    = "Microsoft.Web/serverFarms"
+#       actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+#     }
+#   }
+# }
 
 resource "azurerm_subnet" "api" {
   name                 = "cor-snet-cap-api-${local.instance}"
@@ -110,20 +109,20 @@ resource "azurerm_network_security_group" "func" {
   }
 }
 
-resource "azurerm_subnet_network_security_group_association" "func" {
-  subnet_id                 = azurerm_subnet.func.id
-  network_security_group_id = azurerm_network_security_group.func.id
-}
+# resource "azurerm_subnet_network_security_group_association" "func" {
+#   subnet_id                 = azurerm_subnet.func.id
+#   network_security_group_id = azurerm_network_security_group.func.id
+# }
 
 resource "azurerm_subnet_network_security_group_association" "api" {
   subnet_id                 = azurerm_subnet.api.id
   network_security_group_id = azurerm_network_security_group.api.id
 }
 
-resource "azurerm_subnet_route_table_association" "func" {
-  subnet_id      = azurerm_subnet.func.id
-  route_table_id = data.azurerm_route_table.spoke.id
-}
+# resource "azurerm_subnet_route_table_association" "func" {
+#   subnet_id      = azurerm_subnet.func.id
+#   route_table_id = data.azurerm_route_table.spoke.id
+# }
 
 resource "azurerm_subnet_route_table_association" "api" {
   subnet_id      = azurerm_subnet.api.id
