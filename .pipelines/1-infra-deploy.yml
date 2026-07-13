@@ -66,91 +66,94 @@ stages:
           # actual private DNS A records, and the content share's storage
           # account config. Dev-environment names hardcoded since this is
           # temporary - remove once the deploy is reliably green.
-          - task: AzureCLI@2
-            displayName: 'DIAGNOSTIC: full Function App + networking state'
-            inputs:
-              azureSubscription: '$(serviceConnection)'
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                FUNC_APP="cor-func-idx-cap-dev-we-001"
-                FUNC_RG="cor-cap-data-dev-we-001"
-                NET_RG="cor-cap-network-dev-we-001"
-                VNET="cor-vnet-cap-dev-we-001"
-                ROUTE_TABLE="cor-rt-spoke-cap-dev-we-001"
-                PE_NSG="cor-nsg-cap-dev-we-001"
-                FUNC_STORAGE="corstfunccapdevwe"
-                HUB_SUB="c8e46005-ce0e-4be5-9ded-0178e19fbe28"
-                HUB_DNS_RG="cor-connectivity-dns-prd-we-001"
-
-                echo "=== Function App state/config ==="
-                az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" \
-                  --query "{state:state, usageState:usageState, availabilityState:availabilityState, publicNetworkAccess:publicNetworkAccess, vnetRouteAll:siteConfig.vnetRouteAllEnabled, outboundIps:outboundIpAddresses}" -o json
-
-                echo "=== Function App VNet integration ==="
-                az functionapp vnet-integration list -g "$FUNC_RG" -n "$FUNC_APP" -o json
-
-                echo "=== Function App plan (Consumption/Premium/Flex/Dedicated?) ==="
-                az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" --query "{sku:sku, kind:kind}" -o json
-                PLAN_ID=$(az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" --query "serverFarmId" -o tsv)
-                az appservice plan show --ids "$PLAN_ID" --query "{name:name, sku:sku}" -o json
-
-                echo "=== WEBSITE_VNET_ROUTE_ALL / WEBSITE_CONTENTOVERVNET ==="
-                az functionapp config appsettings list -g "$FUNC_RG" -n "$FUNC_APP" \
-                  --query "[?name=='WEBSITE_VNET_ROUTE_ALL' || name=='WEBSITE_CONTENTOVERVNET']" -o table
-
-                echo "=== Function App app setting names (values omitted) ==="
-                az functionapp config appsettings list -g "$FUNC_RG" -n "$FUNC_APP" --query "[].name" -o table
-
-                echo "=== app subnet: actual current NSG/route table association ==="
-                az network vnet subnet show -g "$NET_RG" --vnet-name "$VNET" -n cor-snet-cap-app-001 \
-                  --query "{addressPrefix:addressPrefix, nsg:networkSecurityGroup.id, routeTable:routeTable.id, privateEndpointNetworkPolicies:privateEndpointNetworkPolicies}" -o json
-
-                echo "=== pe subnet: actual current NSG/route table association ==="
-                az network vnet subnet show -g "$NET_RG" --vnet-name "$VNET" -n cor-snet-cap-pe-001 \
-                  --query "{addressPrefix:addressPrefix, nsg:networkSecurityGroup.id, routeTable:routeTable.id, privateEndpointNetworkPolicies:privateEndpointNetworkPolicies}" -o json
-
-                echo "=== spoke route table: current routes ==="
-                az network route-table route list -g "$NET_RG" --route-table-name "$ROUTE_TABLE" -o table
-
-                echo "=== pe subnet NSG rules (platform-owned) ==="
-                az network nsg rule list -g "$NET_RG" --nsg-name "$PE_NSG" -o table
-
-                echo "=== func site private endpoint: provisioning + connection state ==="
-                az network private-endpoint show -g "$FUNC_RG" -n cor-pep-func-cap-dev-we-001 \
-                  --query "{provisioningState:provisioningState, connectionState:privateLinkServiceConnections[0].privateLinkServiceConnectionState}" -o json
-                az network private-endpoint dns-zone-group list -g "$FUNC_RG" --endpoint-name cor-pep-func-cap-dev-we-001 -o json
-
-                echo "=== storage file private endpoint: provisioning + connection state ==="
-                az network private-endpoint show -g "$FUNC_RG" -n cor-pep-stfunc-file-cap-dev-we-001 \
-                  --query "{provisioningState:provisioningState, connectionState:privateLinkServiceConnections[0].privateLinkServiceConnectionState}" -o json
-                az network private-endpoint dns-zone-group list -g "$FUNC_RG" --endpoint-name cor-pep-stfunc-file-cap-dev-we-001 -o json
-
-                echo "=== private DNS A records: privatelink.file.core.windows.net ==="
-                az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.file.core.windows.net --subscription "$HUB_SUB" -o table
-
-                echo "=== private DNS A records: privatelink.azurewebsites.net ==="
-                az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" -o table
-
-                echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.file.core.windows.net? (A record existing isn't enough - the zone must be linked to this VNet for its resolver to consult it) ==="
-                az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.file.core.windows.net --subscription "$HUB_SUB" \
-                  --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
-
-                echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.azurewebsites.net? ==="
-                az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" \
-                  --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
-
-                echo "=== VNet custom DNS servers (expect empty/null - Azure default 168.63.129.16 path; a custom server here must itself resolve the privatelink zones) ==="
-                az network vnet show -g "$NET_RG" -n "$VNET" --query "dhcpOptions.dnsServers" -o json
-
-                echo "=== func storage account: public network access + network rules (incl. any Service Endpoint / virtual network rules) ==="
-                az storage account show -g "$FUNC_RG" -n "$FUNC_STORAGE" \
-                  --query "{publicNetworkAccess:publicNetworkAccess, defaultAction:networkRuleSet.defaultAction, bypass:networkRuleSet.bypass, virtualNetworkRules:networkRuleSet.virtualNetworkRules}" -o json
-
-                echo "=== func storage account: content file share exists? (data-plane call - expected to fail from this runner, no VNet path to a private-endpoint-only account) ==="
-                ACCOUNT_KEY=$(az storage account keys list -g "$FUNC_RG" -n "$FUNC_STORAGE" --query "[0].value" -o tsv)
-                az storage share exists --account-name "$FUNC_STORAGE" --account-key "$ACCOUNT_KEY" --name "$FUNC_APP" -o json \
-                  || echo "(failed as expected - this runner has no network path to the storage account's data plane)"
+          # Commented out: references cor-snet-cap-app-001 (line below), which
+          # the network.tf phase-1 destroy/recreate is removing - this step
+          # would just fail on that lookup until phase 2 lands.
+          # - task: AzureCLI@2
+          #   displayName: 'DIAGNOSTIC: full Function App + networking state'
+          #   inputs:
+          #     azureSubscription: '$(serviceConnection)'
+          #     scriptType: bash
+          #     scriptLocation: inlineScript
+          #     inlineScript: |
+          #       FUNC_APP="cor-func-idx-cap-dev-we-001"
+          #       FUNC_RG="cor-cap-data-dev-we-001"
+          #       NET_RG="cor-cap-network-dev-we-001"
+          #       VNET="cor-vnet-cap-dev-we-001"
+          #       ROUTE_TABLE="cor-rt-spoke-cap-dev-we-001"
+          #       PE_NSG="cor-nsg-cap-dev-we-001"
+          #       FUNC_STORAGE="corstfunccapdevwe"
+          #       HUB_SUB="c8e46005-ce0e-4be5-9ded-0178e19fbe28"
+          #       HUB_DNS_RG="cor-connectivity-dns-prd-we-001"
+          #
+          #       echo "=== Function App state/config ==="
+          #       az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" \
+          #         --query "{state:state, usageState:usageState, availabilityState:availabilityState, publicNetworkAccess:publicNetworkAccess, vnetRouteAll:siteConfig.vnetRouteAllEnabled, outboundIps:outboundIpAddresses}" -o json
+          #
+          #       echo "=== Function App VNet integration ==="
+          #       az functionapp vnet-integration list -g "$FUNC_RG" -n "$FUNC_APP" -o json
+          #
+          #       echo "=== Function App plan (Consumption/Premium/Flex/Dedicated?) ==="
+          #       az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" --query "{sku:sku, kind:kind}" -o json
+          #       PLAN_ID=$(az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" --query "serverFarmId" -o tsv)
+          #       az appservice plan show --ids "$PLAN_ID" --query "{name:name, sku:sku}" -o json
+          #
+          #       echo "=== WEBSITE_VNET_ROUTE_ALL / WEBSITE_CONTENTOVERVNET ==="
+          #       az functionapp config appsettings list -g "$FUNC_RG" -n "$FUNC_APP" \
+          #         --query "[?name=='WEBSITE_VNET_ROUTE_ALL' || name=='WEBSITE_CONTENTOVERVNET']" -o table
+          #
+          #       echo "=== Function App app setting names (values omitted) ==="
+          #       az functionapp config appsettings list -g "$FUNC_RG" -n "$FUNC_APP" --query "[].name" -o table
+          #
+          #       echo "=== app subnet: actual current NSG/route table association ==="
+          #       az network vnet subnet show -g "$NET_RG" --vnet-name "$VNET" -n cor-snet-cap-app-001 \
+          #         --query "{addressPrefix:addressPrefix, nsg:networkSecurityGroup.id, routeTable:routeTable.id, privateEndpointNetworkPolicies:privateEndpointNetworkPolicies}" -o json
+          #
+          #       echo "=== pe subnet: actual current NSG/route table association ==="
+          #       az network vnet subnet show -g "$NET_RG" --vnet-name "$VNET" -n cor-snet-cap-pe-001 \
+          #         --query "{addressPrefix:addressPrefix, nsg:networkSecurityGroup.id, routeTable:routeTable.id, privateEndpointNetworkPolicies:privateEndpointNetworkPolicies}" -o json
+          #
+          #       echo "=== spoke route table: current routes ==="
+          #       az network route-table route list -g "$NET_RG" --route-table-name "$ROUTE_TABLE" -o table
+          #
+          #       echo "=== pe subnet NSG rules (platform-owned) ==="
+          #       az network nsg rule list -g "$NET_RG" --nsg-name "$PE_NSG" -o table
+          #
+          #       echo "=== func site private endpoint: provisioning + connection state ==="
+          #       az network private-endpoint show -g "$FUNC_RG" -n cor-pep-func-cap-dev-we-001 \
+          #         --query "{provisioningState:provisioningState, connectionState:privateLinkServiceConnections[0].privateLinkServiceConnectionState}" -o json
+          #       az network private-endpoint dns-zone-group list -g "$FUNC_RG" --endpoint-name cor-pep-func-cap-dev-we-001 -o json
+          #
+          #       echo "=== storage file private endpoint: provisioning + connection state ==="
+          #       az network private-endpoint show -g "$FUNC_RG" -n cor-pep-stfunc-file-cap-dev-we-001 \
+          #         --query "{provisioningState:provisioningState, connectionState:privateLinkServiceConnections[0].privateLinkServiceConnectionState}" -o json
+          #       az network private-endpoint dns-zone-group list -g "$FUNC_RG" --endpoint-name cor-pep-stfunc-file-cap-dev-we-001 -o json
+          #
+          #       echo "=== private DNS A records: privatelink.file.core.windows.net ==="
+          #       az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.file.core.windows.net --subscription "$HUB_SUB" -o table
+          #
+          #       echo "=== private DNS A records: privatelink.azurewebsites.net ==="
+          #       az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" -o table
+          #
+          #       echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.file.core.windows.net? (A record existing isn't enough - the zone must be linked to this VNet for its resolver to consult it) ==="
+          #       az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.file.core.windows.net --subscription "$HUB_SUB" \
+          #         --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+          #
+          #       echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.azurewebsites.net? ==="
+          #       az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" \
+          #         --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+          #
+          #       echo "=== VNet custom DNS servers (expect empty/null - Azure default 168.63.129.16 path; a custom server here must itself resolve the privatelink zones) ==="
+          #       az network vnet show -g "$NET_RG" -n "$VNET" --query "dhcpOptions.dnsServers" -o json
+          #
+          #       echo "=== func storage account: public network access + network rules (incl. any Service Endpoint / virtual network rules) ==="
+          #       az storage account show -g "$FUNC_RG" -n "$FUNC_STORAGE" \
+          #         --query "{publicNetworkAccess:publicNetworkAccess, defaultAction:networkRuleSet.defaultAction, bypass:networkRuleSet.bypass, virtualNetworkRules:networkRuleSet.virtualNetworkRules}" -o json
+          #
+          #       echo "=== func storage account: content file share exists? (data-plane call - expected to fail from this runner, no VNet path to a private-endpoint-only account) ==="
+          #       ACCOUNT_KEY=$(az storage account keys list -g "$FUNC_RG" -n "$FUNC_STORAGE" --query "[0].value" -o tsv)
+          #       az storage share exists --account-name "$FUNC_STORAGE" --account-key "$ACCOUNT_KEY" --name "$FUNC_APP" -o json \
+          #         || echo "(failed as expected - this runner has no network path to the storage account's data plane)"
 
           - script: |
               TF_VERSION="1.15.7"
