@@ -1,5 +1,5 @@
 # function_app.tf
-# Windows Function App (zip deploy, Consumption plan) for the protocols indexer
+# Windows Function App (zip deploy, Elastic Premium EP1) for the protocols indexer
 
 resource "azurerm_storage_account" "func_indexer" {
   name                     = "stprotocolindexerfn"
@@ -78,7 +78,12 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
     # Durable Functions managed-identity auth — no connection string needed
     "AzureWebJobsStorage__accountName" = azurerm_storage_account.func_indexer.name
     "AzureWebJobsStorage__credential"  = "managedidentity"
-    "ProtocolsStorage__blobServiceUri" = azurerm_storage_account.documents.primary_blob_endpoint
+    # Content share: EP1 (unlike Consumption) still needs a key-based
+    # connection string here — Azure Files/SMB has no managed-identity auth
+    # path, even though AzureWebJobsStorage itself is managed-identity above.
+    "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING" = azurerm_storage_account.func_indexer.primary_connection_string
+    "WEBSITE_CONTENTSHARE"                     = azurerm_storage_share.func_indexer.name
+    "ProtocolsStorage__blobServiceUri"          = azurerm_storage_account.documents.primary_blob_endpoint
     "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.documents.primary_blob_endpoint
     "SEARCH_ENDPOINT"                  = "https://${azurerm_search_service.main.name}.search.windows.net"
     "OPENAI_ENDPOINT"                  = "https://${azurerm_cognitive_account.openai.custom_subdomain_name}.openai.azure.com/"
