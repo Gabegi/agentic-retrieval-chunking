@@ -1,0 +1,12 @@
+parameters:
+  - name: tfVersion
+    type: string
+    default: '1.15.7'
+
+steps:
+  - script: |
+      curl -fsSL "https://releases.hashicorp.com/terraform/${{ parameters.tfVersion }}/terraform_${{ parameters.tfVersion }}_linux_amd64.zip" -o terraform.zip
+      unzip -o terraform.zip
+      sudo mv terraform /usr/local/bin/terraform
+      terraform version
+    displayName: 'Install Terraform'
