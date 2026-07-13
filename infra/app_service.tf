@@ -1,10 +1,7 @@
----------------------------------------------------------------------------
-Linux App Service (.NET 10, Premium v3) - query API in front of Azure AI
-Search + the Foundry GPT deployment. DISABLED: the query API isn't being
-built yet. Re-enable by uncommenting when it's ready (also re-enable
-azurerm_resource_group.api in resource_groups.tf, which exists only to
-host this).
----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Linux App Service (.NET 10, Premium v3) - query API in front of Azure AI
+# Search + the Foundry GPT deployment.
+# ---------------------------------------------------------------------------
 
 resource "azurerm_service_plan" "api" {
   name                = "cor-plan-api-cap-${local.env}-${local.region}-${local.instance}"
@@ -21,7 +18,7 @@ resource "azurerm_linux_web_app" "query" {
   resource_group_name            = azurerm_resource_group.api.name
   location                       = var.location
   service_plan_id                = azurerm_service_plan.api.id
-  virtual_network_subnet_id      = azurerm_subnet.app.id
+  virtual_network_subnet_id      = azurerm_subnet.api.id
   public_network_access_enabled  = false
   https_only                     = true
 
