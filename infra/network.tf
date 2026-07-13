@@ -67,9 +67,9 @@ resource "azurerm_subnet_route_table_association" "app" {
 # route's prefix is more specific, so it wins for that destination while
 # everything else still goes to the firewall.
 resource "azurerm_route" "pe_subnet_local" {
-  name                 = "pe-subnet-local"
-  resource_group_name  = data.azurerm_resource_group.network.name
-  route_table_name     = data.azurerm_route_table.spoke.name
-  address_prefix       = data.azurerm_subnet.pe.address_prefixes[0]
-  next_hop_type        = "VnetLocal"
+  name                = "pe-subnet-local"
+  resource_group_name = data.azurerm_resource_group.network.name
+  route_table_name    = data.azurerm_route_table.spoke.name
+  address_prefix      = data.azurerm_subnet.pe.address_prefixes[0]
+  next_hop_type       = "VnetLocal"
 }
