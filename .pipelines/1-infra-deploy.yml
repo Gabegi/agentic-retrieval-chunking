@@ -276,6 +276,27 @@ stages:
                   env:
                     ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
 
+                # Temporary, phase 1 of the network.tf subnet destroy/recreate:
+                # Terraform can't force-detach virtual_network_subnet_id from
+                # config (see the comment above azurerm_windows_function_app.indexer
+                # in function_app.tf - omitting it is a no-op, "" fails to
+                # parse). Removing the integration here, imperatively, before
+                # terraform apply runs, is what actually frees
+                # cor-snet-cap-app-001's AppServiceLink so the plan's subnet
+                # delete can succeed. Dev-only hardcoded since this is a
+                # one-time migration step - remove once phase 2 (re-adding
+                # azurerm_subnet.func + reattaching the Function App) lands.
+                - task: AzureCLI@2
+                  displayName: 'PHASE 1: detach Function App VNet integration'
+                  inputs:
+                    azureSubscription: '$(serviceConnection)'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az functionapp vnet-integration remove \
+                        -g cor-cap-data-dev-we-001 \
+                        -n cor-func-idx-cap-dev-we-001
+
                 - task: AzureCLI@2
                   displayName: 'Apply'
                   inputs:
