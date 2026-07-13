@@ -20,11 +20,6 @@ data "azurerm_subnet" "pe" {
   resource_group_name  = data.azurerm_resource_group.network.name
 }
 
-data "azurerm_network_security_group" "pe" {
-  name                = "cor-nsg-cap-${local.env}-${local.region}-${local.instance}"
-  resource_group_name = data.azurerm_resource_group.network.name
-}
-
 data "azurerm_route_table" "spoke" {
   name                = "cor-rt-spoke-cap-${local.env}-${local.region}-${local.instance}"
   resource_group_name = data.azurerm_resource_group.network.name
@@ -57,14 +52,6 @@ data "azurerm_cognitive_account_project" "rag" {
   name                    = var.foundry_project_name
   cognitive_account_name  = data.azurerm_cognitive_account.foundry.name
   resource_group_name     = data.azurerm_resource_group.ai.name
-}
-
-# No data source exists for azurerm_private_endpoint - it's resource-only in
-# this provider. The PE's NIC is readable directly since its name is
-# deterministic ("<private endpoint name>_nic").
-data "azurerm_network_interface" "ai_services_pe" {
-  name                = "cor-pep-ais-cap-${local.env}-${local.region}-${local.instance}_nic"
-  resource_group_name = data.azurerm_resource_group.ai.name
 }
 
 # --- Data tier ------------------------------------------------------------
@@ -133,27 +120,5 @@ data "azurerm_private_dns_zone" "table" {
 data "azurerm_private_dns_zone" "search" {
   provider            = azurerm.hub
   name                = "privatelink.search.windows.net"
-  resource_group_name = local.dns_hub_resource_group_name
-}
-
-# Not currently consumed by any private endpoint in this repo (the Foundry
-# account is referenced via data.azurerm_cognitive_account.foundry, managed
-# elsewhere) - captured here since the diagnostic surfaced them, in case
-# they're needed later.
-data "azurerm_private_dns_zone" "cognitiveservices" {
-  provider            = azurerm.hub
-  name                = "privatelink.cognitiveservices.azure.com"
-  resource_group_name = local.dns_hub_resource_group_name
-}
-
-data "azurerm_private_dns_zone" "openai" {
-  provider            = azurerm.hub
-  name                = "privatelink.openai.azure.com"
-  resource_group_name = local.dns_hub_resource_group_name
-}
-
-data "azurerm_private_dns_zone" "services_ai" {
-  provider            = azurerm.hub
-  name                = "privatelink.services.ai.azure.com"
   resource_group_name = local.dns_hub_resource_group_name
 }
