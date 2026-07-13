@@ -124,6 +124,31 @@ resource "azurerm_storage_container" "indexing_pipeline" {
   container_access_type = "private"
 }
 
+# Payloads here are intermediate/disposable - expire them rather than let
+# them accumulate indefinitely on an account with no other cleanup.
+resource "azurerm_storage_management_policy" "func" {
+  storage_account_id = azurerm_storage_account.func.id
+
+  rule {
+    name    = "expire-indexing-pipeline"
+    enabled = true
+
+    filters {
+      blob_types   = ["blockBlob"]
+      prefix_match = ["indexing-pipeline/"]
+    }
+
+    actions {
+      base_blob {
+        delete_after_days_since_modification_greater_than = 7
+      }
+      version {
+        delete_after_days_since_creation_greater_than = 7
+      }
+    }
+  }
+}
+
 # --- Role assignments -------------------------------------------------------
 
 resource "azurerm_role_assignment" "func_storage_owner" {

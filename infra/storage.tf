@@ -27,6 +27,24 @@ resource "azurerm_storage_account" "func" {
 
   public_network_access_enabled   = false
   allow_nested_items_to_be_public = false
+  # shared_access_key_enabled left at its default (true), unlike the "data"
+  # account: WEBSITE_CONTENTAZUREFILECONNECTIONSTRING (function_app.tf) needs
+  # a key-based connection string for the Content Share, and this is an
+  # account-wide toggle - so the indexing-pipeline blob container and the
+  # Durable task hub state end up key-accessible too, not just RBAC-only via
+  # the indexer's managed identity. Fix would be to move the Content Share
+  # onto its own dedicated storage account and set shared_access_key_enabled
+  # = false here. Deferred - revisit later.
+
+  blob_properties {
+    versioning_enabled = true
+    delete_retention_policy {
+      days = 7
+    }
+    container_delete_retention_policy {
+      days = 7
+    }
+  }
 
   tags = local.common_tags
 }
