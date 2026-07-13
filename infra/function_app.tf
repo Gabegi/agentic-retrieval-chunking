@@ -151,9 +151,23 @@ resource "azurerm_storage_management_policy" "func" {
 
 # --- Role assignments -------------------------------------------------------
 
+# Account-wide (not container-scoped): required for AzureWebJobsStorage /
+# Durable Functions task hub state (storage_uses_managed_identity = true
+# above) - the Functions host creates and manages its own internal
+# containers at runtime, and Microsoft's identity-based-connection docs
+# specify Storage Blob Data Owner at the account level for this, not a
+# narrower scope. indexing_pipeline is already covered by this grant; the
+# container-scoped assignment below is additive, not a reduction, and is
+# only meaningful if this one is ever narrowed.
 resource "azurerm_role_assignment" "func_storage_owner" {
   scope                = azurerm_storage_account.func.id
   role_definition_name = "Storage Blob Data Owner"
+  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_indexing_pipeline_contributor" {
+  scope                = azurerm_storage_container.indexing_pipeline.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
 }
 
