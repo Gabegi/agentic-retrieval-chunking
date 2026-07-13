@@ -8,46 +8,24 @@
 # delegated subnet, since delegation is exclusive per subnet.
 # ---------------------------------------------------------------------------
 
-# PHASE 1 of a deliberate two-apply destroy/recreate (accepted downtime -
-# Azure can't rename a subnet in place, and the old cor-snet-cap-app-001
-# can't be deleted while the Function App's VNet integration is still
-# attached to it). Commented out below (along with its NSG/route-table
-# associations, and virtual_network_subnet_id in function_app.tf) so this
-# apply destroys them and detaches the Function App. PHASE 2 (next apply):
-# uncomment everything below and in function_app.tf as-is - same name
-# (cor-snet-cap-func-001) and CIDR (10.243.5.0/24), free again once this
-# destroy completes.
+# PHASE 2: cor-snet-cap-app-001 (and the Function App attached to it) were
+# destroyed in phase 1, so this is a plain fresh create now, not a rename -
+# no moved block needed, there's nothing left in state to move from.
+resource "azurerm_subnet" "func" {
+  name                 = "cor-snet-cap-func-${local.instance}"
+  resource_group_name  = data.azurerm_resource_group.network.name
+  virtual_network_name = data.azurerm_virtual_network.main.name
+  address_prefixes     = ["10.243.5.0/24"]
 
-# moved {
-#   from = azurerm_subnet.app
-#   to   = azurerm_subnet.func
-# }
-#
-# moved {
-#   from = azurerm_subnet_network_security_group_association.app
-#   to   = azurerm_subnet_network_security_group_association.func
-# }
-#
-# moved {
-#   from = azurerm_subnet_route_table_association.app
-#   to   = azurerm_subnet_route_table_association.func
-# }
-#
-# resource "azurerm_subnet" "func" {
-#   name                 = "cor-snet-cap-func-${local.instance}"
-#   resource_group_name  = data.azurerm_resource_group.network.name
-#   virtual_network_name = data.azurerm_virtual_network.main.name
-#   address_prefixes     = ["10.243.5.0/24"]
-#
-#   delegation {
-#     name = "webapp-delegation"
-#
-#     service_delegation {
-#       name    = "Microsoft.Web/serverFarms"
-#       actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
-#     }
-#   }
-# }
+  delegation {
+    name = "webapp-delegation"
+
+    service_delegation {
+      name    = "Microsoft.Web/serverFarms"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+    }
+  }
+}
 
 resource "azurerm_subnet" "api" {
   name                 = "cor-snet-cap-api-${local.instance}"
@@ -109,38 +87,22 @@ resource "azurerm_network_security_group" "func" {
   }
 }
 
-# resource "azurerm_subnet_network_security_group_association" "func" {
-#   subnet_id                 = azurerm_subnet.func.id
-#   network_security_group_id = azurerm_network_security_group.func.id
-# }
+resource "azurerm_subnet_network_security_group_association" "func" {
+  subnet_id                 = azurerm_subnet.func.id
+  network_security_group_id = azurerm_network_security_group.func.id
+}
 
 resource "azurerm_subnet_network_security_group_association" "api" {
   subnet_id                 = azurerm_subnet.api.id
   network_security_group_id = azurerm_network_security_group.api.id
 }
 
-# resource "azurerm_subnet_route_table_association" "func" {
-#   subnet_id      = azurerm_subnet.func.id
-#   route_table_id = data.azurerm_route_table.spoke.id
-# }
+resource "azurerm_subnet_route_table_association" "func" {
+  subnet_id      = azurerm_subnet.func.id
+  route_table_id = data.azurerm_route_table.spoke.id
+}
 
 resource "azurerm_subnet_route_table_association" "api" {
   subnet_id      = azurerm_subnet.api.id
   route_table_id = data.azurerm_route_table.spoke.id
-}
-
-# Regional VNet Integration + vnet_route_all_enabled (function_app.tf) sends
-# ALL egress through this route table, even to destinations in the same VNet -
-# unlike a normal NIC, which would prefer the more-specific system route to a
-# sibling subnet. Without this, traffic to the pe subnet's private endpoints
-# hairpins through the hub firewall via the 0.0.0.0/0 default route, which
-# blocks SMB/445 and breaks the Function App's content-share mount. This
-# route's prefix is more specific, so it wins for that destination while
-# everything else still goes to the firewall.
-resource "azurerm_route" "pe_subnet_local" {
-  name                = "pe-subnet-local"
-  resource_group_name = data.azurerm_resource_group.network.name
-  route_table_name    = data.azurerm_route_table.spoke.name
-  address_prefix      = data.azurerm_subnet.pe.address_prefixes[0]
-  next_hop_type       = "VnetLocal"
 }

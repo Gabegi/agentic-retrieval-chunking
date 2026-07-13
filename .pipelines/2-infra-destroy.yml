@@ -1,6 +1,16 @@
 trigger: none
 pr: none
 
+# Note on repeated use against the same environment: azurerm_key_vault.main
+# (keyvault.tf) has purge_protection_enabled = true - intentional, not a bug,
+# it stops the vault from being permanently deleted by accident or by a
+# malicious actor. The tradeoff: this destroy pipeline can only soft-delete
+# it, not purge it, so re-running Apply (1-infra-deploy.yml) for the same
+# environment afterward will hit a global-name collision against the
+# soft-deleted vault and need the name instance bumped (see the comment on
+# azurerm_key_vault.main documenting this happening once already, "-001" ->
+# "-002"). Either manually purge the soft-deleted vault first, or expect to
+# bump the instance suffix each cycle.
 parameters:
   - name: environment
     displayName: 'Environment to destroy'
@@ -54,13 +64,22 @@ stages:
     jobs:
       - job: check_confirmation
         steps:
+          # confirmationText is free-form (no `values:` allowlist, unlike
+          # `environment`) - passed via env: so it's a runtime shell variable,
+          # never spliced into the script text via ${{ }} compile-time
+          # expansion. Splicing it directly would let a value containing a
+          # quote or shell metacharacter execute as code in this unconditional,
+          # pre-approval-gate stage.
           - script: |
-              if [ "${{ parameters.confirmationText }}" != "${{ parameters.environment }}" ]; then
-                echo "##vso[task.logissue type=error]Confirmation text '${{ parameters.confirmationText }}' does not match environment '${{ parameters.environment }}'. Aborting."
+              if [ "$CONFIRMATION_TEXT" != "$TARGET_ENVIRONMENT" ]; then
+                echo "##vso[task.logissue type=error]Confirmation text '$CONFIRMATION_TEXT' does not match environment '$TARGET_ENVIRONMENT'. Aborting."
                 exit 1
               fi
-              echo "Confirmed: destroying ${{ parameters.environment }}."
+              echo "Confirmed: destroying $TARGET_ENVIRONMENT."
             displayName: 'Check typed confirmation'
+            env:
+              CONFIRMATION_TEXT: ${{ parameters.confirmationText }}
+              TARGET_ENVIRONMENT: ${{ parameters.environment }}
 
   - stage: Plan
     displayName: 'Destroy Plan (${{ parameters.environment }})'

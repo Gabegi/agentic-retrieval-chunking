@@ -54,7 +54,7 @@ data "azurerm_application_insights" "main" {
 # (app_service.tf, function_app.tf) down to the project instead of the
 # whole account.
 data "azurerm_cognitive_account_project" "rag" {
-  name                    = "cor-cap-dvt-dev"
+  name                    = var.foundry_project_name
   cognitive_account_name  = data.azurerm_cognitive_account.foundry.name
   resource_group_name     = data.azurerm_resource_group.ai.name
 }

@@ -13,6 +13,11 @@ variable "project" {
   description = "Project name used in resource naming"
 }
 
+variable "foundry_project_name" {
+  type        = string
+  description = "Name of the Foundry cognitive account project (provisioned by the platform team, doesn't follow this repo's naming convention - see data.azurerm_cognitive_account_project.rag in data.tf). Per-environment; no default so a plan fails loudly if it's missing rather than silently reusing another environment's project."
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags applied to all resources"

@@ -49,16 +49,22 @@ resource "azurerm_linux_web_app" "query" {
 }
 
 resource "azurerm_private_endpoint" "api" {
-  name                = "cor-pep-api-cap-${local.env}-${local.region}-${local.instance}"
-  location            = var.location
-  resource_group_name = azurerm_resource_group.api.name
-  subnet_id           = data.azurerm_subnet.pe.id
+  name                          = "cor-pep-api-cap-${local.env}-${local.region}-${local.instance}"
+  location                      = var.location
+  resource_group_name           = azurerm_resource_group.api.name
+  subnet_id                     = data.azurerm_subnet.pe.id
+  custom_network_interface_name = "cor-pep-api-cap-${local.env}-${local.region}-${local.instance}_nic"
 
   private_service_connection {
     name                           = "cor-pep-api-cap-${local.env}-${local.region}-${local.instance}-psc"
     private_connection_resource_id = azurerm_linux_web_app.query.id
     subresource_names              = ["sites"]
     is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [data.azurerm_private_dns_zone.azurewebsites.id]
   }
 
   tags = local.common_tags
