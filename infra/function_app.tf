@@ -166,7 +166,7 @@ resource "azurerm_role_assignment" "func_search_service_contributor" {
 }
 
 resource "azurerm_role_assignment" "func_openai_user" {
-  scope                = data.azurerm_cognitive_account.foundry.id
+  scope                = data.azurerm_cognitive_account_project.app.id
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
 }

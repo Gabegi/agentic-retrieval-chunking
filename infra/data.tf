@@ -46,6 +46,19 @@ data "azurerm_application_insights" "foundry" {
   resource_group_name = data.azurerm_resource_group.ai.name
 }
 
+# Foundry project provisioned by the platform team specifically for this
+# app on the shared account above. Doesn't follow this repo's naming convention (naming.tf) 
+# Model deployments (ai_deployments.tf) stay parented to the account - a project
+# can't own a deployment, it just gets automatic visibility into every
+# deployment on its parent account - so this is only used to scope RBAC
+# (app_service.tf, function_app.tf) down to the project instead of the
+# whole account.
+data "azurerm_cognitive_account_project" "app" {
+  name                    = "cor-cap-dvt-dev"
+  cognitive_account_name  = data.azurerm_cognitive_account.foundry.name
+  resource_group_name     = data.azurerm_resource_group.ai.name
+}
+
 # No data source exists for azurerm_private_endpoint - it's resource-only in
 # this provider. The PE's NIC is readable directly since its name is
 # deterministic ("<private endpoint name>_nic").
@@ -95,7 +108,7 @@ data "azurerm_private_dns_zone" "vaultcore" {
   resource_group_name = "cor-connectivity-dns-prd-we-001"
 }
 
-# Platform team confirmed these zones now exist in the hub (2026-07-08).
+
 data "azurerm_private_dns_zone" "queue" {
   provider            = azurerm.hub
   name                = "privatelink.queue.core.windows.net"

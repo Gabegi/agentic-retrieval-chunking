@@ -77,7 +77,7 @@ resource "azurerm_role_assignment" "api_search_index_reader" {
 }
 
 resource "azurerm_role_assignment" "api_openai_user" {
-  scope                = data.azurerm_cognitive_account.foundry.id
+  scope                = data.azurerm_cognitive_account_project.app.id
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = azurerm_linux_web_app.query.identity[0].principal_id
 }
