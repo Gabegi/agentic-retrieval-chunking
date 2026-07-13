@@ -160,6 +160,10 @@ resource "azurerm_storage_management_policy" "func" {
 }
 
 # --- Role assignments -------------------------------------------------------
+# All commented out for PHASE 1 (see note above azurerm_windows_function_app.
+# indexer) - each references indexer.identity[0].principal_id, so they can't
+# exist while that resource doesn't. PHASE 2: uncomment as-is: Terraform
+# will recreate them against the recreated app's (new) identity.
 
 # Account-wide (not container-scoped): required for AzureWebJobsStorage /
 # Durable Functions task hub state (storage_uses_managed_identity = true
@@ -169,53 +173,53 @@ resource "azurerm_storage_management_policy" "func" {
 # narrower scope. indexing_pipeline is already covered by this grant; the
 # container-scoped assignment below is additive, not a reduction, and is
 # only meaningful if this one is ever narrowed.
-resource "azurerm_role_assignment" "func_storage_owner" {
-  scope                = azurerm_storage_account.func.id
-  role_definition_name = "Storage Blob Data Owner"
-  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_indexing_pipeline_contributor" {
-  scope                = azurerm_storage_container.indexing_pipeline.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
-}
-
-# Durable Functions store orchestration state in queues and tables
-resource "azurerm_role_assignment" "func_storage_queue_contributor" {
-  scope                = azurerm_storage_account.func.id
-  role_definition_name = "Storage Queue Data Contributor"
-  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_storage_table_contributor" {
-  scope                = azurerm_storage_account.func.id
-  role_definition_name = "Storage Table Data Contributor"
-  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
-}
-
-# Reads source documents, writes chunks/reports/state back to the data
-# storage account.
-resource "azurerm_role_assignment" "func_data_storage_contributor" {
-  scope                = azurerm_storage_account.data.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_search_index_contributor" {
-  scope                = azurerm_search_service.main.id
-  role_definition_name = "Search Index Data Contributor"
-  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_search_service_contributor" {
-  scope                = azurerm_search_service.main.id
-  role_definition_name = "Search Service Contributor"
-  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "func_openai_user" {
-  scope                = data.azurerm_cognitive_account_project.rag.id
-  role_definition_name = "Cognitive Services OpenAI User"
-  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
-}
+# resource "azurerm_role_assignment" "func_storage_owner" {
+#   scope                = azurerm_storage_account.func.id
+#   role_definition_name = "Storage Blob Data Owner"
+#   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+# }
+#
+# resource "azurerm_role_assignment" "func_indexing_pipeline_contributor" {
+#   scope                = azurerm_storage_container.indexing_pipeline.id
+#   role_definition_name = "Storage Blob Data Contributor"
+#   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+# }
+#
+# # Durable Functions store orchestration state in queues and tables
+# resource "azurerm_role_assignment" "func_storage_queue_contributor" {
+#   scope                = azurerm_storage_account.func.id
+#   role_definition_name = "Storage Queue Data Contributor"
+#   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+# }
+#
+# resource "azurerm_role_assignment" "func_storage_table_contributor" {
+#   scope                = azurerm_storage_account.func.id
+#   role_definition_name = "Storage Table Data Contributor"
+#   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+# }
+#
+# # Reads source documents, writes chunks/reports/state back to the data
+# # storage account.
+# resource "azurerm_role_assignment" "func_data_storage_contributor" {
+#   scope                = azurerm_storage_account.data.id
+#   role_definition_name = "Storage Blob Data Contributor"
+#   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+# }
+#
+# resource "azurerm_role_assignment" "func_search_index_contributor" {
+#   scope                = azurerm_search_service.main.id
+#   role_definition_name = "Search Index Data Contributor"
+#   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+# }
+#
+# resource "azurerm_role_assignment" "func_search_service_contributor" {
+#   scope                = azurerm_search_service.main.id
+#   role_definition_name = "Search Service Contributor"
+#   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+# }
+#
+# resource "azurerm_role_assignment" "func_openai_user" {
+#   scope                = data.azurerm_cognitive_account_project.rag.id
+#   role_definition_name = "Cognitive Services OpenAI User"
+#   principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
+# }
