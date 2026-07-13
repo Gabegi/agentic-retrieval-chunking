@@ -50,11 +50,10 @@ resource "azurerm_windows_function_app" "indexer" {
       dotnet_version              = "v10.0"
       use_dotnet_isolated_runtime = true
     }
-    always_on                              = true
-    vnet_route_all_enabled                 = true
-    application_insights_connection_string = data.azurerm_application_insights.main.connection_string
-    ip_restriction_default_action          = "Deny"
-    scm_ip_restriction_default_action      = "Deny"
+    always_on                         = true
+    vnet_route_all_enabled             = true
+    ip_restriction_default_action     = "Deny"
+    scm_ip_restriction_default_action = "Deny"
 
     cors {
       allowed_origins = ["https://portal.azure.com"]

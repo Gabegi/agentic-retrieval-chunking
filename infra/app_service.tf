@@ -30,8 +30,8 @@ resource "azurerm_linux_web_app" "query" {
     application_stack {
       dotnet_version = "10.0"
     }
-    always_on               = true
-    vnet_route_all_enabled  = true
+    always_on              = true
+    vnet_route_all_enabled = true
   }
 
   app_settings = {
