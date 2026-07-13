@@ -32,11 +32,11 @@ resource "azurerm_linux_web_app" "query" {
     }
     always_on                              = true
     vnet_route_all_enabled                 = true
-    application_insights_connection_string = data.azurerm_application_insights.foundry.connection_string
+    application_insights_connection_string = data.azurerm_application_insights.main.connection_string
   }
 
   app_settings = {
-    "APPLICATIONINSIGHTS_CONNECTION_STRING" = data.azurerm_application_insights.foundry.connection_string
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = data.azurerm_application_insights.main.connection_string
     "SEARCH_ENDPOINT"                       = "https://${azurerm_search_service.foundry_iq_main.name}.search.windows.net"
     "OPENAI_ENDPOINT"                       = data.azurerm_cognitive_account.foundry.endpoint
     "OPENAI_GPT_DEPLOYMENT"                 = var.openai_gpt_deployment

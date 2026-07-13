@@ -47,12 +47,12 @@ resource "azurerm_windows_function_app" "indexer" {
 
   site_config {
     application_stack {
-      dotnet_version              = "v8.0"
+      dotnet_version              = "v10.0"
       use_dotnet_isolated_runtime = true
     }
     always_on                              = true
     vnet_route_all_enabled                 = true
-    application_insights_connection_string = data.azurerm_application_insights.foundry.connection_string
+    application_insights_connection_string = data.azurerm_application_insights.main.connection_string
     ip_restriction_default_action          = "Deny"
     scm_ip_restriction_default_action      = "Deny"
 
@@ -63,7 +63,7 @@ resource "azurerm_windows_function_app" "indexer" {
 
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"              = "dotnet-isolated"
-    "APPLICATIONINSIGHTS_CONNECTION_STRING" = data.azurerm_application_insights.foundry.connection_string
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = data.azurerm_application_insights.main.connection_string
     # Durable Functions managed-identity auth - no connection string needed
     "AzureWebJobsStorage__accountName" = azurerm_storage_account.func.name
     "AzureWebJobsStorage__credential"  = "managedidentity"

@@ -41,7 +41,7 @@ data "azurerm_cognitive_account" "foundry" {
   resource_group_name = data.azurerm_resource_group.ai.name
 }
 
-data "azurerm_application_insights" "foundry" {
+data "azurerm_application_insights" "main" {
   name                = "cor-appi-cap-${local.env}-${local.region}-${local.instance}"
   resource_group_name = data.azurerm_resource_group.ai.name
 }
