@@ -42,32 +42,6 @@ resource "azurerm_subnet" "workload" {
 # two explicit resources rather than looped - only 2 of them, and unlike the
 # subnets above their rule sets are expected to diverge (func vs api may need
 # different rules), which a for_each would make more awkward, not less.
-#
-# The old for_each addresses (.workload["func"]/["api"]) can't just be
-# dropped and recreated: an NSG still associated with a subnet can't be
-# deleted (same class of error as the subnet destroy/recreate earlier), so
-# these moved blocks make the split a pure address rename instead of a
-# destroy-while-in-use.
-moved {
-  from = azurerm_network_security_group.workload["func"]
-  to   = azurerm_network_security_group.func
-}
-
-moved {
-  from = azurerm_network_security_group.workload["api"]
-  to   = azurerm_network_security_group.api
-}
-
-moved {
-  from = azurerm_subnet_network_security_group_association.workload["func"]
-  to   = azurerm_subnet_network_security_group_association.func
-}
-
-moved {
-  from = azurerm_subnet_network_security_group_association.workload["api"]
-  to   = azurerm_subnet_network_security_group_association.api
-}
-
 resource "azurerm_network_security_group" "func" {
   name                = "cor-nsg-func-cap-${local.env}-${local.region}-${local.instance}"
   location            = var.location

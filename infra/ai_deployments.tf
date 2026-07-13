@@ -8,31 +8,7 @@
 # ---------------------------------------------------------------------------
 
 # Looped via for_each rather than one resource block each - only the model
-# and capacity vary per deployment. Renaming the old per-deployment resources
-# (azurerm_cognitive_deployment.embedding/querying/extraction/evaluation) to
-# openai[...] below is a pure Terraform-address move (name/model/sku
-# unchanged per entry) - the moved blocks make it a no-op against the real
-# deployments.
-
-moved {
-  from = azurerm_cognitive_deployment.embedding
-  to   = azurerm_cognitive_deployment.openai["embedding"]
-}
-
-moved {
-  from = azurerm_cognitive_deployment.querying
-  to   = azurerm_cognitive_deployment.openai["querying"]
-}
-
-moved {
-  from = azurerm_cognitive_deployment.extraction
-  to   = azurerm_cognitive_deployment.openai["extraction"]
-}
-
-moved {
-  from = azurerm_cognitive_deployment.evaluation
-  to   = azurerm_cognitive_deployment.openai["evaluation"]
-}
+# and capacity vary per deployment.
 
 locals {
   openai_deployments = {
