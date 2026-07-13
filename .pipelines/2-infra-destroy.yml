@@ -89,55 +89,29 @@ stages:
         steps:
           - checkout: self
 
-          - script: |
-              TF_VERSION="1.15.7"
-              curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
-              unzip -o terraform.zip
-              sudo mv terraform /usr/local/bin/terraform
-              terraform version
-            displayName: 'Install Terraform'
+          - template: templates/install-terraform.yml
 
-          - task: AzureCLI@2
-            displayName: 'Init'
-            inputs:
-              azureSubscription: '$(serviceConnection)'
-              scriptType: bash
-              scriptLocation: inlineScript
-              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-              inlineScript: |
-                export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
-                export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
-                export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
-                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-                export ARM_USE_OIDC=true
+          - template: templates/terraform-cli.yml
+            parameters:
+              displayName: 'Init'
+              serviceConnection: '$(serviceConnection)'
+              script: |
                 terraform init \
                   -backend-config="resource_group_name=$(backendRgName)" \
                   -backend-config="storage_account_name=$(backendStorageAccount)" \
                   -backend-config="container_name=$(backendContainer)" \
                   -backend-config="key=$(backendKey)" \
                   -backend-config="use_azuread_auth=true"
-            env:
-              ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
 
-          - task: AzureCLI@2
-            displayName: 'Destroy Plan'
-            inputs:
-              azureSubscription: '$(serviceConnection)'
-              scriptType: bash
-              scriptLocation: inlineScript
-              workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-              inlineScript: |
-                export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
-                export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
-                export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
-                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-                export ARM_USE_OIDC=true
+          - template: templates/terraform-cli.yml
+            parameters:
+              displayName: 'Destroy Plan'
+              serviceConnection: '$(serviceConnection)'
+              script: |
                 terraform plan \
                   -destroy \
                   -var-file="$(tfvarsFile)" \
                   -out=$(Build.ArtifactStagingDirectory)/tfplan
-            env:
-              ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
 
           - publish: '$(Build.ArtifactStagingDirectory)/tfplan'
             artifact: tfplan
@@ -160,49 +134,22 @@ stages:
                 - download: current
                   artifact: tfplan
 
-                - script: |
-                    TF_VERSION="1.15.7"
-                    curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
-                    unzip -o terraform.zip
-                    sudo mv terraform /usr/local/bin/terraform
-                    terraform version
-                  displayName: 'Install Terraform'
+                - template: templates/install-terraform.yml
 
-                - task: AzureCLI@2
-                  displayName: 'Init'
-                  inputs:
-                    azureSubscription: '$(serviceConnection)'
-                    scriptType: bash
-                    scriptLocation: inlineScript
-                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-                    inlineScript: |
-                      export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
-                      export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
-                      export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
-                      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-                      export ARM_USE_OIDC=true
+                - template: templates/terraform-cli.yml
+                  parameters:
+                    displayName: 'Init'
+                    serviceConnection: '$(serviceConnection)'
+                    script: |
                       terraform init \
                         -backend-config="resource_group_name=$(backendRgName)" \
                         -backend-config="storage_account_name=$(backendStorageAccount)" \
                         -backend-config="container_name=$(backendContainer)" \
                         -backend-config="key=$(backendKey)" \
                         -backend-config="use_azuread_auth=true"
-                  env:
-                    ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
 
-                - task: AzureCLI@2
-                  displayName: 'Destroy Apply'
-                  inputs:
-                    azureSubscription: '$(serviceConnection)'
-                    scriptType: bash
-                    scriptLocation: inlineScript
-                    workingDirectory: '$(System.DefaultWorkingDirectory)/infra'
-                    inlineScript: |
-                      export ARM_TENANT_ID=$AZURESUBSCRIPTION_TENANT_ID
-                      export ARM_CLIENT_ID=$AZURESUBSCRIPTION_CLIENT_ID
-                      export ARM_OIDC_AZURE_SERVICE_CONNECTION_ID=$AZURESUBSCRIPTION_SERVICE_CONNECTION_ID
-                      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-                      export ARM_USE_OIDC=true
-                      terraform apply $(Pipeline.Workspace)/tfplan/tfplan
-                  env:
-                    ARM_OIDC_REQUEST_TOKEN: $(System.AccessToken)
+                - template: templates/terraform-cli.yml
+                  parameters:
+                    displayName: 'Destroy Apply'
+                    serviceConnection: '$(serviceConnection)'
+                    script: terraform apply $(Pipeline.Workspace)/tfplan/tfplan

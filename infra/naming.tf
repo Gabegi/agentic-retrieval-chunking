@@ -14,8 +14,13 @@ locals {
   #   Storage accounts: cor + st + <purpose> + cap + <env> + <region>
   #                     (no dashes/instance - alphanumeric, <=24 chars)
   #
-  # env_short: "dev" stays "dev", but "prod" becomes "prd" in resource names
-  # (see .pipelines/1-infra-deploy.yml backendRgName: cor-cap-cicd-prd-we-001).
+  # env_short: var.environment ("development"/"production", matching
+  # 1-infra-deploy.yml's envName so the ADO Environment gate name and the
+  # Terraform variable use the same spelling) maps to the compact "dev"/"prd"
+  # already baked into every deployed resource name (see
+  # .pipelines/1-infra-deploy.yml backendRgName: cor-cap-cicd-prd-we-001) -
+  # that shorthand can't change without renaming live resources, so it stays
+  # as its own, third, deliberately different spelling.
   # ---------------------------------------------------------------------------
 
   region_short = {
@@ -23,8 +28,8 @@ locals {
   }
 
   env_short = {
-    dev  = "dev"
-    prod = "prd"
+    development = "dev"
+    production  = "prd"
   }
 
   region   = local.region_short[var.location]

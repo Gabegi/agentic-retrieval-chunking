@@ -1,6 +1,6 @@
 variable "environment" {
   type        = string
-  description = "Environment name (dev, prod)"
+  description = "Environment name (development, production) - matches 1-infra-deploy.yml's envName. See naming.tf's env_short for the separate dev/prd shorthand baked into resource names."
 }
 
 variable "location" {
