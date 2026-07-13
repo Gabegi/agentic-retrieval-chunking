@@ -84,51 +84,56 @@ data "azurerm_resource_group" "data" {
 # 2026-07-08 (docs/platform-team-dns-verzoek.md); the stfunc_queue/
 # stfunc_table/search private endpoints now attach zone groups too.
 
-data "azurerm_resource_group" "dns_hub" {
-  provider = azurerm.hub
-  name     = "cor-connectivity-dns-prd-we-001"
+# A data "azurerm_resource_group" here would need
+# Microsoft.Resources/subscriptions/resourceGroups/read on the RG itself -
+# the SP's hub access only covers the DNS zones (Private DNS Zone
+# Contributor scoped to the zones, see above), not the RG object, so that
+# 403s. Plain string instead; each zone data source below only needs
+# zone-level read.
+locals {
+  dns_hub_resource_group_name = "cor-connectivity-dns-prd-we-001"
 }
 
 data "azurerm_private_dns_zone" "azurewebsites" {
   provider            = azurerm.hub
   name                = "privatelink.azurewebsites.net"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 data "azurerm_private_dns_zone" "blob" {
   provider            = azurerm.hub
   name                = "privatelink.blob.core.windows.net"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 data "azurerm_private_dns_zone" "file" {
   provider            = azurerm.hub
   name                = "privatelink.file.core.windows.net"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 data "azurerm_private_dns_zone" "vaultcore" {
   provider            = azurerm.hub
   name                = "privatelink.vaultcore.azure.net"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 data "azurerm_private_dns_zone" "queue" {
   provider            = azurerm.hub
   name                = "privatelink.queue.core.windows.net"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 data "azurerm_private_dns_zone" "table" {
   provider            = azurerm.hub
   name                = "privatelink.table.core.windows.net"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 data "azurerm_private_dns_zone" "search" {
   provider            = azurerm.hub
   name                = "privatelink.search.windows.net"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 # Not currently consumed by any private endpoint in this repo (the Foundry
@@ -138,17 +143,17 @@ data "azurerm_private_dns_zone" "search" {
 data "azurerm_private_dns_zone" "cognitiveservices" {
   provider            = azurerm.hub
   name                = "privatelink.cognitiveservices.azure.com"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 data "azurerm_private_dns_zone" "openai" {
   provider            = azurerm.hub
   name                = "privatelink.openai.azure.com"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
 
 data "azurerm_private_dns_zone" "services_ai" {
   provider            = azurerm.hub
   name                = "privatelink.services.ai.azure.com"
-  resource_group_name = data.azurerm_resource_group.dns_hub.name
+  resource_group_name = local.dns_hub_resource_group_name
 }
