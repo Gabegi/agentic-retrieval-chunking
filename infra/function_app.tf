@@ -25,10 +25,14 @@ resource "azurerm_windows_function_app" "indexer" {
   service_plan_id               = azurerm_service_plan.func.id
   storage_account_name          = azurerm_storage_account.func.name
   storage_uses_managed_identity = true
-  # virtual_network_subnet_id commented out for the phase-1 subnet
-  # destroy/recreate (network.tf) - detaches VNet integration so
-  # cor-snet-cap-app-001 has nothing left attached to it and can be deleted.
-  # Re-add `virtual_network_subnet_id = azurerm_subnet.func.id` in phase 2.
+  # virtual_network_subnet_id is Optional+Computed - simply omitting the
+  # argument tells Terraform "not managing this," not "clear it," so it
+  # leaves the existing VNet integration (and its live AppServiceLink)
+  # alone. Explicit "" is what actually detaches it, which phase 1 (network.tf)
+  # needs so cor-snet-cap-app-001 has nothing left attached and can be
+  # deleted. Re-add `virtual_network_subnet_id = azurerm_subnet.func.id` in
+  # phase 2.
+  virtual_network_subnet_id = ""
   # Deny-by-default public access (no ip_restriction/scm_ip_restriction rules
   # managed here), so the private endpoint stays the only stable path in.
   # The app-deploy pipeline runs on a Microsoft-hosted agent with no VNet
