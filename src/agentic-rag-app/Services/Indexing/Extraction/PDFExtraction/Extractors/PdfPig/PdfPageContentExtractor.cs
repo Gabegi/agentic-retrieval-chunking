@@ -24,13 +24,6 @@ internal static class PdfPageContentExtractor
     private static readonly NearestNeighbourWordExtractor    WordExtractor = NearestNeighbourWordExtractor.Instance;
     private static readonly UnsupervisedReadingOrderDetector ReadingOrder  = UnsupervisedReadingOrderDetector.Instance;
 
-    // Isolated bullet points can otherwise get cut into their own spurious
-    // column by RecursiveXYCut; per the wiki's own tuning note, a minimum
-    // block width of ~1/3 page width avoids that without blocking genuine
-    // column splits.
-    public static RecursiveXYCut CreateSegmenter(double pageWidth) =>
-        new(new RecursiveXYCut.RecursiveXYCutOptions { MinimumWidth = pageWidth / 3 });
-
     // Rebuilds reading order geometrically instead of by raw Y-coordinate:
     //   1. Words (NearestNeighbourWordExtractor) — connects glyphs by
     //      proximity, independent of the order the PDF drew them in.

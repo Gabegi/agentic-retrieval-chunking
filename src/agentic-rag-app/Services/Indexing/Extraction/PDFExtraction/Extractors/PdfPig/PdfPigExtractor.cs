@@ -51,10 +51,9 @@ public class PdfPigExtractor : IPdfExtractor
             var allPages = pdf.GetPages().ToList();
             var baseline = _baselineCalculator.GetDocumentBaseline(pdf, allPages, blobName);
 
-            // One segmenter, built once from the document's dominant page
-            // width and reused everywhere below, so decoration detection and
-            // content extraction agree on block boundaries for a given page.
-            var segmenter = PdfPageContentExtractor.CreateSegmenter(baseline.DominantPageWidth);
+            // One segmenter, built once and reused 
+            // segmenter = finds block text by scoping white space
+            var segmenter = PdfSegmenterFactory.CreateSegmenter(baseline.DominantPageWidth);
 
             // TODO: docs below MinPagesForDecorationDetection get no header/footer
             // stripping at all — the empty dictionary below means every line on
