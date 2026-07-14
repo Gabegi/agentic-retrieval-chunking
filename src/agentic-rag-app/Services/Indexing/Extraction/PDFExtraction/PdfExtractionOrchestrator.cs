@@ -80,6 +80,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         var report = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
 
         await WriteReportsAsync(runAt, report, fileResults, ct);
+        await RunBackendComparisonIfDevAsync(ct);
 
         var (effectivePassed, errors, warnings, missingTitle, missingVersion) =
             LogAndEmitValidationTelemetry(report, cleanResult, overrideMagnitudeCheck);
@@ -150,6 +151,27 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         if (diagnostics.Count > 0)
             await _reportWriter.WriteReportAsync(
                 $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-diagnostics.json", diagnostics, ct);
+    }
+
+    // Dev-only (see IRunReportWriter.IsEnabled): runs the PdfPig-vs-DocumentIntelligence
+    // comparison over the same "documents" container this run just processed, so a
+    // developer running this orchestrator locally gets backend-comparison output for
+    // free instead of needing a separate --compare-pdf-backends invocation. This
+    // re-downloads and re-extracts every file through every registered backend — real
+    // extra cost, acceptable because it only ever runs in dev. Diagnostic only: never
+    // allowed to affect this run's actual result, so failures are logged and swallowed.
+    private async Task RunBackendComparisonIfDevAsync(CancellationToken ct)
+    {
+        if (!_reportWriter.IsEnabled) return;
+
+        try
+        {
+            await _comparisonRunner.CompareAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Backend comparison run failed; continuing — this is diagnostic-only.");
+        }
     }
 
     // Maps the validated, cleaned records into the source-agnostic ExtractionOutput
