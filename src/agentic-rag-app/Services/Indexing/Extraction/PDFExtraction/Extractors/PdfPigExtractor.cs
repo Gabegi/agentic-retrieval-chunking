@@ -166,6 +166,7 @@ public class PdfPigExtractor : IPdfExtractor
         try
         {
             // Open document
+            //  PdfPig parses the byte stream: reads the PDF header, cross-reference table/trailer, decodes the document catalog and page tree, etc. 
             opened = PdfDocument.Open(pdfBytes);
 
             // checks # of pages
@@ -185,6 +186,10 @@ public class PdfPigExtractor : IPdfExtractor
             error = null;
             return true;
         }
+        // If the bytes aren't structurally a valid PDF 
+            // (corrupt header, broken xref, malformed object streams, truncated file, encrypted with an unsupported scheme, etc.), 
+            // PdfDocument.Open throws an exception 
+            // (PdfPig throws various types — e.g. PdfDocumentFormatException, PdfDocumentEncryptedException, or lower-level parsing exceptions).
         catch (Exception ex)
         {
             opened?.Dispose();
