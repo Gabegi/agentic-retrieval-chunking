@@ -77,8 +77,8 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         var cleanResult = _cleaner.Clean(joinResult.Joined);
 
         var (previousCount, previousETag) = await PreviousRunCount(ct);
-        var diagnostics = fileResults.Select(f => f.Diagnostics).Where(d => d != null).ToList();
-        var report = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount, diagnostics!);
+        var diagnostics = fileResults.Select(f => f.Diagnostics).OfType<PdfExtractionDiagnostics>().ToList();
+        var report = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount, diagnostics);
 
         await WriteReportsAsync(runAt, report, diagnostics, ct);
         await RunBackendComparisonIfDevAsync(ct);
@@ -141,14 +141,13 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // PdfFileExtraction.Diagnostics — it's cheap to build; only writing it out per run
     // is the part worth gating.
     private async Task WriteReportsAsync(
-        DateTimeOffset runAt, PdfValidationReport report, List<PdfFileExtraction> fileResults, CancellationToken ct)
+        DateTimeOffset runAt, PdfValidationReport report, List<PdfExtractionDiagnostics> diagnostics, CancellationToken ct)
     {
         if (!_reportWriter.IsEnabled) return;
 
         await _reportWriter.WriteReportAsync(
             $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-validation-report.json", report, ct);
 
-        var diagnostics = fileResults.Select(f => f.Diagnostics).Where(d => d != null).ToList();
         if (diagnostics.Count > 0)
             await _reportWriter.WriteReportAsync(
                 $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-diagnostics.json", diagnostics, ct);
