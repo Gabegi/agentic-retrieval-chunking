@@ -80,9 +80,10 @@ public class PdfBackendComparisonRunner
 
         var (pagesResult, indexResult) = PdfExtractionAggregation.Aggregate([extraction]);
 
-        var joinResult  = _joiner.Join(pagesResult.Records, indexResult.Records);
-        var cleanResult = _cleaner.Clean(joinResult.Joined);
-        var report      = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousRunCleanedCount: null);
+        var joinResult   = _joiner.Join(pagesResult.Records, indexResult.Records);
+        var cleanResult  = _cleaner.Clean(joinResult.Joined);
+        var diagnostics  = extraction.Diagnostics is { } d ? [d] : Array.Empty<PdfExtractionDiagnostics>();
+        var report       = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousRunCleanedCount: null, diagnostics);
 
         return new ComparisonRow(extractor.Name, sw.ElapsedMilliseconds, extraction.EstimatedCostUsd,
             report, cleanResult, Error: null);
