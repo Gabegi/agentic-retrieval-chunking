@@ -80,7 +80,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         var diagnostics = fileResults.Select(f => f.Diagnostics).Where(d => d != null).ToList();
         var report = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount, diagnostics!);
 
-        await WriteReportsAsync(runAt, report, fileResults, ct);
+        await WriteReportsAsync(runAt, report, diagnostics, ct);
         await RunBackendComparisonIfDevAsync(ct);
 
         var (effectivePassed, errors, warnings, missingTitle, missingVersion) =
