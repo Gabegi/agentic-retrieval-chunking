@@ -13,7 +13,7 @@ resource "azurerm_service_plan" "api" {
   tags = local.common_tags
 }
 
-resource "azurerm_linux_web_app" "query" {
+resource "azurerm_linux_web_app" "api" {
   name                           = "cor-app-api-cap-${local.env}-${local.region}-${local.instance}"
   resource_group_name            = azurerm_resource_group.api.name
   location                       = var.location
@@ -57,7 +57,7 @@ resource "azurerm_private_endpoint" "api" {
 
   private_service_connection {
     name                           = "cor-pep-api-cap-${local.env}-${local.region}-${local.instance}-psc"
-    private_connection_resource_id = azurerm_linux_web_app.query.id
+    private_connection_resource_id = azurerm_linux_web_app.api.id
     subresource_names              = ["sites"]
     is_manual_connection           = false
   }
