@@ -99,13 +99,13 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         var issues = new List<ValidationIssue>();
 
         issues.AddRange(pagesExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}" }));
+            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}", Reason = e.Reason }));
 
         issues.AddRange(pagesExtraction.Warnings.Select(w => new ValidationIssue
             { Stage = "Parse:Pages", Severity = "Warning", DocumentId = w.DocumentId ?? "", Message = w.Message }));
 
         issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}" }));
+            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}", Reason = e.Reason }));
 
         issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue
             { Stage = "Join", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
