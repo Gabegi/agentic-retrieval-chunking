@@ -180,6 +180,21 @@ var host = new HostBuilder()
         services.AddSingleton<IPdfCleaner,           PdfCleaner>();
         services.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
 
+        // PDF orchestrator — registered standalone (not as IExtractionOrchestrator) since
+        // CSV remains the sole active source for now; see docstring on
+        // PdfExtractionOrchestrator. Explicitly picks the PdfPig backend by Name rather than
+        // resolving IPdfExtractor directly, since that would silently pick whichever
+        // backend was registered last once DocumentIntelligence is configured.
+        services.AddSingleton(sp => new PdfExtractionOrchestrator(
+            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
+            sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
+            sp.GetRequiredService<IRunReportWriter>(),
+            sp.GetServices<IPdfExtractor>().Single(e => e.Name == "PdfPig"),
+            sp.GetRequiredService<IPdfJoiner>(),
+            sp.GetRequiredService<IPdfCleaner>(),
+            sp.GetRequiredService<IPdfPipelineValidator>(),
+            sp.GetRequiredService<ILogger<PdfExtractionOrchestrator>>()));
+
         // RAG pipeline
         services.AddSingleton<IExtractionService, ExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
