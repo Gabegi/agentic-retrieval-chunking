@@ -180,6 +180,34 @@ var host = new HostBuilder()
         services.AddSingleton<IPdfCleaner,           PdfCleaner>();
         services.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
 
+        // Same comparison runner the standalone --compare-pdf-backends CLI tool uses
+        // (see RunPdfBackendComparisonAsync below), also registered in the main host so
+        // PdfExtractionOrchestrator can trigger it as a dev-only side-run over the real
+        // "documents" container instead of a developer needing a separate invocation.
+        services.AddSingleton(sp => new PdfBackendComparisonRunner(
+            sp.GetServices<IPdfExtractor>(),
+            sp.GetRequiredService<IPdfJoiner>(),
+            sp.GetRequiredService<IPdfCleaner>(),
+            sp.GetRequiredService<IPdfPipelineValidator>(),
+            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
+            sp.GetRequiredService<ILogger<PdfBackendComparisonRunner>>()));
+
+        // PDF orchestrator — registered standalone (not as IExtractionOrchestrator) since
+        // CSV remains the sole active source for now; see docstring on
+        // PdfExtractionOrchestrator. Explicitly picks the PdfPig backend by Name rather than
+        // resolving IPdfExtractor directly, since that would silently pick whichever
+        // backend was registered last once DocumentIntelligence is configured.
+        services.AddSingleton(sp => new PdfExtractionOrchestrator(
+            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
+            sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
+            sp.GetRequiredService<IRunReportWriter>(),
+            sp.GetServices<IPdfExtractor>().Single(e => e.Name == "PdfPig"),
+            sp.GetRequiredService<IPdfJoiner>(),
+            sp.GetRequiredService<IPdfCleaner>(),
+            sp.GetRequiredService<IPdfPipelineValidator>(),
+            sp.GetRequiredService<PdfBackendComparisonRunner>(),
+            sp.GetRequiredService<ILogger<PdfExtractionOrchestrator>>()));
+
         // RAG pipeline
         services.AddSingleton<IExtractionService, ExtractionService>();
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
