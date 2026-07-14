@@ -156,7 +156,7 @@ var host = new HostBuilder()
         // switch (e.g. to a PDF extractor), replace this registration; ExtractionService takes
         // whichever IExtractionOrchestrator is registered here, no other change needed.
         services.AddSingleton<IExtractionOrchestrator>(sp => new CsvExtractionOrchestrator(
-            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documentscsv"),
+            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
             sp.GetRequiredService<IRunReportWriter>(),
             sp.GetRequiredService<ICsvExtractor>(),
