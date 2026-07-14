@@ -26,7 +26,7 @@ public class PdfPigExtractor : IPdfExtractor
     private readonly PdfDocumentOpener            _opener;
     private readonly PdfDocumentBaselineCalculator _baselineCalculator;
     private readonly PdfDecorationDetector        _decorationDetector;
-    private readonly PdfMetadataTextBuilder       _metadataTextBuilder;
+    private readonly RawTextExtractor       _metadataTextBuilder;
 
     public PdfPigExtractor(ILogger<PdfPigExtractor>? logger = null, IEnumerable<string>? knownSections = null)
     {
@@ -35,7 +35,7 @@ public class PdfPigExtractor : IPdfExtractor
         _opener              = new PdfDocumentOpener(_logger);
         _baselineCalculator  = new PdfDocumentBaselineCalculator(_logger, knownSections);
         _decorationDetector  = new PdfDecorationDetector(_logger);
-        _metadataTextBuilder = new PdfMetadataTextBuilder(_logger);
+        _metadataTextBuilder = new RawTextExtractor(_logger);
     }
 
     public PdfFileExtraction ExtractPDF(string blobName, byte[] pdfBytes)
@@ -55,25 +55,14 @@ public class PdfPigExtractor : IPdfExtractor
             // segmenter = finds block text by scoping white space
             var segmenter = PdfSegmenterFactory.CreateSegmenter(baseline.DominantPageWidth);
 
-            // Docs below MinPagesForDecorationDetection get no header/footer stripping at
-            // all — the empty dictionary below means every line on every page of a 1-2
-            // page doc is kept, decoration or not. Repetition-based detection structurally
-            // needs several pages to compare, so there's no cheap fix within PdfPig itself;
-            // a naive top/bottom-of-page-% cut was considered and rejected (no repetition
-            // check, so it can't tell a real header from a title/opening paragraph near the
-            // page edge), and cross-document repetition (comparing short docs against each
-            // other instead of against themselves) was also ruled out — not worth building
-            // speculatively when Document Intelligence already solves this natively via its
-            // trained layout model. PdfPipelineValidator's red flag (DecorationDetectionRan)
-            // tracks how often this actually triggers; if it turns out to matter a lot, the
-            // answer is comparing against the DocumentIntelligence backend, not special-
-            // casing short docs here.
+            // Checking decoration (i.e. headers, footers..)
+            // Works only for docs with > 3 pages
             var decorationDetectionRan = pdf.NumberOfPages >= MinPagesForDecorationDetection;
             var decorationByPage = decorationDetectionRan
                 ? _decorationDetector.GetDecorationTextByPage(allPages, segmenter, blobName)
                 : new Dictionary<int, HashSet<string>>();
 
-            var firstPagesText = _metadataTextBuilder.Build(allPages.Take(2), segmenter);
+            var firstPagesText = _metadataTextBuilder.Extract(allPages.Take(2), segmenter);
 
             var pages              = new List<PdfPageRecord>();
             string? currentHeading = null;
