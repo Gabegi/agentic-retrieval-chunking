@@ -25,11 +25,12 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         new(@"^\s*\|.*\|\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
     public PdfValidationReport Validate(
-        ExtractionResult<PdfPageRecord>  pagesExtraction,
-        ExtractionResult<PdfIndexRecord> indexExtraction,
-        PdfJoinResult                    joinResult,
-        PdfCleanResult                   cleanResult,
-        int?                             previousRunCleanedCount = null)
+        ExtractionResult<PdfPageRecord>         pagesExtraction,
+        ExtractionResult<PdfIndexRecord>        indexExtraction,
+        PdfJoinResult                            joinResult,
+        PdfCleanResult                           cleanResult,
+        int?                                     previousRunCleanedCount = null,
+        IReadOnlyList<PdfExtractionDiagnostics>? diagnostics = null)
     {
         var redFlags = new List<string>();
 
