@@ -72,15 +72,13 @@ public class PdfPigExtractor : IPdfExtractor
 
         using (pdf)
         {
-            var knownSections    = GetKnownSections(pdf, blobName);
-            var dominantFontSize = GetDominantFontSize(pdf);
-
             var allPages = pdf.GetPages().ToList();
+            var baseline = ComputeDocumentBaseline(pdf, allPages, blobName);
 
             // One segmenter, built once from the document's dominant page
             // width and reused everywhere below, so decoration detection and
             // content extraction agree on block boundaries for a given page.
-            var segmenter = CreateSegmenter(GetDominantPageWidth(allPages));
+            var segmenter = CreateSegmenter(baseline.DominantPageWidth);
 
             // TODO: docs below MinPagesForDecorationDetection get no header/footer
             // stripping at all — the empty dictionary below means every line on
@@ -88,7 +86,8 @@ public class PdfPigExtractor : IPdfExtractor
             // dedicated method for these docs; a naive top/bottom-of-page-% cut
             // was considered and rejected (no repetition check, so it can't tell
             // a real header from a title/opening paragraph near the page edge).
-            var decorationByPage = pdf.NumberOfPages >= MinPagesForDecorationDetection
+            var decorationDetectionRan = pdf.NumberOfPages >= MinPagesForDecorationDetection;
+            var decorationByPage = decorationDetectionRan
                 ? GetDecorationTextByPage(allPages, segmenter, blobName)
                 : new Dictionary<int, HashSet<string>>();
 
@@ -105,7 +104,7 @@ public class PdfPigExtractor : IPdfExtractor
                     decorationByPage.TryGetValue(pageNumber, out var decoration);
 
                     var content = ExtractPageContent(
-                        page, segmenter, dominantFontSize, decoration ?? [], knownSections,
+                        page, segmenter, baseline.DominantFontSize, decoration ?? [], baseline.KnownSections,
                         ref currentHeading, out var pageHadHeading);
 
                     // Carry the most recent heading into a page whose own text
@@ -147,10 +146,28 @@ public class PdfPigExtractor : IPdfExtractor
 
             var index = PdfMetadataExtraction.Parse(blobName, firstPagesText);
 
+            var diagnostics = new PdfExtractionDiagnostics
+            {
+                BlobName                   = blobName,
+                DominantFontSize           = baseline.DominantFontSize,
+                DominantPageWidth          = baseline.DominantPageWidth,
+                KnownSectionCount          = baseline.KnownSections.Count,
+                BookmarksContributed       = baseline.KnownSections.Count > _knownSections.Count,
+                DecorationDetectionRan     = decorationDetectionRan,
+                PagesWithDecorationRemoved = decorationByPage.Values.Count(d => d.Count > 0),
+                ParsedTitle                = index.Title,
+                ParsedVersion              = index.Version,
+                ParsedPublicationDateRaw   = index.PublicationDateRaw,
+                PageCount                  = pages.Count,
+                PageErrorCount             = errors.Count,
+                WarningCount               = warnings.Count,
+            };
+
             return new PdfFileExtraction(pages, index, Error: null)
             {
-                PageErrors = errors,
-                Warnings   = warnings,
+                PageErrors  = errors,
+                Warnings    = warnings,
+                Diagnostics = diagnostics,
             };
         }
     }
@@ -227,8 +244,40 @@ public class PdfPigExtractor : IPdfExtractor
     private static ExtractionError OpenError(string blobName, PdfOpenFailureReason reason, string message) =>
         new() { DocumentId = blobName, Message = message, Reason = reason };
 
-    private static double GetDominantFontSize(PdfDocument pdf) =>
-        pdf.GetPages()
+    // Everything a page needs to compare itself against, computed once for the
+    // whole document: a heading is only "big" or "known" relative to *this*
+    // document's typical text/layout, not to any fixed number.
+    private readonly record struct DocumentBaseline(
+        double           DominantFontSize,
+        double           DominantPageWidth,
+        HashSet<string>  KnownSections);
+
+    // Baseline computation is a quality improvement, not a correctness requirement —
+    // same rationale as GetDecorationTextByPage/BuildMetadataText below. Each of the
+    // three pieces degrades to a safe default independently, so one failing (e.g. a
+    // corrupt Outlines dictionary breaking bookmark lookup) doesn't throw away the
+    // other two, which may have computed fine.
+    private DocumentBaseline ComputeDocumentBaseline(PdfDocument pdf, IReadOnlyList<Page> allPages, string blobName) =>
+        new(
+            DominantFontSize:  TryCompute(blobName, "dominant font size",       DefaultFontSize,  () => GetDominantFontSize(allPages)),
+            DominantPageWidth: TryCompute(blobName, "dominant page width",      DefaultPageWidth, () => GetDominantPageWidth(allPages)),
+            KnownSections:     TryCompute(blobName, "known sections/bookmarks", _knownSections,   () => GetKnownSections(pdf, blobName)));
+
+    private const double DefaultFontSize  = 10.0;  // matches GetDominantFontSize's own empty-input fallback
+    private const double DefaultPageWidth = 612.0; // US Letter width, points
+
+    private T TryCompute<T>(string blobName, string what, T fallback, Func<T> compute)
+    {
+        try { return compute(); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not compute {What} for '{Blob}'; using fallback.", what, blobName);
+            return fallback;
+        }
+    }
+
+    private static double GetDominantFontSize(IReadOnlyList<Page> pages) =>
+        pages
             .SelectMany(p => p.GetWords())
             .Where(w => w.Letters.Any())
             .GroupBy(w => Math.Round(w.Letters.Max(l => l.FontSize), 1))
