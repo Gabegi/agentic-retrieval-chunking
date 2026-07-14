@@ -27,6 +27,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     private readonly IPdfJoiner                         _joiner;
     private readonly IPdfCleaner                        _cleaner;
     private readonly IPdfPipelineValidator               _validator;
+    private readonly PdfBackendComparisonRunner          _comparisonRunner;
     private readonly ILogger<PdfExtractionOrchestrator>  _logger;
 
     public string Source => "pdf";
