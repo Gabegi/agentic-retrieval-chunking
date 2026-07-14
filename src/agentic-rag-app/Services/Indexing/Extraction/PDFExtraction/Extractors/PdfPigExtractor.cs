@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProtocolsIndexer.Models;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Exceptions;
 using UglyToad.PdfPig.DocumentLayoutAnalysis;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.ReadingOrderDetector;
@@ -66,7 +68,7 @@ public class PdfPigExtractor : IPdfExtractor
         var warnings = new List<ExtractionWarning>();
 
         if (!TryOpenAndValidate(pdfBytes, blobName, out var pdf, out var openError))
-            return Failed(blobName, openError);
+            return new PdfFileExtraction([], null, openError);
 
         using (pdf)
         {
@@ -140,7 +142,8 @@ public class PdfPigExtractor : IPdfExtractor
 
             if (pages.Count == 0)
                 return Failed(blobName,
-                    $"All {pdf.NumberOfPages} page(s) failed extraction. First error: {errors.FirstOrDefault()?.Message}");
+                    $"All {pdf.NumberOfPages} page(s) failed extraction. First error: {errors.FirstOrDefault()?.Message}",
+                    PdfOpenFailureReason.NoReadablePages);
 
             var index = PdfMetadataExtraction.Parse(blobName, firstPagesText);
 
