@@ -77,7 +77,8 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         var cleanResult = _cleaner.Clean(joinResult.Joined);
 
         var (previousCount, previousETag) = await PreviousRunCount(ct);
-        var report = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount);
+        var diagnostics = fileResults.Select(f => f.Diagnostics).Where(d => d != null).ToList();
+        var report = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount, diagnostics!);
 
         await WriteReportsAsync(runAt, report, fileResults, ct);
         await RunBackendComparisonIfDevAsync(ct);
