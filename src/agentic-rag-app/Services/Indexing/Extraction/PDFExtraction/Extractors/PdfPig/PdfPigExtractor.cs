@@ -55,12 +55,19 @@ public class PdfPigExtractor : IPdfExtractor
             // segmenter = finds block text by scoping white space
             var segmenter = PdfSegmenterFactory.CreateSegmenter(baseline.DominantPageWidth);
 
-            // TODO: docs below MinPagesForDecorationDetection get no header/footer
-            // stripping at all — the empty dictionary below means every line on
-            // every page of a 1-2 page doc is kept, decoration or not. Needs a
-            // dedicated method for these docs; a naive top/bottom-of-page-% cut
-            // was considered and rejected (no repetition check, so it can't tell
-            // a real header from a title/opening paragraph near the page edge).
+            // Docs below MinPagesForDecorationDetection get no header/footer stripping at
+            // all — the empty dictionary below means every line on every page of a 1-2
+            // page doc is kept, decoration or not. Repetition-based detection structurally
+            // needs several pages to compare, so there's no cheap fix within PdfPig itself;
+            // a naive top/bottom-of-page-% cut was considered and rejected (no repetition
+            // check, so it can't tell a real header from a title/opening paragraph near the
+            // page edge), and cross-document repetition (comparing short docs against each
+            // other instead of against themselves) was also ruled out — not worth building
+            // speculatively when Document Intelligence already solves this natively via its
+            // trained layout model. PdfPipelineValidator's red flag (DecorationDetectionRan)
+            // tracks how often this actually triggers; if it turns out to matter a lot, the
+            // answer is comparing against the DocumentIntelligence backend, not special-
+            // casing short docs here.
             var decorationDetectionRan = pdf.NumberOfPages >= MinPagesForDecorationDetection;
             var decorationByPage = decorationDetectionRan
                 ? _decorationDetector.GetDecorationTextByPage(allPages, segmenter, blobName)
