@@ -94,5 +94,5 @@ resource "azurerm_role_assignment" "api" {
   for_each              = local.api_role_assignments
   scope                 = each.value.scope
   role_definition_name  = each.value.role
-  principal_id          = azurerm_linux_web_app.query.identity[0].principal_id
+  principal_id          = azurerm_linux_web_app.api.identity[0].principal_id
 }
