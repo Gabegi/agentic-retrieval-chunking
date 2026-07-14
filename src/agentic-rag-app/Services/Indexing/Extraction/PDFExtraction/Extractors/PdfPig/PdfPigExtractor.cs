@@ -62,7 +62,7 @@ public class PdfPigExtractor : IPdfExtractor
                 ? _decorationDetector.GetDecorationTextByPage(allPages, segmenter, blobName)
                 : new Dictionary<int, HashSet<string>>();
 
-            var firstPagesText = _metadataTextBuilder.Extract(allPages.Take(2), segmenter);
+            var firstPagesText = _metadataTextBuilder.ExtractNOrganiseText(allPages.Take(2), segmenter);
 
             var pages              = new List<PdfPageRecord>();
             string? currentHeading = null;

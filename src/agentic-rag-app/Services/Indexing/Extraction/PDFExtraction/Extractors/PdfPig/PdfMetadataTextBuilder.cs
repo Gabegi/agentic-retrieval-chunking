@@ -19,17 +19,26 @@ internal sealed class RawTextExtractor
         _logger = logger;
     }
 
-    public string Extract(IEnumerable<Page> pages, RecursiveXYCut segmenter)
+    public string ExtractNOrganiseText(IEnumerable<Page> pages, RecursiveXYCut segmenter)
     {
         try
-        {
+        {   // words → blocks → reading order
             var pageTexts = pages.Select(page =>
             {
-                //  groups a page's individual glyphs (letters) into words based on proximity
+
+                //  groups nearby letters into Word objects
+                // groups a page's individual glyphs (letters) into words based on proximity
                 var words   = WordExtractor.GetWords(page.Letters);
+
+                // groups Word objects spatially into Blocks
+                // groups words into rectangular regions by finding whitespace gaps between them
                 var blocks  = segmenter.GetBlocks(words);
+                
+                // reorders those Block objects
+                // sequences unordered blocks into the order a human would actually read them
                 var ordered = ReadingOrder.Get(blocks);
 
+                // puts everything together
                 var lines = ordered.SelectMany(b => b.TextLines)
                     .Select(l => string.Join(" ", l.Words.Select(w => w.Text)).Trim())
                     .Where(l => l.Length > 0);

@@ -21,6 +21,8 @@ internal static class PdfMetadataExtraction
 
     private static readonly Regex ShortDateRegex = new(@"\b(\d{2}-\d{2}-\d{4})\b", RegexOptions.Compiled);
     private static readonly Regex VersionRegex    = new(@"[Vv]ersie\s+([\d.]+)",  RegexOptions.Compiled);
+
+    // this is really BAD!
     private static readonly Regex TitleRegex      = new(@"^(.+?)\s*\|\s*LCI-richtlijn", RegexOptions.Multiline | RegexOptions.Compiled);
 
     public static PdfIndexRecord Parse(string blobName, string firstPagesText)
