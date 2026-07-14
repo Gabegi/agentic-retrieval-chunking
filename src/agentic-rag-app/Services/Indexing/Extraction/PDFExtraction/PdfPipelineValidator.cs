@@ -25,11 +25,12 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         new(@"^\s*\|.*\|\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
     public PdfValidationReport Validate(
-        ExtractionResult<PdfPageRecord>  pagesExtraction,
-        ExtractionResult<PdfIndexRecord> indexExtraction,
-        PdfJoinResult                    joinResult,
-        PdfCleanResult                   cleanResult,
-        int?                             previousRunCleanedCount = null)
+        ExtractionResult<PdfPageRecord>         pagesExtraction,
+        ExtractionResult<PdfIndexRecord>        indexExtraction,
+        PdfJoinResult                            joinResult,
+        PdfCleanResult                           cleanResult,
+        int?                                     previousRunCleanedCount = null,
+        IReadOnlyList<PdfExtractionDiagnostics>? diagnostics = null)
     {
         var redFlags = new List<string>();
 
@@ -55,6 +56,18 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         var docsWithNoPagesWithHeadings = DocsWithNoPagesWithHeading(cleanResult);
         if (docsWithNoPagesWithHeadings.Count > 0)
             redFlags.Add($"{docsWithNoPagesWithHeadings.Count} document(s) have no markdown headings — need fallback chunking.");
+
+        // 6b. PdfPig-only: documents short enough that cross-page decoration (header/
+        // footer) detection never ran at all (see PdfPigExtractor.MinPagesForDecorationDetection) —
+        // every line on those pages is kept as-is, decoration or not. Not an error, just
+        // a known coverage gap worth tracking until real data says it's worth solving.
+        if (diagnostics is { Count: > 0 })
+        {
+            var noDecorationCount = diagnostics.Count(d => !d.DecorationDetectionRan);
+            if (noDecorationCount > 0)
+                redFlags.Add(
+                    $"{noDecorationCount} document(s) got no header/footer stripping — too few pages for decoration detection.");
+        }
 
         // 7. Takes a random sample for human review.
         var sample = BuildRandomCheckSample(cleanResult);
@@ -99,13 +112,13 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         var issues = new List<ValidationIssue>();
 
         issues.AddRange(pagesExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}" }));
+            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}", Reason = e.Reason }));
 
         issues.AddRange(pagesExtraction.Warnings.Select(w => new ValidationIssue
             { Stage = "Parse:Pages", Severity = "Warning", DocumentId = w.DocumentId ?? "", Message = w.Message }));
 
         issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}" }));
+            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}", Reason = e.Reason }));
 
         issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue
             { Stage = "Join", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
