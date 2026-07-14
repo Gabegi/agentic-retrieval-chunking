@@ -26,6 +26,11 @@ public record PdfFileExtraction(
     // Per-page failures/soft-quality signals that don't fail the whole file (e.g. one
     // unreadable page, a likely-scanned page). Folded into the aggregate ExtractionResult
     // by PdfExtractionAggregation, same bucket a file-level Error would land in.
-    public IReadOnlyList<ExtractionError>   PageErrors { get; init; } = [];
-    public IReadOnlyList<ExtractionWarning> Warnings   { get; init; } = [];
+    public IReadOnlyList<ExtractionError>   PageErrors  { get; init; } = [];
+    public IReadOnlyList<ExtractionWarning> Warnings    { get; init; } = [];
+
+    // Per-step diagnostic snapshot (see PdfExtractionDiagnostics) - null for files that
+    // failed before/without going through the full pipeline (open failure, DocumentIntelligence
+    // backend, which doesn't have PdfPig's baseline/decoration concepts to report).
+    public PdfExtractionDiagnostics? Diagnostics { get; init; }
 }

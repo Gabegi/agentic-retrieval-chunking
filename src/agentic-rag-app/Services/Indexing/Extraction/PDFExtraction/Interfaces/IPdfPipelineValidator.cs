@@ -5,9 +5,10 @@ namespace ProtocolsIndexer.Services;
 public interface IPdfPipelineValidator
 {
     PdfValidationReport Validate(
-        ExtractionResult<PdfPageRecord>  pagesExtraction,
-        ExtractionResult<PdfIndexRecord> indexExtraction,
-        PdfJoinResult                    joinResult,
-        PdfCleanResult                   cleanResult,
-        int?                             previousRunCleanedCount = null);
+        ExtractionResult<PdfPageRecord>              pagesExtraction,
+        ExtractionResult<PdfIndexRecord>              indexExtraction,
+        PdfJoinResult                                 joinResult,
+        PdfCleanResult                                cleanResult,
+        int?                                          previousRunCleanedCount = null,
+        IReadOnlyList<PdfExtractionDiagnostics>?      diagnostics = null);
 }
