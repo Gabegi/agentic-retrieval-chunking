@@ -52,16 +52,18 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         IPdfJoiner                         joiner,
         IPdfCleaner                        cleaner,
         IPdfPipelineValidator              validator,
+        PdfBackendComparisonRunner         comparisonRunner,
         ILogger<PdfExtractionOrchestrator> logger)
     {
-        _container      = container;
-        _stateContainer = stateContainer;
-        _reportWriter   = reportWriter;
-        _extractor      = extractor;
-        _joiner         = joiner;
-        _cleaner        = cleaner;
-        _validator      = validator;
-        _logger         = logger;
+        _container        = container;
+        _stateContainer    = stateContainer;
+        _reportWriter      = reportWriter;
+        _extractor         = extractor;
+        _joiner             = joiner;
+        _cleaner            = cleaner;
+        _validator          = validator;
+        _comparisonRunner   = comparisonRunner;
+        _logger             = logger;
     }
 
     public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
