@@ -49,7 +49,7 @@ internal sealed class PdfDocumentBaselineCalculator
     // pieces degrades to a safe default independently, so one failing (e.g. a corrupt
     // Outlines dictionary breaking bookmark lookup) doesn't throw away the other two,
     // which may have computed fine.
-    public PdfDocumentBaseline Compute(PdfDocument pdf, IReadOnlyList<Page> allPages, string blobName)
+    public PdfDocumentBaseline GetDocumentBaseline(PdfDocument pdf, IReadOnlyList<Page> allPages, string blobName)
     {
         var dominantFontSize  = TryCompute(blobName, "dominant font size",       DefaultFontSize,  () => GetDominantFontSize(allPages));
         var dominantPageWidth = TryCompute(blobName, "dominant page width",      DefaultPageWidth, () => GetDominantPageWidth(allPages));

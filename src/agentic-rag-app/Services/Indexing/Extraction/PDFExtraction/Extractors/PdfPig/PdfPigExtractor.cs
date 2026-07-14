@@ -49,7 +49,7 @@ public class PdfPigExtractor : IPdfExtractor
         using (pdf)
         {
             var allPages = pdf.GetPages().ToList();
-            var baseline = _baselineCalculator.Compute(pdf, allPages, blobName);
+            var baseline = _baselineCalculator.GetDocumentBaseline(pdf, allPages, blobName);
 
             // One segmenter, built once from the document's dominant page
             // width and reused everywhere below, so decoration detection and
