@@ -7,7 +7,7 @@ namespace ProtocolsIndexer.Services;
 
 // Orchestrates the PdfPig backend's per-file pipeline: open/validate -> baseline ->
 // decoration detection -> metadata text -> per-page content extraction. Each step
-// lives in its own class alongside this one (see PdfPreFlight.TryOpenAndValidate,
+// lives in its own class alongside this one (see PdfDocumentValidator.TryOpenAndValidate,
 // PdfDocumentBaselineCalculator, PdfDecorationDetector, PdfMetadataTextBuilder,
 // PdfPageContentExtractor) - this class just wires them together and owns the parts
 // that are genuinely about one file's overall outcome (the page loop, warnings/errors,
