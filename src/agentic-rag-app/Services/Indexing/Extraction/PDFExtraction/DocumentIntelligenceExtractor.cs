@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Azure;
 using Azure.AI.DocumentIntelligence;
@@ -26,16 +27,30 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     
 
     private readonly ILogger<DocumentIntelligenceExtractor> _logger;
+    private readonly PdfDocumentOpener                       _opener;
 
     public DocumentIntelligenceExtractor(DocumentIntelligenceClient client, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
         _client = client;
         _logger = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
+        _opener = new PdfDocumentOpener(_logger);
     }
 
 
     public PdfFileExtraction ExtractPDF(string blobName, byte[] pdfBytes)
     {
+        // Step 1: local, free structural check — rejects oversized/corrupt/encrypted/
+        // too-many-page files before spending a paid Document Intelligence call on them.
+        if (!IsPDFValid(blobName, pdfBytes, out var meta, out var checkError))
+            return new PdfFileExtraction([], null, checkError);
+
+        // Native PDF metadata is a secondary signal alongside PdfMetadataExtraction's
+        // blob-name/content-derived Title/Version — not yet wired into the pipeline's
+        // output (see PdfPreFlight/DocMetadata), just surfaced here for now.
+        _logger.LogDebug(
+            "PdfPreFlight: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}",
+            blobName, meta.PageCount, meta.Title, meta.Author, meta.CreatedAt);
+
         try
         {
             var operation = _client.AnalyzeDocument(
@@ -60,6 +75,32 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         {
             return new PdfFileExtraction([], null, new ExtractionError { DocumentId = blobName, Message = ex.Message });
         }
+    }
+
+    // Step 1: local, free precheck before the paid Document Intelligence call. Runs
+    // PdfPreFlight's size check, then PdfDocumentOpener (structural open/validate —
+    // encrypted/corrupt/empty), then PdfPreFlight's page-count-cap + metadata check on
+    // the now-open document. Each stage can reject on its own, cheapest first, so a
+    // too-large file never gets opened and an unopenable file never gets page-counted.
+    private bool IsPDFValid(
+        string blobName, byte[] pdfBytes,
+        [NotNullWhen(true)]  out DocMetadata?    meta,
+        [NotNullWhen(false)] out ExtractionError? error)
+    {
+        if (!PdfPreFlight.IsPDFSizeOkForDI(pdfBytes, blobName, out error))
+        {
+            meta = null;
+            return false;
+        }
+
+        if (!_opener.TryOpenAndValidate(pdfBytes, blobName, out var pdf, out error))
+        {
+            meta = null;
+            return false;
+        }
+
+        using (pdf)
+            return PdfPreFlight.IsPDFMaxPageOkForDI(pdf, blobName, out meta, out error);
     }
 
     private static List<PdfPageRecord> BuildPageRecords(string blobName, AnalyzeResult analysis, int pageCount, ILogger logger)

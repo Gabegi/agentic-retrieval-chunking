@@ -13,7 +13,7 @@ namespace ProtocolsIndexer.Services;
 // Exception types caught here are PdfPig's own (confirmed via reflection against the
 // referenced 0.1.9 build, not just docs) - anything else falls through to the generic
 // catch and is reported as Unknown rather than mislabeled as a specific cause.
-internal sealed class PdfDocumentOpener
+public sealed class PdfDocumentOpener
 {
     private readonly ILogger _logger;
 
