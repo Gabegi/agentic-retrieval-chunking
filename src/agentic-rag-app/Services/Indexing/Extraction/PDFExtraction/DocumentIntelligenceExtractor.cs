@@ -78,10 +78,10 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     }
 
     // Step 1: local, free precheck before the paid Document Intelligence call. Runs
-    // PdfPreFlight's size check, then PdfDocumentOpener (structural open/validate —
-    // encrypted/corrupt/empty), then PdfPreFlight's page-count-cap + metadata check on
-    // the now-open document. Each stage can reject on its own, cheapest first, so a
-    // too-large file never gets opened and an unopenable file never gets page-counted.
+    // PdfPreFlight.IsPDFSizeOkForDI, then PdfDocumentOpener (structural open/validate —
+    // encrypted/corrupt/empty), then PdfPreFlight.IsPDFMaxPageOkForDI on the now-open
+    // document. Each stage can reject on its own, cheapest first, so a too-large file
+    // never gets opened and an unopenable file never gets page-counted.
     private bool IsPDFValid(
         string blobName, byte[] pdfBytes,
         [NotNullWhen(true)]  out DocMetadata?    meta,

@@ -8,9 +8,10 @@ namespace ProtocolsIndexer.Services;
 // paid analyze call. Both are fixed at the service level regardless of pricing tier -
 // see https://learn.microsoft.com/azure/ai-services/document-intelligence/service-limits
 // ("Adjustable: No" for both max document size and max pages, even on Standard S0).
-// Split into a pre-open size check (CheckSize) and a post-open check (TryValidate) so
-// the caller (DocumentIntelligenceExtractor.CheckPdf) can reject oversized files before
-// ever opening them with PdfDocumentOpener, and never opens a document twice.
+// Split into a pre-open size check (IsPDFSizeOkForDI) and a post-open check
+// (IsPDFMaxPageOkForDI) so the caller (DocumentIntelligenceExtractor.IsPDFValid) can
+// reject oversized files before ever opening them with PdfDocumentOpener, and never
+// opens a document twice.
 public static class PdfPreFlight
 {
     public const long MaxBytes = 500L * 1024 * 1024; // DI hard limit, all paid tiers
