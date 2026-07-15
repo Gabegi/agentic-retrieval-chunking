@@ -168,7 +168,8 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
     // Column-aware markdown table rendering using Document Intelligence's row/column
     // indices — a real pipe table with a header row, unlike the comparison spike's
-    // flat " | " join of every cell in reading order.
+    // flat " | " join of every cell in reading order. Row/column spans are ignored:
+    // a merged cell fills only its anchor slot, which is acceptable for this use.
     private static string RenderMarkdownTable(DocumentTable table)
     {
         if (table.RowCount == 0 || table.ColumnCount == 0) return "";
@@ -178,6 +179,16 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             if (cell.RowIndex < table.RowCount && cell.ColumnIndex < table.ColumnCount)
                 grid[cell.RowIndex, cell.ColumnIndex] = cell.Content?.Trim();
 
+        // DI marks header cells with Kind == ColumnHeader; header rows are assumed
+        // contiguous from the top (covers 0, 1, or multi-row headers). When no cell
+        // carries that kind at all, fall back to treating row 0 as the header so the
+        // output stays a valid markdown table.
+        var headerRowCount = 0;
+        while (headerRowCount < table.RowCount
+               && table.Cells.Any(c => c.RowIndex == headerRowCount && c.Kind == DocumentTableCellKind.ColumnHeader))
+            headerRowCount++;
+        if (headerRowCount == 0) headerRowCount = 1;
+
         var sb = new StringBuilder();
         for (var r = 0; r < table.RowCount; r++)
         {
@@ -186,7 +197,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
                 sb.Append(' ').Append(grid[r, c] ?? "").Append(" |");
             sb.Append('\n');
 
-            if (r == 0)
+            if (r == headerRowCount - 1)
             {
                 sb.Append('|');
                 for (var c = 0; c < table.ColumnCount; c++)
