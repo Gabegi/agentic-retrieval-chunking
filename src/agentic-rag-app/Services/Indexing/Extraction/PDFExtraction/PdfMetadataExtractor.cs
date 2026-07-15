@@ -137,8 +137,5 @@ namespace ProtocolsIndexer.Services
                 PublicationDateRaw = "",
             };
         }
-
-        
-        
     }
 }
