@@ -55,7 +55,9 @@ public class PdfBackendComparisonRunner
             await _container.GetBlobClient(item.Name).DownloadToAsync(ms, ct);
             var bytes = ms.ToArray();
 
-            var rows = _extractors.Select(e => RunOne(e, item.Name, bytes)).ToList();
+            var rows = new List<ComparisonRow>();
+            foreach (var e in _extractors)
+                rows.Add(await RunOneAsync(e, item.Name, bytes, ct));
 
             PrintRow(item.Name, rows);
             foreach (var row in rows)
