@@ -18,10 +18,13 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     private readonly DocumentIntelligenceClient _client;
     private const decimal CostPerPage = 0.001m;
 
+    
+
     public DocumentIntelligenceExtractor(DocumentIntelligenceClient client)
     {
         _client = client;
     }
+
 
     public PdfFileExtraction ExtractPDF(string blobName, byte[] pdfBytes)
     {
