@@ -79,28 +79,31 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
     // Step 1: local, free precheck before the paid Document Intelligence call. Runs
     // PdfPreFlight.IsPDFSizeOkForDI, then PdfDocumentOpener (structural open/validate —
-    // encrypted/corrupt/empty), then PdfPreFlight.IsPDFMaxPageOkForDI on the now-open
-    // document. Each stage can reject on its own, cheapest first, so a too-large file
-    // never gets opened and an unopenable file never gets page-counted.
+    // encrypted/corrupt/malformed), then PdfPreFlight.IsPDFPageCountOkForDI (zero pages,
+    // too many pages) on the now-open document. Each stage can reject on its own,
+    // cheapest first, so a too-large file never gets opened and an unopenable file never
+    // gets page-counted. Metadata is read last, only once every check has passed.
     private bool IsPDFValid(
         string blobName, byte[] pdfBytes,
         [NotNullWhen(true)]  out DocMetadata?    meta,
         [NotNullWhen(false)] out ExtractionError? error)
     {
+        meta = null;
+
         if (!PdfPreFlight.IsPDFSizeOkForDI(pdfBytes, blobName, out error))
-        {
-            meta = null;
             return false;
-        }
 
         if (!_opener.TryOpenAndValidate(pdfBytes, blobName, out var pdf, out error))
-        {
-            meta = null;
             return false;
-        }
 
         using (pdf)
-            return PdfPreFlight.IsPDFMaxPageOkForDI(pdf, blobName, out meta, out error);
+        {
+            if (!PdfPreFlight.IsPDFPageCountOkForDI(pdf, blobName, out error))
+                return false;
+
+            meta = PdfMetadataExtraction.ParseNativeMetadata(pdf);
+            return true;
+        }
     }
 
     private static List<PdfPageRecord> BuildPageRecords(string blobName, AnalyzeResult analysis, int pageCount, ILogger logger)

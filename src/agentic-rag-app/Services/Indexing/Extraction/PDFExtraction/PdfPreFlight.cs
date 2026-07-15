@@ -8,10 +8,11 @@ namespace ProtocolsIndexer.Services;
 // paid analyze call. Both are fixed at the service level regardless of pricing tier -
 // see https://learn.microsoft.com/azure/ai-services/document-intelligence/service-limits
 // ("Adjustable: No" for both max document size and max pages, even on Standard S0).
-// Split into a pre-open size check (IsPDFSizeOkForDI) and a post-open check
-// (IsPDFMaxPageOkForDI) so the caller (DocumentIntelligenceExtractor.IsPDFValid) can
-// reject oversized files before ever opening them with PdfDocumentOpener, and never
-// opens a document twice.
+// Split into a pre-open size check (IsPDFSizeOkForDI) and a post-open page-count check
+// (IsPDFPageCountOkForDI, both zero and too-many-pages) so the caller
+// (DocumentIntelligenceExtractor.IsPDFValid) can reject oversized files before ever
+// opening them with PdfDocumentOpener. Knows nothing about metadata - that's
+// PdfMetadataExtraction's job entirely.
 public static class PdfPreFlight
 {
     public const long MaxBytes = 500L * 1024 * 1024; // DI hard limit, all paid tiers
@@ -40,14 +41,16 @@ public static class PdfPreFlight
         return true;
     }
 
-    public static bool IsPDFMaxPageOkForDI(
-        PdfDocument pdf, string blobName,
-        [NotNullWhen(true)]  out DocMetadata?    meta,
-        [NotNullWhen(false)] out ExtractionError? error)
+    public static bool IsPDFPageCountOkForDI(PdfDocument pdf, string blobName, [NotNullWhen(false)] out ExtractionError? error)
     {
+        if (pdf.NumberOfPages == 0)
+        {
+            error = new ExtractionError { DocumentId = blobName, Message = "PDF contains zero pages.", Reason = PdfOpenFailureReason.EmptyDocument };
+            return false;
+        }
+
         if (pdf.NumberOfPages > MaxPages)
         {
-            meta  = null;
             error = new ExtractionError
             {
                 DocumentId = blobName,
@@ -57,22 +60,7 @@ public static class PdfPreFlight
             return false;
         }
 
-        var info = pdf.Information;
-        meta = new DocMetadata(
-            Title:     string.IsNullOrWhiteSpace(info.Title)  ? null : info.Title,
-            Author:    string.IsNullOrWhiteSpace(info.Author) ? null : info.Author,
-            CreatedAt: TryParsePdfDate(info.CreationDate),
-            PageCount: pdf.NumberOfPages);
         error = null;
         return true;
-    }
-
-    private static DateTimeOffset? TryParsePdfDate(string? raw)
-    {
-        // PDF dates look like D:20240115093000+01'00' — parse defensively, never throw.
-        if (string.IsNullOrEmpty(raw)) return null;
-        var s = raw.StartsWith("D:") ? raw[2..] : raw;
-        return DateTimeOffset.TryParseExact(s[..Math.Min(14, s.Length)], "yyyyMMddHHmmss",
-            null, System.Globalization.DateTimeStyles.AssumeUniversal, out var dt) ? dt : null;
     }
 }

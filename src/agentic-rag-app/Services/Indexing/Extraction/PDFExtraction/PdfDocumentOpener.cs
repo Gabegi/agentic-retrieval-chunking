@@ -34,15 +34,6 @@ public sealed class PdfDocumentOpener
             //  PdfPig parses the byte stream: reads the PDF header, cross-reference table/trailer, decodes the document catalog and page tree, etc.
             opened = PdfDocument.Open(pdfBytes);
 
-            // checks # of pages
-            if (opened.NumberOfPages == 0)
-            {
-                opened.Dispose();
-                pdf   = null;
-                error = OpenError(blobName, PdfOpenFailureReason.EmptyDocument, "PDF contains zero pages.");
-                return false;
-            }
-
             _logger.LogInformation(
                 "Opened PDF '{Blob}': {Pages} page(s), version {Version}",
                 blobName, opened.NumberOfPages, opened.Version);
