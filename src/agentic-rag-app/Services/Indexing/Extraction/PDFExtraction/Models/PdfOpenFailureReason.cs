@@ -10,4 +10,7 @@ public enum PdfOpenFailureReason
     MalformedFormat,  // PdfDocumentFormatException - corrupt header, broken xref, malformed objects
     EmptyDocument,    // opened fine but has zero pages
     NoReadablePages,  // opened fine but every page failed extraction
+    EmptyFile,        // 0-byte input - never reaches PdfPig (PdfPreFlight)
+    TooLarge,         // exceeds Document Intelligence's max document size (PdfPreFlight)
+    TooManyPages,     // exceeds Document Intelligence's max pages per analyze call (PdfPreFlight)
 }

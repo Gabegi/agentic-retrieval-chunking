@@ -7,7 +7,9 @@ using UglyToad.PdfPig.Exceptions;
 
 namespace ProtocolsIndexer.Services;
 
-// Step 1 of PdfPigExtractor: open the raw bytes & structurally validate the document.
+// Opens the raw bytes with PdfPig and structurally validates the document — step 1 of
+// PdfPigExtractor's own pipeline, and reused by PdfPreFlight to gate the Document
+// Intelligence backend before it spends a paid analyze call on an unopenable file.
 // Exception types caught here are PdfPig's own (confirmed via reflection against the
 // referenced 0.1.9 build, not just docs) - anything else falls through to the generic
 // catch and is reported as Unknown rather than mislabeled as a specific cause.
