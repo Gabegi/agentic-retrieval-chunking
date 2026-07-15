@@ -277,6 +277,56 @@ namespace ProtocolsIndexer.Services
             return result;
         }
 
+        // Checkboxes/radio buttons: DocumentSelectionMark has no paragraph of its own - DI
+        // treats it as a non-text glyph, so it never appears in analysis.Paragraphs and
+        // (unlike tables) nothing upstream of this method reads analysis.Pages[].SelectionMarks
+        // at all, meaning "which option was checked" is silently dropped from every page
+        // today. DI gives no direct link from a mark to its label, so the nearest paragraph
+        // on the same page (by absolute span-offset distance) is used as a best-effort
+        // label. Rendered as its own "Selected options" block appended after a page's
+        // regular content - not spliced into the paragraph flow - so a wrong nearest-
+        // neighbor guess can't silently corrupt unrelated prose.
+        private static Dictionary<int, string> BuildSelectionMarkBlocks(AnalyzeResult analysis)
+        {
+            var result = new Dictionary<int, string>();
+
+            var paragraphsByPage = (analysis.Paragraphs ?? [])
+                .Select(p => (
+                    Offset: p.Spans is { Count: > 0 } ps ? (int?)ps[0].Offset : null,
+                    PageNumber: p.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
+                    p.Content))
+                .Where(p => p.Offset is not null && p.PageNumber > 0)
+                .GroupBy(p => p.PageNumber)
+                .ToDictionary(g => g.Key, g => g.OrderBy(p => p.Offset).ToList());
+
+            foreach (var page in analysis.Pages ?? [])
+            {
+                if (page.SelectionMarks is not { Count: > 0 } marks) continue;
+
+                var lines = new List<string>();
+                foreach (var mark in marks.OrderBy(m => m.Span.Offset))
+                {
+                    var label = "(unlabeled)";
+                    if (paragraphsByPage.TryGetValue(page.PageNumber, out var candidates) && candidates.Count > 0)
+                    {
+                        var nearestText = candidates
+                            .OrderBy(c => Math.Abs(c.Offset!.Value - mark.Span.Offset))
+                            .First().Content?.Trim();
+
+                        if (!string.IsNullOrEmpty(nearestText))
+                            label = nearestText.Length > 100 ? nearestText[..100] + "…" : nearestText;
+                    }
+
+                    var box = mark.State == DocumentSelectionMarkState.Selected ? "[x]" : "[ ]";
+                    lines.Add($"- {box} {label}");
+                }
+
+                result[page.PageNumber] = "**Selected options:**\n" + string.Join("\n", lines);
+            }
+
+            return result;
+        }
+
         // Headings/sections: paragraphs DI classified with a structural role (title,
         // sectionHeading, pageHeader, footnote, ...) rather than plain body text.
         public IReadOnlyList<Heading> GetHeadings(AnalyzeResult result) =>
