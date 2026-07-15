@@ -194,7 +194,8 @@ namespace ProtocolsIndexer.Services
             while (nextTableIndex < tablesByOffset.Count)
                 EmitTable(tablesByOffset[nextTableIndex++].Table);
 
-            var breadcrumbByPage = BuildSectionBreadcrumbs(bookmarks, pageCount);
+            var breadcrumbByPage     = BuildSectionBreadcrumbs(bookmarks, pageCount);
+            var selectionBlockByPage = BuildSelectionMarkBlocks(analysis);
 
             // Second pass: carry the most recent heading into a page whose own content
             // doesn't start with one, so every page still carries its section identity —
@@ -216,6 +217,9 @@ namespace ProtocolsIndexer.Services
 
                 if (breadcrumbByPage.TryGetValue(pageNum, out var breadcrumb))
                     segments = [breadcrumb, .. segments];
+
+                if (selectionBlockByPage.TryGetValue(pageNum, out var selectionBlock))
+                    segments = [.. segments, selectionBlock];
 
                 pages.Add(new PdfPageRecord
                 {
