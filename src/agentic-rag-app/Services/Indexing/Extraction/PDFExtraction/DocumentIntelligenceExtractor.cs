@@ -37,12 +37,12 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         if (!PdfDocumentValidator.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var validationError))
             return new PdfFileExtraction([], null, validationError);
 
-        // ParseNativeMetadata takes ownership of pdf's lifetime (disposes it internally)
+        // Step 2: ParseNativeMetadata takes ownership of pdf's lifetime (disposes it internally)
         // and reads everything PdfPig can offer beyond DI: native Title/Author/
         // CreationDate plus the outline/bookmark tree.
         var nativeMetadata = PdfMetadataExtractor.ParseNativeMetadata(pdf, blobName, _logger);
 
-        // Step 2: submit to Document Intelligence's prebuilt-layout model and assemble
+        // Step 3: submit to Document Intelligence's prebuilt-layout model and assemble
         // pages/structural metadata — lives in PDFStructureExtractor.
         var outcome = await _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName, nativeMetadata, ct);
         if (!outcome.Ok)
