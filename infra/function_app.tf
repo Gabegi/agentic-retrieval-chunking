@@ -76,17 +76,21 @@ resource "azurerm_windows_function_app" "indexer" {
     # explicitly, or it falls back to public DNS and hits the storage
     # account's public endpoint, which public_network_access_enabled = false
     # on azurerm_storage_account.func then rejects.
-    "ProtocolsStorage__blobServiceUri"         = azurerm_storage_account.data.primary_blob_endpoint
-    "STORAGE_ACCOUNT_URL"                      = azurerm_storage_account.data.primary_blob_endpoint
-    "SEARCH_ENDPOINT"                          = "https://${azurerm_search_service.main.name}.search.windows.net"
-    "OPENAI_ENDPOINT"                          = data.azurerm_cognitive_account.foundry.endpoint
-    "OPENAI_EMBEDDING_DEPLOYMENT"              = var.openai_embedding_deployment
-    "OPENAI_GPT_DEPLOYMENT"                    = var.openai_gpt_deployment
-    "OPENAI_GPT_MODEL_NAME"                    = var.openai_gpt_model_name
-    "OPENAI_EXTRACTION_DEPLOYMENT"             = var.openai_extraction_deployment
-    "SEARCH_INDEX_NAME"                        = var.search_index_name
-    "KNOWLEDGE_SOURCE_NAME"                    = var.knowledge_source_name
-    "KNOWLEDGE_BASE_NAME"                      = var.knowledge_base_name
+    "ProtocolsStorage__blobServiceUri" = azurerm_storage_account.data.primary_blob_endpoint
+    "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.data.primary_blob_endpoint
+    "SEARCH_ENDPOINT"                  = "https://${azurerm_search_service.main.name}.search.windows.net"
+    "OPENAI_ENDPOINT"                  = data.azurerm_cognitive_account.foundry.endpoint
+    "OPENAI_EMBEDDING_DEPLOYMENT"      = var.openai_embedding_deployment
+    "OPENAI_GPT_DEPLOYMENT"            = var.openai_gpt_deployment
+    "OPENAI_GPT_MODEL_NAME"            = var.openai_gpt_model_name
+    "OPENAI_EXTRACTION_DEPLOYMENT"     = var.openai_extraction_deployment
+    # Same account/endpoint as OPENAI_ENDPOINT above (document_intelligence.tf) -
+    # setting this is what flips DocumentIntelligenceExtractor from unregistered
+    # to active in program.cs (config.DocumentIntelligenceEndpoint gate).
+    "DOCUMENT_INTELLIGENCE_ENDPOINT" = data.azurerm_cognitive_account.foundry.endpoint
+    "SEARCH_INDEX_NAME"              = var.search_index_name
+    "KNOWLEDGE_SOURCE_NAME"          = var.knowledge_source_name
+    "KNOWLEDGE_BASE_NAME"            = var.knowledge_base_name
   }
 
   tags = local.common_tags
@@ -208,8 +212,8 @@ locals {
 }
 
 resource "azurerm_role_assignment" "func" {
-  for_each              = local.func_role_assignments
-  scope                 = each.value.scope
-  role_definition_name  = each.value.role
-  principal_id          = azurerm_windows_function_app.indexer.identity[0].principal_id
+  for_each             = local.func_role_assignments
+  scope                = each.value.scope
+  role_definition_name = each.value.role
+  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
 }
