@@ -101,13 +101,7 @@ namespace ProtocolsIndexer.Services
             var analysis  = analyzeOutcome.Result!;
             var pageCount = analysis.Pages?.Count ?? 0;
 
-            // Preserve newlines so multiline regexes in PdfMetadataExtractor anchor correctly.
-            var firstPagesText = string.Join("\n",
-                analysis.Paragraphs?
-                    .Where(p => (p.BoundingRegions is { Count: > 0 } br0 ? br0[0].PageNumber : 0) <= 2)
-                    .Select(p => p.Content) ?? []);
-
-            var index = PdfMetadataExtractor.Parse(blobName, firstPagesText);
+            var index = PdfMetadataExtractor.Parse(blobName, nativeMetadata.Title);
             var pages = BuildMarkdownPages(blobName, analysis, pageCount, nativeMetadata.Bookmarks);
 
             var metadata = new PdfStructureMetadata(
