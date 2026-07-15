@@ -35,16 +35,16 @@ namespace ProtocolsIndexer.Services
     // Everything that reads structure out of a Document Intelligence AnalyzeResult (plus
     // PdfPig's bookmark tree) for the DocumentIntelligence backend - the paid analyze
     // call, markdown page assembly, and the DI-vs-PdfPig comparison's capability probes.
-    // AnalyzePDFAsync is the only paid call (with retry on 429); everything else is a
-    // free, synchronous read of the resulting AnalyzeResult. Call AnalyzePDFAsync once per
-    // document, then feed its result into BuildMarkdownPages and/or as many Get* methods
-    // as you need.
+    // ExtractPdfStructureAsync is the only paid call (with retry on 429); everything else
+    // is a free, synchronous read of the resulting AnalyzeResult. Call
+    // ExtractPdfStructureAsync once per document, then feed its result into
+    // BuildMarkdownPages and/or as many Get* methods as you need.
     //
     // GetBookmarks is the exception to "everything is DI": the outline/bookmark tree is
     // container-level structure DI has no concept of, under any feature flag or tier. It
     // stays on PdfPig and takes an already-open PdfDocument so it can reuse the instance
-    // opened earlier in the pipeline (e.g. by PdfPreFlight.TryOpenAndValidate) instead of
-    // re-parsing.
+    // opened earlier in the pipeline (e.g. by PdfDocumentValidator.TryOpenAndValidate)
+    // instead of re-parsing.
     public sealed class PDFStructureExtractor
     {
         private static readonly TimeSpan[] BackoffDelays =
