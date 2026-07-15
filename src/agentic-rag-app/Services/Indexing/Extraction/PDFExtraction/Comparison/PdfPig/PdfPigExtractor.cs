@@ -7,7 +7,7 @@ namespace ProtocolsIndexer.Services;
 
 // Orchestrates the PdfPig backend's per-file pipeline: open/validate -> baseline ->
 // decoration detection -> metadata text -> per-page content extraction. Each step
-// lives in its own class alongside this one (see PdfDocumentOpener,
+// lives in its own class alongside this one (see PdfPreFlight.TryOpenAndValidate,
 // PdfDocumentBaselineCalculator, PdfDecorationDetector, PdfMetadataTextBuilder,
 // PdfPageContentExtractor) - this class just wires them together and owns the parts
 // that are genuinely about one file's overall outcome (the page loop, warnings/errors,
@@ -23,7 +23,6 @@ public class PdfPigExtractor : IPdfExtractor
 
     private readonly ILogger<PdfPigExtractor> _logger;
 
-    private readonly PdfDocumentOpener            _opener;
     private readonly PdfDocumentBaselineCalculator _baselineCalculator;
     private readonly PdfDecorationDetector        _decorationDetector;
     private readonly RawTextExtractor       _metadataTextBuilder;
@@ -32,7 +31,6 @@ public class PdfPigExtractor : IPdfExtractor
     {
         _logger = logger ?? NullLogger<PdfPigExtractor>.Instance;
 
-        _opener              = new PdfDocumentOpener(_logger);
         _baselineCalculator  = new PdfDocumentBaselineCalculator(_logger, knownSections);
         _decorationDetector  = new PdfDecorationDetector(_logger);
         _metadataTextBuilder = new RawTextExtractor(_logger);
@@ -43,7 +41,7 @@ public class PdfPigExtractor : IPdfExtractor
         var errors   = new List<ExtractionError>();
         var warnings = new List<ExtractionWarning>();
 
-        if (!_opener.TryOpenAndValidate(pdfBytes, blobName, out var pdf, out var openError))
+        if (!PdfPreFlight.TryOpenAndValidate(pdfBytes, blobName, _logger, out var pdf, out var openError))
             return new PdfFileExtraction([], null, openError);
 
         using (pdf)

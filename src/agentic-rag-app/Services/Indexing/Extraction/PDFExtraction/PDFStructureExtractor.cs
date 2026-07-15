@@ -43,7 +43,8 @@ namespace ProtocolsIndexer.Services
     // GetBookmarks is the exception to "everything is DI": the outline/bookmark tree is
     // container-level structure DI has no concept of, under any feature flag or tier. It
     // stays on PdfPig and takes an already-open PdfDocument so it can reuse the instance
-    // opened earlier in the pipeline (e.g. by PdfDocumentOpener) instead of re-parsing.
+    // opened earlier in the pipeline (e.g. by PdfPreFlight.TryOpenAndValidate) instead of
+    // re-parsing.
     public sealed class PDFStructureExtractor
     {
         private static readonly TimeSpan[] BackoffDelays =
@@ -67,7 +68,7 @@ namespace ProtocolsIndexer.Services
         // client was constructed - this loop is why that gap doesn't just surface as an
         // unhandled exception. Any other failure returns Ok=false with a typed reason
         // instead of throwing.
-        public async Task<AnalyzeOutcome> AnalyzePDFAsync(byte[] pdfBytes, string blobName, CancellationToken ct = default)
+        public async Task<AnalyzeOutcome> AnalyzePDFStructureAsync(byte[] pdfBytes, string blobName, CancellationToken ct = default)
         {
             for (var attempt = 0; ; attempt++)
             {

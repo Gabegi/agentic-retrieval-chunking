@@ -23,13 +23,11 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     private const decimal CostPerPage = 0.01m;
 
     private readonly ILogger<DocumentIntelligenceExtractor> _logger;
-    private readonly PdfDocumentOpener                       _opener;
     private readonly PDFStructureExtractor                   _structureExtractor;
 
     public DocumentIntelligenceExtractor(DocumentIntelligenceClient client, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
         _logger             = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
-        _opener             = new PdfDocumentOpener(_logger);
         _structureExtractor = new PDFStructureExtractor(client, _logger);
     }
 
@@ -38,8 +36,18 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     {
         // Step 1: local, free structural check — rejects oversized/corrupt/encrypted/
         // too-many-page files before spending a paid Document Intelligence call on them.
-        if (!IsPDFValid(blobName, pdfBytes, out var meta, out var bookmarks, out var checkError))
+        // Metadata and bookmarks are read here too, inside the same `using` that disposes
+        // the PdfDocument, since nothing later in the pipeline keeps it open.
+        if (!PdfPreFlight.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var checkError))
             return new PdfFileExtraction([], null, checkError);
+
+        DocMetadata meta;
+        IReadOnlyList<Bookmark>? bookmarks;
+        using (pdf)
+        {
+            meta      = PdfMetadataExtraction.ParseNativeMetadata(pdf);
+            bookmarks = _structureExtractor.GetBookmarks(pdf, blobName);
+        }
 
         // Native PDF metadata is a secondary signal alongside PdfMetadataExtraction's
         // blob-name/content-derived Title/Version — not yet wired into the pipeline's
@@ -52,7 +60,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         // extraction — the paid call and its retry/error handling — lives in
         // PDFStructureExtractor; this pipeline is synchronous end-to-end, so the async
         // call is awaited inline rather than threading async through IPdfExtractor).
-        var outcome = _structureExtractor.AnalyzePDFAsync(pdfBytes, blobName).GetAwaiter().GetResult();
+        var outcome = _structureExtractor.AnalyzePDFStructureAsync(pdfBytes, blobName).GetAwaiter().GetResult();
         if (!outcome.Ok)
             return new PdfFileExtraction([], null, outcome.Error);
 
@@ -73,9 +81,9 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     }
 
     // Step 1: local, free precheck before the paid Document Intelligence call. Runs
-    // PdfPreFlight.IsPDFSizeOkForDI, then PdfDocumentOpener (structural open/validate —
-    // encrypted/corrupt/malformed), then PdfPreFlight.IsPDFPageCountOkForDI (zero pages,
-    // too many pages) on the now-open document. Each stage can reject on its own,
+    // PdfPreFlight.IsPDFSizeOkForDI, then PdfPreFlight.TryOpenAndValidate (structural
+    // open/validate — encrypted/corrupt/malformed), then PdfPreFlight.IsPDFPageCountOkForDI
+    // (zero pages, too many pages) on the now-open document. Each stage can reject on its own,
     // cheapest first, so a too-large file never gets opened and an unopenable file never
     // gets page-counted. Metadata and bookmarks are read last, only once every check has
     // passed — bookmarks specifically must be read here, inside the same `using` that
@@ -92,7 +100,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         if (!PdfPreFlight.IsPDFSizeOkForDI(pdfBytes, blobName, out error))
             return false;
 
-        if (!_opener.TryOpenAndValidate(pdfBytes, blobName, out var pdf, out error))
+        if (!PdfPreFlight.TryOpenAndValidate(pdfBytes, blobName, _logger, out var pdf, out error))
             return false;
 
         using (pdf)
