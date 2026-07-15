@@ -38,7 +38,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     {
         // Step 1: local, free structural check — rejects oversized/corrupt/encrypted/
         // too-many-page files before spending a paid Document Intelligence call on them.
-        if (!IsPDFValid(blobName, pdfBytes, out var meta, out var checkError))
+        if (!IsPDFValid(blobName, pdfBytes, out var meta, out var bookmarks, out var checkError))
             return new PdfFileExtraction([], null, checkError);
 
         // Native PDF metadata is a secondary signal alongside PdfMetadataExtraction's
