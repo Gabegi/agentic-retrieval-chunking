@@ -92,7 +92,7 @@ namespace ProtocolsIndexer.Services
         // same AnalyzeResult. Ok=false covers the paid call's failure with a typed
         // ExtractionError.
         public async Task<PdfStructureExtraction> ExtractPdfStructureAsync(
-            byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, IReadOnlyList<Bookmark>? bookmarks, CancellationToken ct = default)
+            byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
             var analyzeOutcome = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
             if (!analyzeOutcome.Ok)
@@ -108,7 +108,7 @@ namespace ProtocolsIndexer.Services
                     .Select(p => p.Content) ?? []);
 
             var index = PdfMetadataExtractor.Parse(blobName, firstPagesText);
-            var pages = BuildMarkdownPages(blobName, analysis, pageCount, bookmarks);
+            var pages = BuildMarkdownPages(blobName, analysis, pageCount, nativeMetadata.Bookmarks);
 
             var metadata = new PdfStructureMetadata(
                 nativeMetadata,

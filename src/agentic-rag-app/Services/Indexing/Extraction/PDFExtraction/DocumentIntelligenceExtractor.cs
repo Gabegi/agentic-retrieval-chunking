@@ -41,11 +41,11 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         // and reads everything PdfPig can offer beyond DI: native Title/Author/
         // CreationDate plus the outline/bookmark tree.
         var nativeMetadata = PdfMetadataExtractor.ParseNativeMetadata(pdf, blobName, _logger);
-        var bookmarks       = nativeMetadata.Bookmarks;
+        
 
         // Step 2: submit to Document Intelligence's prebuilt-layout model and assemble
         // pages/structural metadata — lives in PDFStructureExtractor.
-        var outcome = await _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName, nativeMetadata, bookmarks, ct);
+        var outcome = await _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName, nativeMetadata, nativeMetadata.Bookmarks, ct);
         if (!outcome.Ok)
             return new PdfFileExtraction([], null, outcome.Error);
 
