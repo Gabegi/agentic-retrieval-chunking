@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using ProtocolsIndexer.Models;
-using UglyToad.PdfPig;
 
 namespace ProtocolsIndexer.Services;
 
@@ -56,28 +55,5 @@ internal static class PdfMetadataExtraction
             Version            = version,
             PublicationDateRaw = publicationDateRaw,
         };
-    }
-
-    // Native PDF Info-dictionary metadata (Title/Author/CreationDate) — distinct from
-    // Parse() above, which derives Zenya's own Title/Version from the blob name and
-    // first-page text. Used by DocumentIntelligenceExtractor, on an already-open
-    // PdfDocument, so it never opens the file a second time.
-    public static DocMetadata ParseNativeMetadata(PdfDocument pdf)
-    {
-        var info = pdf.Information;
-        return new DocMetadata(
-            Title:     string.IsNullOrWhiteSpace(info.Title)  ? null : info.Title,
-            Author:    string.IsNullOrWhiteSpace(info.Author) ? null : info.Author,
-            CreatedAt: TryParsePdfDate(info.CreationDate),
-            PageCount: pdf.NumberOfPages);
-    }
-
-    private static DateTimeOffset? TryParsePdfDate(string? raw)
-    {
-        // PDF dates look like D:20240115093000+01'00' — parse defensively, never throw.
-        if (string.IsNullOrEmpty(raw)) return null;
-        var s = raw.StartsWith("D:") ? raw[2..] : raw;
-        return DateTimeOffset.TryParseExact(s[..Math.Min(14, s.Length)], "yyyyMMddHHmmss",
-            null, System.Globalization.DateTimeStyles.AssumeUniversal, out var dt) ? dt : null;
     }
 }

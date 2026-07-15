@@ -39,8 +39,8 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         IReadOnlyList<Bookmark>? bookmarks;
         using (pdf)
         {
-            nativeMetadata = PdfMetadataExtraction.ParseNativeMetadata(pdf);
-            bookmarks      = _structureExtractor.GetBookmarks(pdf, blobName);
+            nativeMetadata = PdfDocumentMetadataReader.ParseNativeMetadata(pdf);
+            bookmarks      = PdfDocumentMetadataReader.GetBookmarks(pdf, blobName, _logger);
         }
 
         // Native PDF metadata is a secondary signal alongside PdfMetadataExtraction's

@@ -4,8 +4,6 @@ using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 using System.Security.Cryptography;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.Outline;
 
 namespace ProtocolsIndexer.Models
 {
@@ -24,8 +22,6 @@ namespace ProtocolsIndexer.Models
     public sealed record TableInfo(int RowCount, int ColumnCount, IReadOnlyList<TableCellInfo> Cells, int Offset, int PageNumber);
 
     public sealed record SelectionMarkInfo(int PageNumber, string State, int Offset);
-
-    public sealed record Bookmark(string Title, int Level, int? PageNumber);
 
     // Raw structural ingredients for one document - not chunk metadata itself. Chunk
     // boundaries don't exist at extraction time, so whatever builds ChunkMetadata later
@@ -59,19 +55,14 @@ namespace ProtocolsIndexer.Models
 namespace ProtocolsIndexer.Services
 {
     // Everything the DocumentIntelligence backend needs from one PDF file except
-    // preflight: the one paid analyze call (with retry on 429), markdown page assembly,
-    // and every structural capability probe (headings/tables/page dimensions/selection
-    // marks) — bundled for whatever builds ChunkMetadata later. Preflight
-    // (PdfDocumentValidator.IsPDFValid) stays in DocumentIntelligenceExtractor, since it
-    // owns the PdfDocument's lifetime - it reads nativeMetadata/bookmarks off that
-    // PdfDocument before disposing it and passes both into ExtractPdfStructureAsync,
-    // which never opens the file itself.
-    //
-    // GetBookmarks is the exception to "everything is DI": the outline/bookmark tree is
-    // container-level structure DI has no concept of, under any feature flag or tier. It
-    // stays on PdfPig and takes an already-open PdfDocument - called by
-    // DocumentIntelligenceExtractor, not by this class, since that's where the open
-    // PdfDocument lives.
+    // preflight and PdfPig-native reads: the one paid analyze call (with retry on 429),
+    // markdown page assembly, and every DI structural capability probe (headings/tables/
+    // page dimensions/selection marks) — bundled for whatever builds ChunkMetadata later.
+    // Preflight (PdfDocumentValidator.IsPDFValid) and the PdfPig-only reads
+    // (PdfDocumentMetadataReader.ParseNativeMetadata/GetBookmarks) stay in
+    // DocumentIntelligenceExtractor, since it owns the PdfDocument's lifetime and both
+    // need that object open; this class only ever sees the raw bytes and the results of
+    // those reads, passed in as parameters.
     public sealed class PDFStructureExtractor
     {
         // prebuilt-layout is billed at $10 / 1,000 pages. Verify against current
@@ -308,8 +299,8 @@ namespace ProtocolsIndexer.Services
         // bookmarks in page order: each entry truncates the stack to its own Level before
         // pushing, so a later top-level bookmark correctly drops any deeper section left
         // over from the previous chapter. Entries with no resolvable PageNumber (see
-        // PDFStructureExtractor.TryGetPageNumber) are skipped - they can't anchor a page
-        // range and would otherwise corrupt the stack with an untethered entry.
+        // PdfDocumentMetadataReader.TryGetPageNumber) are skipped - they can't anchor a
+        // page range and would otherwise corrupt the stack with an untethered entry.
         private static Dictionary<int, string> BuildSectionBreadcrumbs(IReadOnlyList<Bookmark>? bookmarks, int pageCount)
         {
             var result = new Dictionary<int, string>();
@@ -446,56 +437,6 @@ namespace ProtocolsIndexer.Services
                 .SelectMany(s => s.Spans)
                 .Select(span => result.Content.Substring(span.Offset, span.Length))
                 .ToList();
-
-        // Bookmarks/outline tree - PdfPig only, best-effort. No DI feature returns this
-        // under any tier, but unlike everything else in this class, PdfPig's own
-        // bookmark-reading code can throw PdfDocumentFormatException mid-tree-walk on a
-        // malformed outline node (BookmarksProvider.ReadBookmarksRecursively) despite the
-        // Try-prefixed name on TryGetBookmarks - it doesn't fully uphold the no-throw
-        // contract that name implies. Bookmarks are a nice-to-have here, not a hard
-        // requirement, so any failure is caught and logged rather than allowed to fail the
-        // whole extraction.
-        //
-        // null = couldn't get bookmarks (PdfPig error) - distinct from an empty list,
-        // which means extraction ran fine and this PDF genuinely has none. Callers should
-        // treat null as "skip bookmarks for this document," not as a reason to fail it.
-        public IReadOnlyList<Bookmark>? GetBookmarks(PdfDocument pdf, string blobName)
-        {
-            try
-            {
-                if (!pdf.TryGetBookmarks(out var bookmarks))
-                {
-                    _logger.LogInformation("No bookmarks/outline found in '{Blob}'.", blobName);
-                    return Array.Empty<Bookmark>();
-                }
-
-                return bookmarks.GetNodes()
-                    .Select(node => new Bookmark(node.Title, node.Level, TryGetPageNumber(node)))
-                    .ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Bookmark extraction failed for '{Blob}'; continuing without bookmarks.", blobName);
-                return null;
-            }
-        }
-
-        // DocumentBookmarkNode.PageNumber resolves to a page in *this* file.
-        // ExternalBookmarkNode inherits DocumentBookmarkNode (confirmed by reflecting the
-        // pinned 0.1.9 assembly - it is not a sibling type) and its PageNumber is a page in
-        // the *external* file it points at (see its added FileName property) - not a page
-        // in this document, so it must be excluded explicitly rather than caught by the
-        // DocumentBookmarkNode pattern match. PdfPig's own #736 page-number-defaults-to-0
-        // fix (PR #930) isn't in 0.1.9 (that's the 0.1.9->0.1.10 diff), so an unresolvable
-        // destination on this version may omit the node from the tree entirely rather than
-        // reliably reporting 0 - the >0 check below is a best-effort guard for the cases
-        // that do surface a value, not a substitute for that fix.
-        private static int? TryGetPageNumber(BookmarkNode node) =>
-            node is ExternalBookmarkNode
-                ? null
-                : node is DocumentBookmarkNode doc && doc.PageNumber > 0
-                    ? doc.PageNumber
-                    : null;
 
         // Column-aware markdown table rendering using Document Intelligence's row/column
         // indices — a real pipe table with a header row, unlike the comparison spike's
