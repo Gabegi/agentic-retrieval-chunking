@@ -60,8 +60,8 @@ internal static class PdfMetadataExtraction
 
     // Native PDF Info-dictionary metadata (Title/Author/CreationDate) — distinct from
     // Parse() above, which derives Zenya's own Title/Version from the blob name and
-    // first-page text. Used by PdfPreFlight, on an already-open PdfDocument, so it
-    // never opens the file a second time.
+    // first-page text. Used by DocumentIntelligenceExtractor, on an already-open
+    // PdfDocument, so it never opens the file a second time.
     public static DocMetadata ParseNativeMetadata(PdfDocument pdf)
     {
         var info = pdf.Information;
