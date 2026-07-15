@@ -12,22 +12,48 @@ namespace ProtocolsIndexer.Models
     // Small, capability-scoped return types for PDFStructureExtractor - one shape
     // per Get* method, so callers only pull in the fields relevant to what they asked for.
 
-    public sealed record Heading(string Content, string Role);
+    // Offset is the join key for whatever builds ChunkMetadata later (position in the
+    // single global result.Content string every span indexes into) - PageNumber is for
+    // display/debugging only, since it can't order two headings on the same page.
+    public sealed record Heading(string Content, string Role, int Offset, int PageNumber);
 
     public sealed record PageDimensions(int PageNumber, double? Width, double? Height, string Unit);
 
     public sealed record TableCellInfo(int RowIndex, int ColumnIndex, string Kind, string Content);
 
-    public sealed record TableInfo(int RowCount, int ColumnCount, IReadOnlyList<TableCellInfo> Cells);
+    public sealed record TableInfo(int RowCount, int ColumnCount, IReadOnlyList<TableCellInfo> Cells, int Offset, int PageNumber);
 
-    public sealed record SelectionMarkInfo(int PageNumber, string State);
+    public sealed record SelectionMarkInfo(int PageNumber, string State, int Offset);
 
     public sealed record Bookmark(string Title, int Level, int? PageNumber);
+
+    // Raw structural ingredients for one document - not chunk metadata itself. Chunk
+    // boundaries don't exist at extraction time, so whatever builds ChunkMetadata later
+    // (by joining on Heading/TableInfo/SelectionMarkInfo's Offset) does that joining -
+    // this record only bundles what extraction already knows for free.
+    public sealed record PdfStructureMetadata(
+        DocMetadata NativeMetadata,
+        IReadOnlyList<Heading> Headings,
+        IReadOnlyList<Bookmark>? Bookmarks,
+        IReadOnlyList<TableInfo> Tables,
+        IReadOnlyList<PageDimensions> PageDimensions,
+        IReadOnlyList<SelectionMarkInfo> SelectionMarks);
 
     // Result of the one paid DI call. Ok=false carries a typed ExtractionError instead of
     // an unhandled exception, so callers can branch on Reason (Throttled is worth a retry
     // upstream; DiServiceError probably isn't).
     public sealed record AnalyzeOutcome(bool Ok, AnalyzeResult? Result, ExtractionError? Error);
+
+    // Full result of ExtractPdfStructureAsync - the one call DocumentIntelligenceExtractor
+    // makes. Ok=false covers every failure point (preflight, the paid call) with a single
+    // typed ExtractionError, same Ok/Error shape as AnalyzeOutcome one level up.
+    public sealed record PdfStructureExtraction(
+        bool Ok,
+        IReadOnlyList<PdfPageRecord>? Pages,
+        PdfIndexRecord? Index,
+        PdfStructureMetadata? Metadata,
+        decimal? EstimatedCostUsd,
+        ExtractionError? Error);
 }
 
 namespace ProtocolsIndexer.Services
