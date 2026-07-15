@@ -36,7 +36,14 @@ public class PdfPigExtractor : IPdfExtractor
         _metadataTextBuilder = new RawTextExtractor(_logger);
     }
 
-    public PdfFileExtraction ExtractPDF(string blobName, byte[] pdfBytes)
+    // No real async work in this backend (PdfPig is fully synchronous) - no async keyword
+    // to avoid a CS1998 "lacks await" warning, just wrapping the existing result so this
+    // satisfies IPdfExtractor's signature, which DocumentIntelligenceExtractor needs async
+    // for (real network I/O in its analyze call).
+    public Task<PdfFileExtraction> ExtractPDFAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default) =>
+        Task.FromResult(ExtractPDF(blobName, pdfBytes));
+
+    private PdfFileExtraction ExtractPDF(string blobName, byte[] pdfBytes)
     {
         var errors   = new List<ExtractionError>();
         var warnings = new List<ExtractionWarning>();
