@@ -33,4 +33,9 @@ public record PdfFileExtraction(
     // failed before/without going through the full pipeline (open failure, DocumentIntelligence
     // backend, which doesn't have PdfPig's baseline/decoration concepts to report).
     public PdfExtractionDiagnostics? Diagnostics { get; init; }
+
+    // Native PDF Info-dictionary metadata (see DocMetadata) - both backends open the file
+    // with PdfPig at some point (DocumentIntelligenceExtractor's preflight, PdfPigExtractor's
+    // own open step) and read this for free. Null only when the file failed before opening.
+    public DocMetadata? NativeMetadata { get; init; }
 }
