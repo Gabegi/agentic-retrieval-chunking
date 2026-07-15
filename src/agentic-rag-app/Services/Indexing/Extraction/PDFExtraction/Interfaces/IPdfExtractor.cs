@@ -41,4 +41,10 @@ public record PdfFileExtraction(
     // with PdfPig at some point (DocumentIntelligenceExtractor's preflight, PdfPigExtractor's
     // own open step) and read this for free. Null only when the file failed before opening.
     public DocMetadata? NativeMetadata { get; init; }
+
+    // Raw structural ingredients (headings/tables/bookmarks/page dimensions/selection
+    // marks, each carrying an Offset) for whatever builds ChunkMetadata once chunk
+    // boundaries exist downstream - see PDFStructureExtractor.PdfStructureMetadata.
+    // DocumentIntelligence-only; null for PdfPig/CSV, which have no DI capability to probe.
+    public PdfStructureMetadata? StructureMetadata { get; init; }
 }
