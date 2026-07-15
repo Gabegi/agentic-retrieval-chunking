@@ -4,49 +4,71 @@ using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 using System.Security.Cryptography;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.Outline;
 
 namespace ProtocolsIndexer.Models
 {
     // Small, capability-scoped return types for PDFStructureExtractor - one shape
     // per Get* method, so callers only pull in the fields relevant to what they asked for.
 
-    public sealed record Heading(string Content, string Role);
+    // Offset is the join key for whatever builds ChunkMetadata later (position in the
+    // single global result.Content string every span indexes into) - PageNumber is for
+    // display/debugging only, since it can't order two headings on the same page.
+    public sealed record Heading(string Content, string Role, int Offset, int PageNumber);
 
     public sealed record PageDimensions(int PageNumber, double? Width, double? Height, string Unit);
 
     public sealed record TableCellInfo(int RowIndex, int ColumnIndex, string Kind, string Content);
 
-    public sealed record TableInfo(int RowCount, int ColumnCount, IReadOnlyList<TableCellInfo> Cells);
+    public sealed record TableInfo(int RowCount, int ColumnCount, IReadOnlyList<TableCellInfo> Cells, int Offset, int PageNumber);
 
-    public sealed record SelectionMarkInfo(int PageNumber, string State);
+    public sealed record SelectionMarkInfo(int PageNumber, string State, int Offset);
 
-    public sealed record Bookmark(string Title, int Level, int? PageNumber);
+    // Raw structural ingredients for one document - not chunk metadata itself. Chunk
+    // boundaries don't exist at extraction time, so whatever builds ChunkMetadata later
+    // (by joining on Heading/TableInfo/SelectionMarkInfo's Offset) does that joining -
+    // this record only bundles what extraction already knows for free.
+    public sealed record PdfStructureMetadata(
+        DocMetadata NativeMetadata,
+        IReadOnlyList<Heading> Headings,
+        IReadOnlyList<Bookmark>? Bookmarks,
+        IReadOnlyList<TableInfo> Tables,
+        IReadOnlyList<PageDimensions> PageDimensions,
+        IReadOnlyList<SelectionMarkInfo> SelectionMarks);
 
     // Result of the one paid DI call. Ok=false carries a typed ExtractionError instead of
     // an unhandled exception, so callers can branch on Reason (Throttled is worth a retry
     // upstream; DiServiceError probably isn't).
     public sealed record AnalyzeOutcome(bool Ok, AnalyzeResult? Result, ExtractionError? Error);
+
+    // Full result of ExtractPdfStructureAsync - the one call DocumentIntelligenceExtractor
+    // makes. Ok=false covers every failure point (preflight, the paid call) with a single
+    // typed ExtractionError, same Ok/Error shape as AnalyzeOutcome one level up.
+    public sealed record PdfStructureExtraction(
+        bool Ok,
+        IReadOnlyList<PdfPageRecord>? Pages,
+        PdfIndexRecord? Index,
+        PdfStructureMetadata? Metadata,
+        decimal? EstimatedCostUsd,
+        ExtractionError? Error);
 }
 
 namespace ProtocolsIndexer.Services
 {
-    // Everything that reads structure out of a Document Intelligence AnalyzeResult (plus
-    // PdfPig's bookmark tree) for the DocumentIntelligence backend - the paid analyze
-    // call, markdown page assembly, and the DI-vs-PdfPig comparison's capability probes.
-    // ExtractPdfStructureAsync is the only paid call (with retry on 429); everything else
-    // is a free, synchronous read of the resulting AnalyzeResult. Call
-    // ExtractPdfStructureAsync once per document, then feed its result into
-    // BuildMarkdownPages and/or as many Get* methods as you need.
-    //
-    // GetBookmarks is the exception to "everything is DI": the outline/bookmark tree is
-    // container-level structure DI has no concept of, under any feature flag or tier. It
-    // stays on PdfPig and takes an already-open PdfDocument so it can reuse the instance
-    // opened earlier in the pipeline (e.g. by PdfDocumentValidator.TryOpenAndValidate)
-    // instead of re-parsing.
+    // Everything the DocumentIntelligence backend needs from one PDF file except
+    // preflight and PdfPig-native reads: the one paid analyze call (with retry on 429),
+    // markdown page assembly, and every DI structural capability probe (headings/tables/
+    // page dimensions/selection marks) — bundled for whatever builds ChunkMetadata later.
+    // Preflight (PdfDocumentValidator.IsPDFValid) and the PdfPig-only reads
+    // (PdfDocumentMetadataReader.ParseNativeMetadata/GetBookmarks) stay in
+    // DocumentIntelligenceExtractor, since it owns the PdfDocument's lifetime and both
+    // need that object open; this class only ever sees the raw bytes and the results of
+    // those reads, passed in as parameters.
     public sealed class PDFStructureExtractor
     {
+        // prebuilt-layout is billed at $10 / 1,000 pages. Verify against current
+        // Azure pricing before trusting cost estimates derived from this constant.
+        private const decimal CostPerPage = 0.01m;
+
         private static readonly TimeSpan[] BackoffDelays =
         {
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(13), TimeSpan.FromSeconds(34)
@@ -61,6 +83,44 @@ namespace ProtocolsIndexer.Services
             _logger = logger;
         }
 
+        // The one method DocumentIntelligenceExtractor calls, once preflight has already
+        // opened and validated the PdfDocument (PdfDocumentValidator.IsPDFValid) and read
+        // nativeMetadata/bookmarks off it - both need the PdfDocument, which is disposed
+        // by the time this runs, so the caller reads them first and passes the results in
+        // rather than this method re-opening the file. From here: submit to Document
+        // Intelligence, then assemble markdown pages and every structural probe from the
+        // same AnalyzeResult. Ok=false covers the paid call's failure with a typed
+        // ExtractionError.
+        public async Task<PdfStructureExtraction> ExtractPdfStructureAsync(
+            byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, IReadOnlyList<Bookmark>? bookmarks, CancellationToken ct = default)
+        {
+            var analyzeOutcome = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
+            if (!analyzeOutcome.Ok)
+                return new PdfStructureExtraction(false, null, null, null, null, analyzeOutcome.Error);
+
+            var analysis  = analyzeOutcome.Result!;
+            var pageCount = analysis.Pages?.Count ?? 0;
+
+            // Preserve newlines so multiline regexes in PdfMetadataExtraction anchor correctly.
+            var firstPagesText = string.Join("\n",
+                analysis.Paragraphs?
+                    .Where(p => (p.BoundingRegions is { Count: > 0 } br0 ? br0[0].PageNumber : 0) <= 2)
+                    .Select(p => p.Content) ?? []);
+
+            var index = PdfMetadataExtraction.Parse(blobName, firstPagesText);
+            var pages = BuildMarkdownPages(blobName, analysis, pageCount, bookmarks);
+
+            var metadata = new PdfStructureMetadata(
+                nativeMetadata,
+                GetHeadings(analysis),
+                bookmarks,
+                GetTables(analysis),
+                GetPageDimensions(analysis),
+                GetSelectionMarks(analysis));
+
+            return new PdfStructureExtraction(true, pages, index, metadata, pageCount * CostPerPage, null);
+        }
+
         // The one paid call. Retries on 429 using the backoff pattern MS's own docs
         // recommend (2-5-13-34s). NB: WaitUntil.Completed polls internally, and a known
         // SDK issue (Azure/azure-sdk-for-net#50904) means that internal poll can still 429
@@ -68,7 +128,7 @@ namespace ProtocolsIndexer.Services
         // client was constructed - this loop is why that gap doesn't just surface as an
         // unhandled exception. Any other failure returns Ok=false with a typed reason
         // instead of throwing.
-        public async Task<AnalyzeOutcome> ExtractPdfStructureAsync(byte[] pdfBytes, string blobName, CancellationToken ct = default)
+        private async Task<AnalyzeOutcome> AnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
         {
             for (var attempt = 0; ; attempt++)
             {
@@ -239,8 +299,8 @@ namespace ProtocolsIndexer.Services
         // bookmarks in page order: each entry truncates the stack to its own Level before
         // pushing, so a later top-level bookmark correctly drops any deeper section left
         // over from the previous chapter. Entries with no resolvable PageNumber (see
-        // PDFStructureExtractor.TryGetPageNumber) are skipped - they can't anchor a page
-        // range and would otherwise corrupt the stack with an untethered entry.
+        // PdfDocumentMetadataReader.TryGetPageNumber) are skipped - they can't anchor a
+        // page range and would otherwise corrupt the stack with an untethered entry.
         private static Dictionary<int, string> BuildSectionBreadcrumbs(IReadOnlyList<Bookmark>? bookmarks, int pageCount)
         {
             var result = new Dictionary<int, string>();
@@ -330,10 +390,16 @@ namespace ProtocolsIndexer.Services
 
         // Headings/sections: paragraphs DI classified with a structural role (title,
         // sectionHeading, pageHeader, footnote, ...) rather than plain body text.
+        // Offset/PageNumber come from Spans/BoundingRegions - DocumentParagraph has no
+        // PageNumber property of its own (same pattern BuildMarkdownPages already uses).
         public IReadOnlyList<Heading> GetHeadings(AnalyzeResult result) =>
             result.Paragraphs
                 .Where(p => p.Role is not null)
-                .Select(p => new Heading(p.Content, p.Role.ToString()!))
+                .Select(p => new Heading(
+                    p.Content,
+                    p.Role.ToString()!,
+                    p.Spans is { Count: > 0 } ps ? ps[0].Offset : 0,
+                    p.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
                 .ToList();
 
         // Page geometry as DI measured it (not the PDF's declared MediaBox).
@@ -342,19 +408,24 @@ namespace ProtocolsIndexer.Services
                 .Select(p => new PageDimensions(p.PageNumber, p.Width, p.Height, p.Unit.ToString() ?? ""))
                 .ToList();
 
-        // Tables with row/column position and cell kind (e.g. columnHeader vs content) per cell.
+        // Tables with row/column position and cell kind (e.g. columnHeader vs content) per
+        // cell. Offset/PageNumber follow the same Spans/BoundingRegions pattern as
+        // GetHeadings - DocumentTable has no PageNumber property of its own either.
         public IReadOnlyList<TableInfo> GetTables(AnalyzeResult result) =>
             result.Tables
                 .Select(t => new TableInfo(
                     t.RowCount,
                     t.ColumnCount,
-                    t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString() ?? "", c.Content)).ToList()))
+                    t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString() ?? "", c.Content)).ToList(),
+                    t.Spans is { Count: > 0 } ts ? ts[0].Offset : 0,
+                    t.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
                 .ToList();
 
-        // Checkboxes/radio buttons with selected/unselected state, per page.
+        // Checkboxes/radio buttons with selected/unselected state, per page. Offset comes
+        // from Span (singular - one mark, one position, unlike paragraphs/tables' Spans).
         public IReadOnlyList<SelectionMarkInfo> GetSelectionMarks(AnalyzeResult result) =>
             result.Pages
-                .SelectMany(p => p.SelectionMarks.Select(sm => new SelectionMarkInfo(p.PageNumber, sm.State.ToString())))
+                .SelectMany(p => p.SelectionMarks.Select(sm => new SelectionMarkInfo(p.PageNumber, sm.State.ToString(), sm.Span.Offset)))
                 .ToList();
 
         // Handwritten spans at >0.8 confidence (same threshold as the original quickstart
@@ -366,56 +437,6 @@ namespace ProtocolsIndexer.Services
                 .SelectMany(s => s.Spans)
                 .Select(span => result.Content.Substring(span.Offset, span.Length))
                 .ToList();
-
-        // Bookmarks/outline tree - PdfPig only, best-effort. No DI feature returns this
-        // under any tier, but unlike everything else in this class, PdfPig's own
-        // bookmark-reading code can throw PdfDocumentFormatException mid-tree-walk on a
-        // malformed outline node (BookmarksProvider.ReadBookmarksRecursively) despite the
-        // Try-prefixed name on TryGetBookmarks - it doesn't fully uphold the no-throw
-        // contract that name implies. Bookmarks are a nice-to-have here, not a hard
-        // requirement, so any failure is caught and logged rather than allowed to fail the
-        // whole extraction.
-        //
-        // null = couldn't get bookmarks (PdfPig error) - distinct from an empty list,
-        // which means extraction ran fine and this PDF genuinely has none. Callers should
-        // treat null as "skip bookmarks for this document," not as a reason to fail it.
-        public IReadOnlyList<Bookmark>? GetBookmarks(PdfDocument pdf, string blobName)
-        {
-            try
-            {
-                if (!pdf.TryGetBookmarks(out var bookmarks))
-                {
-                    _logger.LogInformation("No bookmarks/outline found in '{Blob}'.", blobName);
-                    return Array.Empty<Bookmark>();
-                }
-
-                return bookmarks.GetNodes()
-                    .Select(node => new Bookmark(node.Title, node.Level, TryGetPageNumber(node)))
-                    .ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Bookmark extraction failed for '{Blob}'; continuing without bookmarks.", blobName);
-                return null;
-            }
-        }
-
-        // DocumentBookmarkNode.PageNumber resolves to a page in *this* file.
-        // ExternalBookmarkNode inherits DocumentBookmarkNode (confirmed by reflecting the
-        // pinned 0.1.9 assembly - it is not a sibling type) and its PageNumber is a page in
-        // the *external* file it points at (see its added FileName property) - not a page
-        // in this document, so it must be excluded explicitly rather than caught by the
-        // DocumentBookmarkNode pattern match. PdfPig's own #736 page-number-defaults-to-0
-        // fix (PR #930) isn't in 0.1.9 (that's the 0.1.9->0.1.10 diff), so an unresolvable
-        // destination on this version may omit the node from the tree entirely rather than
-        // reliably reporting 0 - the >0 check below is a best-effort guard for the cases
-        // that do surface a value, not a substitute for that fix.
-        private static int? TryGetPageNumber(BookmarkNode node) =>
-            node is ExternalBookmarkNode
-                ? null
-                : node is DocumentBookmarkNode doc && doc.PageNumber > 0
-                    ? doc.PageNumber
-                    : null;
 
         // Column-aware markdown table rendering using Document Intelligence's row/column
         // indices — a real pipe table with a header row, unlike the comparison spike's
