@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,22 +17,19 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 {
     public string Name => "DocumentIntelligence";
 
-    private readonly DocumentIntelligenceClient _client;
-
     // prebuilt-layout is billed at $10 / 1,000 pages. Verify against current
     // Azure pricing before trusting cost estimates derived from this constant.
     private const decimal CostPerPage = 0.01m;
 
-    
-
     private readonly ILogger<DocumentIntelligenceExtractor> _logger;
     private readonly PdfDocumentOpener                       _opener;
+    private readonly DocumentIntelligenceAnalyzer             _analyzer;
 
     public DocumentIntelligenceExtractor(DocumentIntelligenceClient client, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
-        _client = client;
-        _logger = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
-        _opener = new PdfDocumentOpener(_logger);
+        _logger   = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
+        _opener   = new PdfDocumentOpener(_logger);
+        _analyzer = new DocumentIntelligenceAnalyzer(client, _logger);
     }
 
 
@@ -51,30 +47,23 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             "PdfPreFlight: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}",
             blobName, meta.PageCount, meta.Title, meta.Author, meta.CreatedAt);
 
-        try
-        {
-            var operation = _client.AnalyzeDocument(
-                WaitUntil.Completed, "prebuilt-layout", BinaryData.FromBytes(pdfBytes));
+        // Step 2: submit to Document Intelligence's prebuilt-layout model.
+        if (!_analyzer.TryAnalyzePDF(pdfBytes, blobName, out var analysis, out var analyzeError))
+            return new PdfFileExtraction([], null, analyzeError);
 
-            var analysis  = operation.Value;
-            var pageCount = analysis.Pages?.Count ?? 0;
+        var pageCount = analysis.Pages?.Count ?? 0;
 
-            // Preserve newlines so multiline regexes in PdfMetadataExtraction anchor correctly.
-            var firstPagesText = string.Join("\n",
-                analysis.Paragraphs?
-                    .Where(p => (p.BoundingRegions is { Count: > 0 } br0 ? br0[0].PageNumber : 0) <= 2)
-                    .Select(p => p.Content) ?? []);
+        // Preserve newlines so multiline regexes in PdfMetadataExtraction anchor correctly.
+        var firstPagesText = string.Join("\n",
+            analysis.Paragraphs?
+                .Where(p => (p.BoundingRegions is { Count: > 0 } br0 ? br0[0].PageNumber : 0) <= 2)
+                .Select(p => p.Content) ?? []);
 
-            var index = PdfMetadataExtraction.Parse(blobName, firstPagesText);
+        var index = PdfMetadataExtraction.Parse(blobName, firstPagesText);
 
-            var pages = BuildPageRecords(blobName, analysis, pageCount, _logger);
+        var pages = BuildPageRecords(blobName, analysis, pageCount, _logger);
 
-            return new PdfFileExtraction(pages, index, Error: null, EstimatedCostUsd: pageCount * CostPerPage);
-        }
-        catch (Exception ex)
-        {
-            return new PdfFileExtraction([], null, new ExtractionError { DocumentId = blobName, Message = ex.Message });
-        }
+        return new PdfFileExtraction(pages, index, Error: null, EstimatedCostUsd: pageCount * CostPerPage);
     }
 
     // Step 1: local, free precheck before the paid Document Intelligence call. Runs
