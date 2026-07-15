@@ -122,7 +122,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
             try
             {
-                results.Add(_extractor.ExtractPDF(item.Name, ms.ToArray()));
+                results.Add(await _extractor.ExtractPDFAsync(item.Name, ms.ToArray(), ct));
             }
             catch (Exception ex)
             {
