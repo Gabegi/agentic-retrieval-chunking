@@ -23,7 +23,7 @@ namespace ProtocolsIndexer.Services
             using (pdf)
             {
                 var info = pdf.Information;
-                var bookmarks = GetBookmarks(pdf, blobName, logger);
+                var bookmarks = TryGetBookmarks(pdf, blobName, logger);
 
                 var metadata = new DocMetadata(
                     Title:     string.IsNullOrWhiteSpace(info.Title)  ? null : info.Title,
@@ -43,7 +43,7 @@ namespace ProtocolsIndexer.Services
         // Bookmarks/outline tree - PdfPig only, best-effort.
         // - TryGetBookmarks can still throw on a malformed node despite the name; caught here.
         // - null = read failed (skip bookmarks). Empty list = read fine, PDF has none.
-        private static IReadOnlyList<Bookmark>? GetBookmarks(PdfDocument pdf, string blobName, ILogger logger)
+        private static IReadOnlyList<Bookmark>? TryGetBookmarks(PdfDocument pdf, string blobName, ILogger logger)
         {
             try
             {
