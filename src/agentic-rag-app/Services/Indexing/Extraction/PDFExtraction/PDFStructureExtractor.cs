@@ -113,7 +113,7 @@ namespace ProtocolsIndexer.Services
         // Page geometry as DI measured it (not the PDF's declared MediaBox).
         public IReadOnlyList<PageDimensions> GetPageDimensions(AnalyzeResult result) =>
             result.Pages
-                .Select(p => new PageDimensions(p.PageNumber, p.Width, p.Height, p.Unit.ToString()))
+                .Select(p => new PageDimensions(p.PageNumber, p.Width, p.Height, p.Unit.ToString() ?? ""))
                 .ToList();
 
         // Tables with row/column position and cell kind (e.g. columnHeader vs content) per cell.
