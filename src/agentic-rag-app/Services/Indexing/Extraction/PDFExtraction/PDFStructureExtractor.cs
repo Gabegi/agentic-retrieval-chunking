@@ -113,7 +113,7 @@ namespace ProtocolsIndexer.Services
             var metadata = new PdfStructureMetadata(
                 nativeMetadata,
                 GetHeadings(analysis),
-                bookmarks,
+                nativeMetadata.Bookmarks,
                 GetTables(analysis),
                 GetPageDimensions(analysis),
                 GetSelectionMarks(analysis));
