@@ -1,6 +1,8 @@
 using System.Text;
 using Azure;
 using Azure.AI.DocumentIntelligence;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
@@ -16,7 +18,10 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     public string Name => "DocumentIntelligence";
 
     private readonly DocumentIntelligenceClient _client;
-    private const decimal CostPerPage = 0.001m;
+
+    // prebuilt-layout is billed at $10 / 1,000 pages. Verify against current
+    // Azure pricing before trusting cost estimates derived from this constant.
+    private const decimal CostPerPage = 0.01m;
 
     
 
