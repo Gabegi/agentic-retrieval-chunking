@@ -90,10 +90,10 @@ namespace ProtocolsIndexer.Services
         // backends so metadata parses identically either way.
         // - Version/PublicationDateRaw: left empty - no confirmed Cordaan pattern yet.
         // - Title: blob-name-derived only, same reason.
-        // - firstPagesText: unused for now, kept for whatever pattern comes next.
-        // - Previously matched Dutch/LCI-specific regexes (ported from a different
-        //   corpus); removed after confirming they don't apply to Cordaan's documents.
-        public static PdfIndexRecord Parse(string blobName, string firstPagesText)
+        // - Previously matched Dutch/LCI-specific regexes on first-page text (ported
+        //   from a different corpus); removed after confirming they don't apply to
+        //   Cordaan's documents, along with the first-page-text parameter they read.
+        public static PdfIndexRecord Parse(string blobName)
         {
             var title = blobName.Split('/')[0]
                 .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)

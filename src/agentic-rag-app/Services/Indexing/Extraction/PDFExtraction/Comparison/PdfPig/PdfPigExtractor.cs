@@ -6,12 +6,12 @@ using UglyToad.PdfPig.Content;
 namespace ProtocolsIndexer.Services;
 
 // Orchestrates the PdfPig backend's per-file pipeline: open/validate -> baseline ->
-// decoration detection -> metadata text -> per-page content extraction. Each step
-// lives in its own class alongside this one (see PdfDocumentValidator.TryOpenAndValidate,
-// PdfDocumentBaselineCalculator, PdfDecorationDetector, PdfMetadataTextBuilder,
-// PdfPageContentExtractor) - this class just wires them together and owns the parts
-// that are genuinely about one file's overall outcome (the page loop, warnings/errors,
-// diagnostics, the final PdfFileExtraction).
+// decoration detection -> per-page content extraction. Each step lives in its own
+// class alongside this one (see PdfDocumentValidator.TryOpenAndValidate,
+// PdfDocumentBaselineCalculator, PdfDecorationDetector, PdfPageContentExtractor) -
+// this class just wires them together and owns the parts that are genuinely about
+// one file's overall outcome (the page loop, warnings/errors, diagnostics, the final
+// PdfFileExtraction).
 public class PdfPigExtractor : IPdfExtractor
 {
     // to compare with DI
@@ -25,7 +25,6 @@ public class PdfPigExtractor : IPdfExtractor
 
     private readonly PdfDocumentBaselineCalculator _baselineCalculator;
     private readonly PdfDecorationDetector        _decorationDetector;
-    private readonly RawTextExtractor       _metadataTextBuilder;
 
     public PdfPigExtractor(ILogger<PdfPigExtractor>? logger = null, IEnumerable<string>? knownSections = null)
     {
@@ -33,7 +32,6 @@ public class PdfPigExtractor : IPdfExtractor
 
         _baselineCalculator  = new PdfDocumentBaselineCalculator(_logger, knownSections);
         _decorationDetector  = new PdfDecorationDetector(_logger);
-        _metadataTextBuilder = new RawTextExtractor(_logger);
     }
 
     // No real async work in this backend (PdfPig is fully synchronous) - no async keyword
@@ -66,8 +64,6 @@ public class PdfPigExtractor : IPdfExtractor
             var decorationByPage = decorationDetectionRan
                 ? _decorationDetector.GetDecorationTextByPage(allPages, segmenter, blobName)
                 : new Dictionary<int, HashSet<string>>();
-
-            var firstPagesText = _metadataTextBuilder.ExtractNOrganiseText(allPages.Take(2), segmenter);
 
             var pages              = new List<PdfPageRecord>();
             string? currentHeading = null;
@@ -120,7 +116,7 @@ public class PdfPigExtractor : IPdfExtractor
                     $"All {pdf.NumberOfPages} page(s) failed extraction. First error: {errors.FirstOrDefault()?.Message}",
                     PdfOpenFailureReason.NoReadablePages);
 
-            var index = PdfMetadataExtractor.Parse(blobName, firstPagesText);
+            var index = PdfMetadataExtractor.Parse(blobName);
 
             var diagnostics = new PdfExtractionDiagnostics
             {
