@@ -38,7 +38,7 @@ public class PdfBackendComparisonRunner
         _container  = container;
         _logger     = logger;
     }
-
+                    /////////////////////////// PDFPig has been dropped in favour of DocumentIntelligence (see doc documentintelligence-vs-pdfpig)
     public async Task CompareAsync(CancellationToken ct = default)
     {
         var blobItems = new List<BlobItem>();
