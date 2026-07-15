@@ -122,7 +122,7 @@ namespace ProtocolsIndexer.Services
                 .Select(t => new TableInfo(
                     t.RowCount,
                     t.ColumnCount,
-                    t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString(), c.Content)).ToList()))
+                    t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString() ?? "", c.Content)).ToList()))
                 .ToList();
 
         // Checkboxes/radio buttons with selected/unselected state, per page.
