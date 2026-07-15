@@ -13,4 +13,6 @@ public enum PdfOpenFailureReason
     EmptyFile,        // 0-byte input - never reaches PdfPig (PdfPreFlight)
     TooLarge,         // exceeds Document Intelligence's max document size (PdfPreFlight)
     TooManyPages,     // exceeds Document Intelligence's max pages per analyze call (PdfPreFlight)
+    Throttled,        // Document Intelligence returned 429 and retries were exhausted
+    DiServiceError,   // Document Intelligence returned a non-429 request failure
 }

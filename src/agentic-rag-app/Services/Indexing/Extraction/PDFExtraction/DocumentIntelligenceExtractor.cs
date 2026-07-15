@@ -23,13 +23,13 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
     private readonly ILogger<DocumentIntelligenceExtractor> _logger;
     private readonly PdfDocumentOpener                       _opener;
-    private readonly DocumentIntelligenceAnalyzer             _analyzer;
+    private readonly PDFStructureExtractor                   _structureExtractor;
 
     public DocumentIntelligenceExtractor(DocumentIntelligenceClient client, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
-        _logger   = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
-        _opener   = new PdfDocumentOpener(_logger);
-        _analyzer = new DocumentIntelligenceAnalyzer(client, _logger);
+        _logger             = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
+        _opener             = new PdfDocumentOpener(_logger);
+        _structureExtractor = new PDFStructureExtractor(client, _logger);
     }
 
 
@@ -47,10 +47,15 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             "PdfPreFlight: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}",
             blobName, meta.PageCount, meta.Title, meta.Author, meta.CreatedAt);
 
-        // Step 2: submit to Document Intelligence's prebuilt-layout model.
-        if (!_analyzer.TryAnalyzePDF(pdfBytes, blobName, out var analysis, out var analyzeError))
-            return new PdfFileExtraction([], null, analyzeError);
+        // Step 2: submit to Document Intelligence's prebuilt-layout model (structure
+        // extraction — the paid call and its retry/error handling — lives in
+        // PDFStructureExtractor; this pipeline is synchronous end-to-end, so the async
+        // call is awaited inline rather than threading async through IPdfExtractor).
+        var outcome = _structureExtractor.AnalyzePDFAsync(pdfBytes, blobName).GetAwaiter().GetResult();
+        if (!outcome.Ok)
+            return new PdfFileExtraction([], null, outcome.Error);
 
+        var analysis = outcome.Result!;
         var pageCount = analysis.Pages?.Count ?? 0;
 
         // Preserve newlines so multiline regexes in PdfMetadataExtraction anchor correctly.
