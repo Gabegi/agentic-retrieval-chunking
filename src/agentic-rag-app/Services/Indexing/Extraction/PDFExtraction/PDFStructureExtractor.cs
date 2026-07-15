@@ -59,10 +59,10 @@ namespace ProtocolsIndexer.Services
     // markdown page assembly, and every DI structural capability probe (headings/tables/
     // page dimensions/selection marks) — bundled for whatever builds ChunkMetadata later.
     // Preflight (PdfDocumentValidator.IsPDFValid) and the PdfPig-only reads
-    // (PdfDocumentMetadataReader.ParseNativeMetadata/GetBookmarks) stay in
-    // DocumentIntelligenceExtractor, since it owns the PdfDocument's lifetime and both
-    // need that object open; this class only ever sees the raw bytes and the results of
-    // those reads, passed in as parameters.
+    // (PdfMetadataExtractor.ParseNativeMetadata) stay in DocumentIntelligenceExtractor,
+    // since it owns the PdfDocument's lifetime and that read needs the object open;
+    // this class only ever sees the raw bytes and the results of that read, passed in
+    // as parameters.
     public sealed class PDFStructureExtractor
     {
         // prebuilt-layout is billed at $10 / 1,000 pages. Verify against current
@@ -84,15 +84,15 @@ namespace ProtocolsIndexer.Services
         }
 
         // The one method DocumentIntelligenceExtractor calls, once preflight has already
-        // opened and validated the PdfDocument (PdfDocumentValidator.IsPDFValid) and read
-        // nativeMetadata/bookmarks off it - both need the PdfDocument, which is disposed
-        // by the time this runs, so the caller reads them first and passes the results in
-        // rather than this method re-opening the file. From here: submit to Document
+        // opened and validated the PdfDocument (PdfDocumentValidator.IsPDFValid) and
+        // PdfMetadataExtractor.ParseNativeMetadata has read nativeMetadata/bookmarks off
+        // it and disposed it - this method never sees the PdfDocument itself, only the
+        // results of that read, passed in as parameters. From here: submit to Document
         // Intelligence, then assemble markdown pages and every structural probe from the
         // same AnalyzeResult. Ok=false covers the paid call's failure with a typed
         // ExtractionError.
         public async Task<PdfStructureExtraction> ExtractPdfStructureAsync(
-            byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, IReadOnlyList<Bookmark>? bookmarks, CancellationToken ct = default)
+            byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
             var analyzeOutcome = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
             if (!analyzeOutcome.Ok)
@@ -101,19 +101,19 @@ namespace ProtocolsIndexer.Services
             var analysis  = analyzeOutcome.Result!;
             var pageCount = analysis.Pages?.Count ?? 0;
 
-            // Preserve newlines so multiline regexes in PdfMetadataExtraction anchor correctly.
+            // Preserve newlines so multiline regexes in PdfMetadataExtractor anchor correctly.
             var firstPagesText = string.Join("\n",
                 analysis.Paragraphs?
                     .Where(p => (p.BoundingRegions is { Count: > 0 } br0 ? br0[0].PageNumber : 0) <= 2)
                     .Select(p => p.Content) ?? []);
 
-            var index = PdfMetadataExtraction.Parse(blobName, firstPagesText);
-            var pages = BuildMarkdownPages(blobName, analysis, pageCount, bookmarks);
+            var index = PdfMetadataExtractor.Parse(blobName, firstPagesText);
+            var pages = BuildMarkdownPages(blobName, analysis, pageCount, nativeMetadata.Bookmarks);
 
             var metadata = new PdfStructureMetadata(
                 nativeMetadata,
                 GetHeadings(analysis),
-                bookmarks,
+                nativeMetadata.Bookmarks,
                 GetTables(analysis),
                 GetPageDimensions(analysis),
                 GetSelectionMarks(analysis));
@@ -299,7 +299,7 @@ namespace ProtocolsIndexer.Services
         // bookmarks in page order: each entry truncates the stack to its own Level before
         // pushing, so a later top-level bookmark correctly drops any deeper section left
         // over from the previous chapter. Entries with no resolvable PageNumber (see
-        // PdfDocumentMetadataReader.TryGetPageNumber) are skipped - they can't anchor a
+        // PdfMetadataExtractor.TryGetPageNumber) are skipped - they can't anchor a
         // page range and would otherwise corrupt the stack with an untethered entry.
         private static Dictionary<int, string> BuildSectionBreadcrumbs(IReadOnlyList<Bookmark>? bookmarks, int pageCount)
         {
