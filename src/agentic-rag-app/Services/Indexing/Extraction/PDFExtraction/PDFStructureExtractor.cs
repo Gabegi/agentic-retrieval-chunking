@@ -61,13 +61,7 @@ namespace ProtocolsIndexer.Services
             _logger = logger;
         }
 
-        // The one paid call. Retries on 429 using the backoff pattern MS's own docs
-        // recommend (2-5-13-34s). NB: WaitUntil.Completed polls internally, and a known
-        // SDK issue (Azure/azure-sdk-for-net#50904) means that internal poll can still 429
-        // independent of any DocumentIntelligenceClientOptions.Retry configured where the
-        // client was constructed - this loop is why that gap doesn't just surface as an
-        // unhandled exception. Any other failure returns Ok=false with a typed reason
-        // instead of throwing.
+        // 
         public async Task<AnalyzeOutcome> AnalyzePDFStructureAsync(byte[] pdfBytes, string blobName, CancellationToken ct = default)
         {
             for (var attempt = 0; ; attempt++)

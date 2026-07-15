@@ -18,7 +18,7 @@ namespace ProtocolsIndexer.Services;
 // see https://learn.microsoft.com/azure/ai-services/document-intelligence/service-limits
 // ("Adjustable: No" for both max document size and max pages, even on Standard S0).
 // Knows nothing about metadata - that's PdfMetadataExtraction's job entirely.
-public static class PdfPreFlight
+public static class PdfDocumentValidator
 {
     public const long MaxBytes = 500L * 1024 * 1024; // DI hard limit, all paid tiers
     public const int  MaxPages = 2000;                // DI hard limit per analyze call, all paid tiers
@@ -107,6 +107,7 @@ public static class PdfPreFlight
             return false;
         }
     }
+
     private static bool IsPDFSizeOkForDI(byte[] pdfBytes, string blobName, [NotNullWhen(false)] out ExtractionError? error)
     {
         if (pdfBytes.Length == 0)
@@ -129,7 +130,6 @@ public static class PdfPreFlight
         error = null;
         return true;
     }
-
 
     private static ExtractionError OpenError(string blobName, PdfOpenFailureReason reason, string message) =>
         new() { DocumentId = blobName, Message = message, Reason = reason };
