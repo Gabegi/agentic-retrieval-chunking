@@ -8,9 +8,11 @@ namespace ProtocolsIndexer.Services;
 // Azure Document Intelligence ("prebuilt-layout") PDF extraction backend, ported
 // from the comparison spike's DocumentIntelligenceExtractionService, with chunking
 // stripped out entirely (chunking stays downstream, in ChunkingService, unchanged).
-// Owns the PdfDocument's lifetime: preflight (PdfDocumentValidator.IsPDFValid) opens
-// and validates it here, nativeMetadata/bookmarks are read off it before it's disposed,
-// then both are handed to PDFStructureExtractor.ExtractPdfStructureAsync, which does
+// Owns the PdfDocument's lifetime up front: preflight (PdfDocumentValidator.IsPDFValid)
+// opens and validates it, then PdfMetadataExtractor.ParseNativeMetadata takes over that
+// lifetime - it reads native metadata/bookmarks off the PdfDocument and disposes it
+// before returning, so nothing here needs its own `using` block. The resulting
+// DocMetadata is handed to PDFStructureExtractor.ExtractPdfStructureAsync, which does
 // the paid call, markdown page assembly, and structural metadata from there.
 // Produces one PdfPageRecord per PDF page with markdown-flavored content
 // ("## " headings, real column-aware pipe tables), same shape CSV's
@@ -35,20 +37,11 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         if (!PdfDocumentValidator.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var validationError))
             return new PdfFileExtraction([], null, validationError);
 
-        DocMetadata nativeMetadata;
-        IReadOnlyList<Bookmark>? bookmarks;
-        using (pdf)
-        {
-            nativeMetadata = PdfDocumentMetadataReader.ParseNativeMetadata(pdf);
-            bookmarks      = PdfDocumentMetadataReader.GetBookmarks(pdf, blobName, _logger);
-        }
-
-        // Native PDF metadata is a secondary signal alongside PdfMetadataExtraction's
-        // blob-name/content-derived Title/Version — not yet wired into the pipeline's
-        // output beyond NativeMetadata below, just surfaced here for now.
-        _logger.LogDebug(
-            "PdfDocumentValidator: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}",
-            blobName, nativeMetadata.PageCount, nativeMetadata.Title, nativeMetadata.Author, nativeMetadata.CreatedAt);
+        // ParseNativeMetadata takes ownership of pdf's lifetime (disposes it internally)
+        // and reads everything PdfPig can offer beyond DI: native Title/Author/
+        // CreationDate plus the outline/bookmark tree.
+        var nativeMetadata = PdfMetadataExtractor.ParseNativeMetadata(pdf, blobName, _logger);
+        var bookmarks       = nativeMetadata.Bookmarks;
 
         // Step 2: submit to Document Intelligence's prebuilt-layout model and assemble
         // pages/structural metadata — lives in PDFStructureExtractor.

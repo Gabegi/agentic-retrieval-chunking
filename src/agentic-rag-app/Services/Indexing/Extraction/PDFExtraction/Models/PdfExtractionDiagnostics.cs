@@ -19,7 +19,7 @@ public sealed class PdfExtractionDiagnostics
     public bool DecorationDetectionRan     { get; init; } // false for docs under MinPagesForDecorationDetection
     public int  PagesWithDecorationRemoved { get; init; }
 
-    // Step 3: document metadata (PdfMetadataExtraction.Parse)
+    // Step 3: document metadata (PdfMetadataExtractor.Parse)
     public string? ParsedTitle              { get; init; }
     public string? ParsedVersion            { get; init; }
     public string? ParsedPublicationDateRaw { get; init; }
