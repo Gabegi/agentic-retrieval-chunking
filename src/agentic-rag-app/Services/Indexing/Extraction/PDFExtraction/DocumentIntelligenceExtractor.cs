@@ -38,7 +38,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         // too-many-page files before spending a paid Document Intelligence call on them.
         // Metadata and bookmarks are read here too, inside the same `using` that disposes
         // the PdfDocument, since nothing later in the pipeline keeps it open.
-        if (!PdfPreFlight.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var checkError))
+        if (!PdfDocumentValidator.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var checkError))
             return new PdfFileExtraction([], null, checkError);
 
         DocMetadata meta;
@@ -51,16 +51,16 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
         // Native PDF metadata is a secondary signal alongside PdfMetadataExtraction's
         // blob-name/content-derived Title/Version — not yet wired into the pipeline's
-        // output (see PdfPreFlight/DocMetadata), just surfaced here for now.
+        // output (see PdfDocumentValidator/DocMetadata), just surfaced here for now.
         _logger.LogDebug(
-            "PdfPreFlight: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}",
+            "PdfDocumentValidator: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}",
             blobName, meta.PageCount, meta.Title, meta.Author, meta.CreatedAt);
 
         // Step 2: submit to Document Intelligence's prebuilt-layout model (structure
         // extraction — the paid call and its retry/error handling — lives in
         // PDFStructureExtractor; this pipeline is synchronous end-to-end, so the async
         // call is awaited inline rather than threading async through IPdfExtractor).
-        var outcome = _structureExtractor.AnalyzePDFStructureAsync(pdfBytes, blobName).GetAwaiter().GetResult();
+        var outcome = _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName).GetAwaiter().GetResult();
         if (!outcome.Ok)
             return new PdfFileExtraction([], null, outcome.Error);
 

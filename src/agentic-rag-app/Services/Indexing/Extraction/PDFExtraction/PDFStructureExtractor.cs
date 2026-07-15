@@ -62,7 +62,7 @@ namespace ProtocolsIndexer.Services
         }
 
         // 
-        public async Task<AnalyzeOutcome> AnalyzePDFStructureAsync(byte[] pdfBytes, string blobName, CancellationToken ct = default)
+        public async Task<AnalyzeOutcome> ExtractPdfStructureAsync(byte[] pdfBytes, string blobName, CancellationToken ct = default)
         {
             for (var attempt = 0; ; attempt++)
             {
