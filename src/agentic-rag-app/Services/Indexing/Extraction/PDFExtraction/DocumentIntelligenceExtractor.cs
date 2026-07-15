@@ -79,38 +79,4 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
         return new PdfFileExtraction(pages, index, Error: null, EstimatedCostUsd: pageCount * CostPerPage);
     }
-
-    // Step 1: local, free precheck before the paid Document Intelligence call. Runs
-    // PdfPreFlight.IsPDFSizeOkForDI, then PdfPreFlight.TryOpenAndValidate (structural
-    // open/validate — encrypted/corrupt/malformed), then PdfPreFlight.IsPDFPageCountOkForDI
-    // (zero pages, too many pages) on the now-open document. Each stage can reject on its own,
-    // cheapest first, so a too-large file never gets opened and an unopenable file never
-    // gets page-counted. Metadata and bookmarks are read last, only once every check has
-    // passed — bookmarks specifically must be read here, inside the same `using` that
-    // disposes the PdfDocument, since nothing later in the pipeline keeps it open.
-    private bool IsPDFValid(
-        string blobName, byte[] pdfBytes,
-        [NotNullWhen(true)]  out DocMetadata?    meta,
-        out IReadOnlyList<Bookmark>?             bookmarks,
-        [NotNullWhen(false)] out ExtractionError? error)
-    {
-        meta      = null;
-        bookmarks = null;
-
-        if (!PdfPreFlight.IsPDFSizeOkForDI(pdfBytes, blobName, out error))
-            return false;
-
-        if (!PdfPreFlight.TryOpenAndValidate(pdfBytes, blobName, _logger, out var pdf, out error))
-            return false;
-
-        using (pdf)
-        {
-            if (!PdfPreFlight.IsPDFPageCountOkForDI(pdf, blobName, out error))
-                return false;
-
-            meta      = PdfMetadataExtraction.ParseNativeMetadata(pdf);
-            bookmarks = _structureExtractor.GetBookmarks(pdf, blobName);
-            return true;
-        }
-    }
 }
