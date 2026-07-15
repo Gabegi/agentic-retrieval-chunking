@@ -25,9 +25,12 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
     
 
-    public DocumentIntelligenceExtractor(DocumentIntelligenceClient client)
+    private readonly ILogger<DocumentIntelligenceExtractor> _logger;
+
+    public DocumentIntelligenceExtractor(DocumentIntelligenceClient client, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
         _client = client;
+        _logger = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
     }
 
 
@@ -49,7 +52,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
             var index = PdfMetadataExtraction.Parse(blobName, firstPagesText);
 
-            var pages = BuildPageRecords(blobName, analysis, pageCount);
+            var pages = BuildPageRecords(blobName, analysis, pageCount, _logger);
 
             return new PdfFileExtraction(pages, index, Error: null, EstimatedCostUsd: pageCount * CostPerPage);
         }
@@ -59,80 +62,80 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         }
     }
 
-    private static List<PdfPageRecord> BuildPageRecords(string blobName, AnalyzeResult analysis, int pageCount)
+    private static List<PdfPageRecord> BuildPageRecords(string blobName, AnalyzeResult analysis, int pageCount, ILogger logger)
     {
-        var pageSegments     = new Dictionary<int, List<string>>();
-        var paragraphBuffers = new Dictionary<int, StringBuilder>();
+        var pageSegments = new Dictionary<int, List<string>>();
 
         List<string> Segments(int pageNum) =>
             pageSegments.TryGetValue(pageNum, out var l) ? l : pageSegments[pageNum] = [];
-        StringBuilder ParaBuffer(int pageNum) =>
-            paragraphBuffers.TryGetValue(pageNum, out var b) ? b : paragraphBuffers[pageNum] = new StringBuilder();
 
-        void FlushParagraph(int pageNum)
+        // DI repeats every table cell's text as its own entry in analysis.Paragraphs,
+        // so without filtering, table content is emitted twice: once as jumbled prose,
+        // once as the markdown table below. Build the set of spans covered by tables
+        // up front and drop any paragraph whose span falls inside one.
+        var tableSpanRanges = (analysis.Tables ?? [])
+            .SelectMany(t => t.Spans ?? [])
+            .Select(sp => (Start: sp.Offset, End: sp.Offset + sp.Length))
+            .ToList();
+
+        bool OverlapsTable(IReadOnlyList<DocumentSpan>? spans) =>
+            spans != null && spans.Any(sp => tableSpanRanges.Any(r => sp.Offset < r.End && sp.Offset + sp.Length > r.Start));
+
+        // analysis.Paragraphs is already in reading order -- DI resolves multi-column
+        // layouts etc. -- so it's kept as-is rather than re-sorted by Y, which would
+        // interleave left/right columns on two-column pages. Tables are positioned by
+        // comparing span offsets against paragraph offsets instead.
+        var tablesByOffset = (analysis.Tables ?? [])
+            .Select(t => (Table: t, Offset: t.Spans is { Count: > 0 } ts ? ts[0].Offset : 0))
+            .OrderBy(t => t.Offset)
+            .ToList();
+        var nextTableIndex = 0;
+
+        void EmitTable(DocumentTable table)
         {
-            if (paragraphBuffers.TryGetValue(pageNum, out var buf) && buf.Length > 0)
+            var pageNum = table.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0;
+            if (pageNum == 0)
             {
-                Segments(pageNum).Add(buf.ToString());
-                buf.Clear();
+                logger.LogWarning("DocumentIntelligence: table with no bounding region dropped in {BlobName}", blobName);
+                return;
             }
+
+            var markdown = RenderMarkdownTable(table);
+            if (!string.IsNullOrWhiteSpace(markdown))
+                Segments(pageNum).Add(markdown);
         }
 
-        static float TopY(IReadOnlyList<BoundingRegion>? regions) =>
-            regions is { Count: > 0 } r && r[0].Polygon is { Count: >= 2 } p ? p[1] : 0f;
-
-        // Merge paragraphs and tables into one stream ordered by page then Y position
-        // so tables are inserted at their actual document position, not appended after
-        // all paragraphs.
-        var paragraphItems = (analysis.Paragraphs ?? [])
-            .Select(p => (
-                Page:  p.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
-                Y:     TopY(p.BoundingRegions),
-                Para:  (DocumentParagraph?)p,
-                Table: (DocumentTable?)null));
-
-        var tableItems = (analysis.Tables ?? [])
-            .Select(t => (
-                Page:  t.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
-                Y:     TopY(t.BoundingRegions),
-                Para:  (DocumentParagraph?)null,
-                Table: (DocumentTable?)t));
-
-        foreach (var item in paragraphItems.Concat(tableItems).OrderBy(i => i.Page).ThenBy(i => i.Y))
+        foreach (var para in analysis.Paragraphs ?? [])
         {
-            if (item.Para is { } para)
+            if (para.Role == ParagraphRole.PageHeader
+                || para.Role == ParagraphRole.PageFooter
+                || para.Role == ParagraphRole.PageNumber)
+                continue;
+
+            if (OverlapsTable(para.Spans))
+                continue; // already rendered as part of its table's markdown
+
+            var paraOffset = para.Spans is { Count: > 0 } ps ? ps[0].Offset : 0;
+            while (nextTableIndex < tablesByOffset.Count && tablesByOffset[nextTableIndex].Offset < paraOffset)
+                EmitTable(tablesByOffset[nextTableIndex++].Table);
+
+            var pageNum = para.BoundingRegions is { Count: > 0 } brP ? brP[0].PageNumber : 0;
+            if (pageNum == 0)
             {
-                if (para.Role == ParagraphRole.PageHeader
-                    || para.Role == ParagraphRole.PageFooter
-                    || para.Role == ParagraphRole.PageNumber)
-                    continue;
-
-                var pageNum = para.BoundingRegions is { Count: > 0 } brP ? brP[0].PageNumber : 0;
-
-                if (para.Role == ParagraphRole.Title || para.Role == ParagraphRole.SectionHeading)
-                {
-                    FlushParagraph(pageNum);
-                    Segments(pageNum).Add($"## {para.Content}");
-                }
-                else
-                {
-                    var buf = ParaBuffer(pageNum);
-                    buf.Append(buf.Length > 0 ? " " : "").Append(para.Content);
-                }
+                logger.LogWarning("DocumentIntelligence: paragraph with no bounding region dropped in {BlobName}", blobName);
+                continue;
             }
-            else if (item.Table is { } table)
-            {
-                var pageNum = table.BoundingRegions is { Count: > 0 } brT ? brT[0].PageNumber : 0;
-                FlushParagraph(pageNum);
 
-                var markdown = RenderMarkdownTable(table);
-                if (!string.IsNullOrWhiteSpace(markdown))
-                    Segments(pageNum).Add(markdown);
-            }
+            if (para.Role == ParagraphRole.Title)
+                Segments(pageNum).Add($"# {para.Content}");
+            else if (para.Role == ParagraphRole.SectionHeading)
+                Segments(pageNum).Add($"## {para.Content}");
+            else
+                Segments(pageNum).Add(para.Content);
         }
 
-        foreach (var pageNum in paragraphBuffers.Keys.ToList())
-            FlushParagraph(pageNum);
+        while (nextTableIndex < tablesByOffset.Count)
+            EmitTable(tablesByOffset[nextTableIndex++].Table);
 
         // Second pass: carry the most recent heading into a page whose own content
         // doesn't start with one, so every page still carries its section identity —
@@ -140,14 +143,16 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         var pages        = new List<PdfPageRecord>();
         string? carryHeading = null;
 
+        static bool IsHeading(string s) => s.StartsWith("# ") || s.StartsWith("## ");
+
         for (var pageNum = 1; pageNum <= pageCount; pageNum++)
         {
             var segments = pageSegments.TryGetValue(pageNum, out var s) ? s : [];
 
-            if (segments.Count > 0 && !segments[0].StartsWith("## ") && carryHeading != null)
+            if (segments.Count > 0 && !IsHeading(segments[0]) && carryHeading != null)
                 segments = [carryHeading, .. segments];
 
-            var lastHeadingOnPage = segments.LastOrDefault(s2 => s2.StartsWith("## "));
+            var lastHeadingOnPage = segments.LastOrDefault(IsHeading);
             if (lastHeadingOnPage != null) carryHeading = lastHeadingOnPage;
 
             pages.Add(new PdfPageRecord
