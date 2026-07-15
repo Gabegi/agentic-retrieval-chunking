@@ -41,7 +41,7 @@ public class PdfPigExtractor : IPdfExtractor
         var errors   = new List<ExtractionError>();
         var warnings = new List<ExtractionWarning>();
 
-        if (!PdfPreFlight.TryOpenAndValidate(pdfBytes, blobName, _logger, out var pdf, out var openError))
+        if (!PdfDocumentValidator.TryOpenAndValidate(pdfBytes, blobName, _logger, out var pdf, out var openError))
             return new PdfFileExtraction([], null, openError);
 
         using (pdf)
