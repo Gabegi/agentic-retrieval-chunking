@@ -58,18 +58,20 @@ namespace ProtocolsIndexer.Models
 
 namespace ProtocolsIndexer.Services
 {
-    // Everything the DocumentIntelligence backend needs from one PDF file: preflight,
-    // the one paid analyze call (with retry on 429), markdown page assembly, and every
-    // structural capability probe (headings/tables/page dimensions/selection marks,
-    // plus PdfPig's bookmark tree) — bundled for whatever builds ChunkMetadata later.
-    // ExtractPdfStructureAsync is the single entry point DocumentIntelligenceExtractor
-    // calls; everything else here is either a step it orchestrates internally or a
-    // free, synchronous probe also used standalone by the DI-vs-PdfPig comparison.
+    // Everything the DocumentIntelligence backend needs from one PDF file except
+    // preflight: the one paid analyze call (with retry on 429), markdown page assembly,
+    // and every structural capability probe (headings/tables/page dimensions/selection
+    // marks) — bundled for whatever builds ChunkMetadata later. Preflight
+    // (PdfDocumentValidator.IsPDFValid) stays in DocumentIntelligenceExtractor, since it
+    // owns the PdfDocument's lifetime - it reads nativeMetadata/bookmarks off that
+    // PdfDocument before disposing it and passes both into ExtractPdfStructureAsync,
+    // which never opens the file itself.
     //
     // GetBookmarks is the exception to "everything is DI": the outline/bookmark tree is
     // container-level structure DI has no concept of, under any feature flag or tier. It
-    // stays on PdfPig and takes an already-open PdfDocument, read inside the same
-    // `using` PdfDocumentValidator.IsPDFValid opens it in, so nothing re-parses the file.
+    // stays on PdfPig and takes an already-open PdfDocument - called by
+    // DocumentIntelligenceExtractor, not by this class, since that's where the open
+    // PdfDocument lives.
     public sealed class PDFStructureExtractor
     {
         // prebuilt-layout is billed at $10 / 1,000 pages. Verify against current
@@ -90,29 +92,17 @@ namespace ProtocolsIndexer.Services
             _logger = logger;
         }
 
-        // The one method DocumentIntelligenceExtractor calls. Runs preflight
-        // (PdfDocumentValidator.IsPDFValid), reads native metadata + bookmarks from the
-        // opened PdfDocument before disposing it, submits to Document Intelligence, then
-        // assembles markdown pages and every structural probe from the same AnalyzeResult.
-        // Ok=false covers every failure point (preflight or the paid call) with one typed
-        // ExtractionError - callers don't need to distinguish which step failed.
-        public async Task<PdfStructureExtraction> ExtractPdfStructureAsync(byte[] pdfBytes, string blobName, CancellationToken ct = default)
+        // The one method DocumentIntelligenceExtractor calls, once preflight has already
+        // opened and validated the PdfDocument (PdfDocumentValidator.IsPDFValid) and read
+        // nativeMetadata/bookmarks off it - both need the PdfDocument, which is disposed
+        // by the time this runs, so the caller reads them first and passes the results in
+        // rather than this method re-opening the file. From here: submit to Document
+        // Intelligence, then assemble markdown pages and every structural probe from the
+        // same AnalyzeResult. Ok=false covers the paid call's failure with a typed
+        // ExtractionError.
+        public async Task<PdfStructureExtraction> ExtractPdfStructureAsync(
+            byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, IReadOnlyList<Bookmark>? bookmarks, CancellationToken ct = default)
         {
-            if (!PdfDocumentValidator.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var validationError))
-                return new PdfStructureExtraction(false, null, null, null, null, validationError);
-
-            DocMetadata nativeMetadata;
-            IReadOnlyList<Bookmark>? bookmarks;
-            using (pdf)
-            {
-                nativeMetadata = PdfMetadataExtraction.ParseNativeMetadata(pdf);
-                bookmarks      = GetBookmarks(pdf, blobName);
-            }
-
-            _logger.LogDebug(
-                "PdfDocumentValidator: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}",
-                blobName, nativeMetadata.PageCount, nativeMetadata.Title, nativeMetadata.Author, nativeMetadata.CreatedAt);
-
             var analyzeOutcome = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
             if (!analyzeOutcome.Ok)
                 return new PdfStructureExtraction(false, null, null, null, null, analyzeOutcome.Error);
