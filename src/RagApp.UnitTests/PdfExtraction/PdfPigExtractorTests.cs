@@ -27,10 +27,10 @@ public class PdfPigExtractorTests
     }
 
     [TestMethod]
-    public void LargeBoldLine_IsDetectedAsHeading()
+    public async Task LargeBoldLine_IsDetectedAsHeading()
     {
         var bytes  = BuildSamplePdf("Introductie", "This is regular body text about the topic.");
-        var result = new PdfPigExtractor().ExtractPDF("doc1.pdf", bytes);
+        var result = await new PdfPigExtractor().ExtractPDFAsync("doc1.pdf", bytes);
 
         Assert.IsNull(result.Error);
         Assert.AreEqual(1, result.Pages.Count);
@@ -39,25 +39,25 @@ public class PdfPigExtractorTests
     }
 
     [TestMethod]
-    public void PageIndex_MatchesPdfPageNumber()
+    public async Task PageIndex_MatchesPdfPageNumber()
     {
         var bytes  = BuildSamplePdf("Heading", "Body text.");
-        var result = new PdfPigExtractor().ExtractPDF("doc1.pdf", bytes);
+        var result = await new PdfPigExtractor().ExtractPDFAsync("doc1.pdf", bytes);
 
         Assert.AreEqual(1, result.Pages[0].PageIndex);
     }
 
     [TestMethod]
-    public void BlobName_IsCarriedOntoEveryPage()
+    public async Task BlobName_IsCarriedOntoEveryPage()
     {
         var bytes  = BuildSamplePdf("Heading", "Body text.");
-        var result = new PdfPigExtractor().ExtractPDF("some/blob/doc1.pdf", bytes);
+        var result = await new PdfPigExtractor().ExtractPDFAsync("some/blob/doc1.pdf", bytes);
 
         Assert.IsTrue(result.Pages.All(p => p.BlobName == "some/blob/doc1.pdf"));
     }
 
     [TestMethod]
-    public void KnownSectionVocabulary_IsDetectedAsHeadingRegardlessOfFontSize()
+    public async Task KnownSectionVocabulary_IsDetectedAsHeadingRegardlessOfFontSize()
     {
         // There's no default known-section vocabulary (no confirmed template to build
         // one from), but a caller-supplied vocabulary should still be matched exactly,
@@ -69,15 +69,15 @@ public class PdfPigExtractorTests
         page.AddText("Body text follows.", 10, new PdfPoint(50, 650), regularFont);
         var bytes = builder.Build();
 
-        var result = new PdfPigExtractor(knownSections: ["Samenvatting"]).ExtractPDF("doc1.pdf", bytes);
+        var result = await new PdfPigExtractor(knownSections: ["Samenvatting"]).ExtractPDFAsync("doc1.pdf", bytes);
 
         StringAssert.Contains(result.Pages[0].PageContent, "## Samenvatting");
     }
 
     [TestMethod]
-    public void CorruptBytes_ProducesFileLevelErrorNotException()
+    public async Task CorruptBytes_ProducesFileLevelErrorNotException()
     {
-        var result = new PdfPigExtractor().ExtractPDF("corrupt.pdf", "not a real pdf"u8.ToArray());
+        var result = await new PdfPigExtractor().ExtractPDFAsync("corrupt.pdf", "not a real pdf"u8.ToArray());
 
         Assert.IsNotNull(result.Error);
         Assert.AreEqual(0, result.Pages.Count);
