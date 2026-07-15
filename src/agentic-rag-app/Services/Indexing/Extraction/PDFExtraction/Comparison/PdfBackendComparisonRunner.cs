@@ -70,10 +70,10 @@ public class PdfBackendComparisonRunner
 
     // Runs one backend over one file, then the SAME production Join -> Clean ->
     // Validate steps a real orchestrator run would use for this one file.
-    private ComparisonRow RunOne(IPdfExtractor extractor, string blobName, byte[] bytes)
+    private async Task<ComparisonRow> RunOneAsync(IPdfExtractor extractor, string blobName, byte[] bytes, CancellationToken ct)
     {
         var sw         = Stopwatch.StartNew();
-        var extraction = extractor.ExtractPDF(blobName, bytes);
+        var extraction = await extractor.ExtractPDFAsync(blobName, bytes, ct);
         sw.Stop();
 
         if (extraction.Error != null)
