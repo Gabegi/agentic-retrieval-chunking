@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,6 +9,8 @@ namespace ProtocolsIndexer.Services;
 // Azure Document Intelligence ("prebuilt-layout") PDF extraction backend, ported
 // from the comparison spike's DocumentIntelligenceExtractionService, with chunking
 // stripped out entirely (chunking stays downstream, in ChunkingService, unchanged).
+// Thin orchestrator: preflight here, everything that reads AnalyzeResult/bookmark
+// structure (the paid call, markdown page assembly) lives in PDFStructureExtractor.
 // Produces one PdfPageRecord per PDF page with markdown-flavored content
 // ("## " headings, real column-aware pipe tables), same shape CSV's
 // PageRecord.PageContent arrives in.
@@ -208,6 +209,10 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     // indices — a real pipe table with a header row, unlike the comparison spike's
     // flat " | " join of every cell in reading order. Row/column spans are ignored:
     // a merged cell fills only its anchor slot, which is acceptable for this use.
+    // Caption/footnotes are rendered around the table rather than dropped — a table's
+    // caption ("Table 3: Dosage schedule") is often the strongest retrieval signal for
+    // that table's content, and their spans fall inside the table's own Spans range, so
+    // they're already excluded from the paragraph loop above (no duplicate emission).
     private static string RenderMarkdownTable(DocumentTable table)
     {
         if (table.RowCount == 0 || table.ColumnCount == 0) return "";
@@ -228,6 +233,11 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         if (headerRowCount == 0) headerRowCount = 1;
 
         var sb = new StringBuilder();
+
+        var caption = table.Caption?.Content?.Trim();
+        if (!string.IsNullOrEmpty(caption))
+            sb.Append("**").Append(caption).Append("**\n\n");
+
         for (var r = 0; r < table.RowCount; r++)
         {
             sb.Append('|');
@@ -242,6 +252,13 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
                     sb.Append(" --- |");
                 sb.Append('\n');
             }
+        }
+
+        foreach (var footnote in table.Footnotes ?? [])
+        {
+            var text = footnote.Content?.Trim();
+            if (!string.IsNullOrEmpty(text))
+                sb.Append("\n_").Append(text).Append("_\n");
         }
 
         return sb.ToString().TrimEnd();
