@@ -42,7 +42,8 @@ namespace ProtocolsIndexer.Models
         IReadOnlyList<SelectionMarkInfo> SelectionMarks);
 
     // Result of calling the (paid) Document Intelligence analyze API once:
-    // - Ok = true  -> Result contains the successful analysis.
+    // - Ok = true  -> Result contains a successful, non-empty analysis (at least one page -
+    //   a zero-page result is deliberately folded into Ok = false, see AnalyzeDocumentAsync).
     // - Ok = false -> Error contains a typed reason instead of throwing an exception.
     //   This lets callers check Error.Reason and decide what to do
     //   (e.g. "Throttled" is worth retrying, "DiServiceError" probably isn't).

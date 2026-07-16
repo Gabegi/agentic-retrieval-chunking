@@ -53,23 +53,7 @@ namespace ProtocolsIndexer.Services
                 return new PdfStructureExtraction(false, null, null, null, analyzeOutcome.Error);
 
             var analysis  = analyzeOutcome.Result!;
-            var pageCount = analysis.Pages?.Count ?? 0;
-
-            // PdfDocumentValidator's preflight already rejected zero-page PDFs (via PdfPig),
-            // so getting here with pageCount == 0 means DI itself analyzed the document but
-            // produced no pages - a DI-side failure mode, not something to silently treat as
-            // a successful-but-empty extraction (that would otherwise surface much later, as
-            // an unexplained "no pages, won't be indexed" red flag in PdfPipelineValidator).
-            if (pageCount == 0)
-            {
-                _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
-                return new PdfStructureExtraction(false, null, null, null, new ExtractionError
-                {
-                    DocumentId = blobName,
-                    Message = "Document Intelligence analysis returned zero pages.",
-                    Reason = PdfOpenFailureReason.EmptyDocument,
-                });
-            }
+            var pageCount = analysis.Pages!.Count; // AnalyzeDocumentAsync guarantees Ok=true only for a non-empty analysis
 
             // Title: prefers the PDF's own Info-dictionary Title (nativeMetadata.Title) when
             // the file actually has one set - real PDF metadata, not a guess. Falls back to
@@ -107,6 +91,12 @@ namespace ProtocolsIndexer.Services
         //   deliberate exception to that: it means ct itself fired (e.g. host shutdown),
         //   not a per-document failure, so it's left to propagate and stop the whole run
         //   rather than being recorded as this one document failing to extract.
+        // - A zero-page result also comes back as Ok=false: PdfDocumentValidator's preflight
+        //   already rejected zero-page PDFs (via PdfPig), so DI itself returning zero pages
+        //   here means DI-side analysis failed to produce anything usable - not something
+        //   callers should treat as a successful-but-empty analysis (that would otherwise
+        //   surface much later, as an unexplained "no pages, won't be indexed" red flag in
+        //   PdfPipelineValidator). This is why Ok=true guarantees Result.Pages is non-empty.
         private async Task<AnalyzeOutcome> AnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
         {
             for (var attempt = 0; ; attempt++)
@@ -126,7 +116,19 @@ namespace ProtocolsIndexer.Services
                     Operation<AnalyzeResult> operation = await _diClient.AnalyzeDocumentAsync(
                         WaitUntil.Completed, analyzeOptions, cancellationToken: ct);
 
-                    return new AnalyzeOutcome(true, operation.Value, null);
+                    var result = operation.Value;
+                    if ((result.Pages?.Count ?? 0) == 0)
+                    {
+                        _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
+                        return new AnalyzeOutcome(false, null, new ExtractionError
+                        {
+                            DocumentId = blobName,
+                            Message = "Document Intelligence analysis returned zero pages.",
+                            Reason = PdfOpenFailureReason.EmptyDocument,
+                        });
+                    }
+
+                    return new AnalyzeOutcome(true, result, null);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 429 && attempt < BackoffDelays.Length)
                 {
