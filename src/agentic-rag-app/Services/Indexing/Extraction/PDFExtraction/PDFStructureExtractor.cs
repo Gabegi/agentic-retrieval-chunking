@@ -50,7 +50,7 @@ namespace ProtocolsIndexer.Services
         {
             var analyzeOutcome = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
             if (!analyzeOutcome.Ok)
-                return new PdfStructureExtraction(false, null, null, null, null, analyzeOutcome.Error);
+                return new PdfStructureExtraction(false, null, null, null, analyzeOutcome.Error);
 
             var analysis  = analyzeOutcome.Result!;
             var pageCount = analysis.Pages?.Count ?? 0;
@@ -63,7 +63,7 @@ namespace ProtocolsIndexer.Services
             if (pageCount == 0)
             {
                 _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
-                return new PdfStructureExtraction(false, null, null, null, null, new ExtractionError
+                return new PdfStructureExtraction(false, null, null, null, new ExtractionError
                 {
                     DocumentId = blobName,
                     Message = "Document Intelligence analysis returned zero pages.",
@@ -71,8 +71,16 @@ namespace ProtocolsIndexer.Services
                 });
             }
 
-            var index = Parse(blobName, nativeMetadata.Title);
-            var pages = _markdownExtractor.BuildMarkdownPages(blobName, analysis, pageCount, nativeMetadata.Bookmarks);
+            // Title: prefers the PDF's own Info-dictionary Title (nativeMetadata.Title) when
+            // the file actually has one set - real PDF metadata, not a guess. Falls back to
+            // a blob-name-derived title otherwise.
+            var title = !string.IsNullOrWhiteSpace(nativeMetadata.Title)
+                ? nativeMetadata.Title
+                : blobName.Split('/')[0]
+                    .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
+                    .Replace("-", " ");
+
+            var pages = _markdownExtractor.BuildMarkdownPages(blobName, analysis, pageCount, title, nativeMetadata.Bookmarks);
 
             var metadata = new PdfStructureMetadata(
                 nativeMetadata,
@@ -82,7 +90,7 @@ namespace ProtocolsIndexer.Services
                 GetPageDimensions(analysis),
                 GetSelectionMarks(analysis));
 
-            return new PdfStructureExtraction(true, pages, index, metadata, pageCount * CostPerPage, null);
+            return new PdfStructureExtraction(true, pages, metadata, pageCount * CostPerPage, null);
         }
 
         // Makes the single paid call to Document Intelligence.

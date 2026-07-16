@@ -34,7 +34,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         // Step 1: local, free structural check — rejects oversized/corrupt/encrypted/
         // too-many-page files before spending a paid Document Intelligence call on them.
         if (!PdfDocumentValidator.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var validationError))
-            return new PdfFileExtraction([], null, validationError);
+            return new PdfFileExtraction([], validationError);
 
         // Step 2: ParseNativeMetadata takes ownership of pdf's lifetime (disposes it internally)
         // and reads everything PdfPig can offer beyond DI: native Title/Author/
@@ -45,9 +45,9 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         // pages/structural metadata — lives in PDFStructureExtractor.
         var outcome = await _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName, nativeMetadata, ct);
         if (!outcome.Ok)
-            return new PdfFileExtraction([], null, outcome.Error);
+            return new PdfFileExtraction([], outcome.Error);
 
-        return new PdfFileExtraction(outcome.Pages!, outcome.Index, Error: null, EstimatedCostUsd: outcome.EstimatedCostUsd)
+        return new PdfFileExtraction(outcome.Pages!, Error: null, EstimatedCostUsd: outcome.EstimatedCostUsd)
         {
             StructureMetadata = outcome.Metadata,
             NativeMetadata    = nativeMetadata,
