@@ -30,19 +30,17 @@ public record PdfFileExtraction(
     public IReadOnlyList<ExtractionError>   PageErrors  { get; init; } = [];
     public IReadOnlyList<ExtractionWarning> Warnings    { get; init; } = [];
 
-    // Per-step diagnostic snapshot (see PdfExtractionDiagnostics) - null for files that
-    // failed before/without going through the full pipeline (open failure, DocumentIntelligence
-    // backend, which doesn't have PdfPig's baseline/decoration concepts to report).
+    // Per-step diagnostic snapshot (see PdfExtractionDiagnostics) - currently always null;
+    // nothing populates it since the PdfPig backend (the only producer) was removed.
     public PdfExtractionDiagnostics? Diagnostics { get; init; }
 
-    // Native PDF Info-dictionary metadata (see DocMetadata) - both backends open the file
-    // with PdfPig at some point (DocumentIntelligenceExtractor's preflight, PdfPigExtractor's
-    // own open step) and read this for free. Null only when the file failed before opening.
+    // Native PDF Info-dictionary metadata (see DocMetadata), read via PdfPig during
+    // DocumentIntelligenceExtractor's preflight open. Null only when the file failed
+    // before opening.
     public DocMetadata? NativeMetadata { get; init; }
 
     // Raw structural ingredients (headings/tables/bookmarks/page dimensions/selection
     // marks, each carrying an Offset) for whatever builds ChunkMetadata once chunk
     // boundaries exist downstream - see PDFStructureExtractor.PdfStructureMetadata.
-    // DocumentIntelligence-only; null for PdfPig/CSV, which have no DI capability to probe.
     public PdfStructureMetadata? StructureMetadata { get; init; }
 }
