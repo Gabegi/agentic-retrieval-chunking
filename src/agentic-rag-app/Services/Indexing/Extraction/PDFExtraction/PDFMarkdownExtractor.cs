@@ -64,7 +64,7 @@ namespace ProtocolsIndexer.Services
         // - Missing/empty bookmarks (no outline in this PDF, or PdfPig couldn't read one)
         //   just means no breadcrumb - never a hard requirement for extraction to succeed.
         public List<PdfPageRecord> BuildMarkdownPages(
-            string blobName, AnalyzeResult analysis, int pageCount, IReadOnlyList<Bookmark>? bookmarks = null)
+            string blobName, AnalyzeResult analysis, int pageCount, string title, IReadOnlyList<Bookmark>? bookmarks = null)
         {
             var content = SetextTitleRegex.Replace(analysis.Content ?? "", "# ${title}");
 
@@ -158,6 +158,7 @@ namespace ProtocolsIndexer.Services
                     BlobName    = blobName,
                     PageIndex   = pageNum,
                     PageContent = string.Join("\n\n", segments),
+                    Title       = title,
                 });
             }
 
