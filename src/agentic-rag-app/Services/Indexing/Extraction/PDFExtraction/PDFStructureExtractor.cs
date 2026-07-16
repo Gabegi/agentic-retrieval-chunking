@@ -438,7 +438,8 @@ namespace ProtocolsIndexer.Services
                     p.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
                 .ToList();
 
-        // Page geometry as DI measured it (not the PDF's declared MediaBox).
+        // Returns each page's width/height/unit as measured by DI itself -
+        // not the dimensions declared in the PDF's own MediaBox.
         public IReadOnlyList<PageDimensions> GetPageDimensions(AnalyzeResult result) =>
             result.Pages
                 .Select(p => new PageDimensions(p.PageNumber, p.Width, p.Height, p.Unit.ToString() ?? ""))
