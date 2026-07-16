@@ -8,8 +8,8 @@ namespace ProtocolsIndexer.Services;
 // from the comparison spike's DocumentIntelligenceExtractionService, with chunking
 // stripped out entirely (chunking stays downstream, in ChunkingService, unchanged).
 // Owns the PdfDocument's lifetime up front: preflight (PdfDocumentValidator.IsPDFValid)
-// opens and validates it, then PdfMetadataExtractor.ParseNativeMetadata takes over that
-// lifetime - it reads native metadata/bookmarks off the PdfDocument and disposes it
+// opens and validates it, then PdfNativeMetadataExtractor.ExtractPdfNativeMetadata takes
+// over that lifetime - it reads native metadata/bookmarks off the PdfDocument and disposes it
 // before returning, so nothing here needs its own `using` block. The resulting
 // DocMetadata is handed to PDFStructureExtractor.ExtractPdfStructureAsync, which does
 // the paid call, markdown page assembly, and structural metadata from there.
