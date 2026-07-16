@@ -16,13 +16,12 @@ public interface IPdfExtractor
     Task<PdfFileExtraction> ExtractPDFAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default);
 }
 
-// One PDF file's extraction outcome. Error is set (and Pages/Index empty) when the
-// file couldn't be parsed at all (corrupt PDF, backend exception) — the orchestrator
-// folds this into the same ExtractionResult<T>.Errors bucket CSV's row-level parse
-// errors land in.
+// One PDF file's extraction outcome. Error is set (and Pages empty) when the file
+// couldn't be parsed at all (corrupt PDF, backend exception) — the orchestrator folds
+// this into the same ExtractionResult<T>.Errors bucket CSV's row-level parse errors
+// land in.
 public record PdfFileExtraction(
     IReadOnlyList<PdfPageRecord> Pages,
-    PdfIndexRecord?              Index,
     ExtractionError?             Error,
     decimal?                     EstimatedCostUsd = null) // set by paid backends (e.g. Document Intelligence) for the comparison report
 {
