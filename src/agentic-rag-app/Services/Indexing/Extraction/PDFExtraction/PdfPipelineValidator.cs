@@ -55,10 +55,11 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         if (docsWithNoPagesWithHeadings.Count > 0)
             redFlags.Add($"{docsWithNoPagesWithHeadings.Count} document(s) have no markdown headings — need fallback chunking.");
 
-        // 6b. PdfPig-only: documents short enough that cross-page decoration (header/
-        // footer) detection never ran at all (see PdfPigExtractor.MinPagesForDecorationDetection) —
-        // every line on those pages is kept as-is, decoration or not. Not an error, just
-        // a known coverage gap worth tracking until real data says it's worth solving.
+        // 6b. Documents short enough that cross-page decoration (header/footer) detection
+        // never ran at all - every line on those pages is kept as-is, decoration or not.
+        // Currently never triggers: diagnostics is only ever non-empty when something
+        // populates PdfFileExtraction.Diagnostics, which nothing does since the PdfPig
+        // backend (the only producer) was removed.
         if (diagnostics is { Count: > 0 })
         {
             var noDecorationCount = diagnostics.Count(d => !d.DecorationDetectionRan);

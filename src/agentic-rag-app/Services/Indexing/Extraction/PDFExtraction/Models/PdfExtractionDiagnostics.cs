@@ -1,21 +1,20 @@
 namespace ProtocolsIndexer.Models;
 
-// Snapshot of what each extraction step actually produced for one PDF. Built
-// unconditionally by PdfPigExtractor (it's just the scalars/counts each step already
-// computes - no extra work, no I/O), but only ever written out as a report by the
-// orchestrator, gated behind IRunReportWriter.IsEnabled - extractors stay I/O-free,
-// orchestrators own reporting (see PdfExtractionOrchestrator).
+// Snapshot of what each extraction step actually produced for one PDF. Currently always
+// null on every PdfFileExtraction - the only producer was the PdfPig backend, which has
+// been removed. Left in place as a report slot (gated behind IRunReportWriter.IsEnabled
+// in PdfExtractionOrchestrator) for whichever backend picks this reporting back up.
 public sealed class PdfExtractionDiagnostics
 {
     public required string BlobName { get; init; }
 
-    // Step 1: document-level baseline (PdfPigExtractor.ComputeDocumentBaseline)
+    // Step 1: document-level baseline
     public double DominantFontSize     { get; init; }
     public double DominantPageWidth    { get; init; }
     public int    KnownSectionCount    { get; init; }
     public bool   BookmarksContributed { get; init; } // true if the PDF's own outline added headings beyond the hardcoded vocabulary
 
-    // Step 2: cross-page structural analysis (PdfPigExtractor.GetDecorationTextByPage)
+    // Step 2: cross-page structural analysis
     public bool DecorationDetectionRan     { get; init; } // false for docs under MinPagesForDecorationDetection
     public int  PagesWithDecorationRemoved { get; init; }
 
