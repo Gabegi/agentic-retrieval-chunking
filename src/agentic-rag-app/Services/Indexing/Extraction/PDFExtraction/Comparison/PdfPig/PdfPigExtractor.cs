@@ -116,7 +116,7 @@ public class PdfPigExtractor : IPdfExtractor
                     $"All {pdf.NumberOfPages} page(s) failed extraction. First error: {errors.FirstOrDefault()?.Message}",
                     PdfOpenFailureReason.NoReadablePages);
 
-            var index = PdfMetadataExtractor.Parse(blobName);
+            var index = PdfNativeMetadataExtractor.Parse(blobName);
 
             var diagnostics = new PdfExtractionDiagnostics
             {

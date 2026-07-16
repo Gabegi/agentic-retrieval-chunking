@@ -39,7 +39,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         // Step 2: ParseNativeMetadata takes ownership of pdf's lifetime (disposes it internally)
         // and reads everything PdfPig can offer beyond DI: native Title/Author/
         // CreationDate plus the outline/bookmark tree.
-        var nativeMetadata = PdfMetadataExtractor.ExtractPdfNativeMetadata(pdf, blobName, _logger);
+        var nativeMetadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(pdf, blobName, _logger);
 
         // Step 3: submit to Document Intelligence's prebuilt-layout model and assemble
         // pages/structural metadata — lives in PDFStructureExtractor.

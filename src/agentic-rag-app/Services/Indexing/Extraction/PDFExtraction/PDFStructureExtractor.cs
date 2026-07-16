@@ -56,7 +56,7 @@ namespace ProtocolsIndexer.Services
             var analysis  = analyzeOutcome.Result!;
             var pageCount = analysis.Pages?.Count ?? 0;
 
-            var index = PdfMetadataExtractor.Parse(blobName, nativeMetadata.Title);
+            var index = PdfNativeMetadataExtractor.Parse(blobName, nativeMetadata.Title);
             var pages = _markdownExtractor.BuildMarkdownPages(blobName, analysis, pageCount, nativeMetadata.Bookmarks);
 
             var metadata = new PdfStructureMetadata(

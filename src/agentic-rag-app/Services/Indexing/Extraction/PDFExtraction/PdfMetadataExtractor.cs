@@ -13,7 +13,7 @@ namespace ProtocolsIndexer.Services
     // Two unrelated metadata sources, kept in one file:
     // - Parse: Zenya's Title/Version/PublicationDate from blob name + first-page text.
     // - ParseNativeMetadata: the PDF's own Info-dictionary + bookmark tree, via PdfPig.
-    internal static class PdfMetadataExtractor
+    internal static class PdfNativeMetadataExtractor
     {
         // Reads pdf native Title/Author/CreationDate + the bookmark tree off an open pdf.
         // - Takes ownership of pdf's lifetime (disposes it here, not in the caller).
