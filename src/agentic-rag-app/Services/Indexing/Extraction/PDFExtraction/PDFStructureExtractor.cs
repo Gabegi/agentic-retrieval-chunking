@@ -313,14 +313,23 @@ namespace ProtocolsIndexer.Services
             return pages;
         }
 
-        // Reduces the flat, pre-order bookmark list into one breadcrumb string per page -
-        // the deepest outline entry active as of that page, joined with its ancestors
-        // ("Chapter 3 > 3.2 Dosage"). Maintains a level-indexed stack while walking
-        // bookmarks in page order: each entry truncates the stack to its own Level before
-        // pushing, so a later top-level bookmark correctly drops any deeper section left
-        // over from the previous chapter. Entries with no resolvable PageNumber (see
-        // PdfMetadataExtractor.TryGetPageNumber) are skipped - they can't anchor a
-        // page range and would otherwise corrupt the stack with an untethered entry.
+        // Converts the PDF's flat bookmark/outline list into one breadcrumb string per page,
+        // e.g. "Chapter 3 > 3.2 Dosage" - the deepest section active on that page, together
+        // with all its parent sections.
+        // How it works:
+        // 1. Keep only bookmarks that have a resolvable page number (see
+        //    PdfMetadataExtractor.TryGetPageNumber); others are skipped, since they can't be
+        //    anchored to a page and would otherwise corrupt the algorithm below.
+        // 2. Sort those bookmarks by page number, then walk them in order while maintaining
+        //    a "stack" of section titles indexed by outline depth (Level):
+        //    - Before adding a bookmark, trim the stack down to its Level, so that a new
+        //      top-level bookmark correctly discards any deeper sub-sections left over from
+        //      the previous chapter.
+        //    - Then push the bookmark's title onto the stack.
+        //    - Joining the stack with " > " gives the breadcrumb text active from that
+        //      bookmark's page onward.
+        // 3. Finally, walk every page number from 1 to pageCount and assign it whichever
+        //    breadcrumb was most recently active as of that page.
         private static Dictionary<int, string> BuildSectionBreadcrumbs(IReadOnlyList<Bookmark>? bookmarks, int pageCount)
         {
             var result = new Dictionary<int, string>();
@@ -358,15 +367,20 @@ namespace ProtocolsIndexer.Services
             return result;
         }
 
-        // Checkboxes/radio buttons: DocumentSelectionMark has no paragraph of its own - DI
-        // treats it as a non-text glyph, so it never appears in analysis.Paragraphs and
-        // (unlike tables) nothing upstream of this method reads analysis.Pages[].SelectionMarks
-        // at all, meaning "which option was checked" is silently dropped from every page
-        // today. DI gives no direct link from a mark to its label, so the nearest paragraph
-        // on the same page (by absolute span-offset distance) is used as a best-effort
-        // label. Rendered as its own "Selected options" block appended after a page's
-        // regular content - not spliced into the paragraph flow - so a wrong nearest-
-        // neighbor guess can't silently corrupt unrelated prose.
+        // Builds a "Selected options" markdown block per page for checkboxes/radio buttons.
+        // Why this is needed:
+        // - DI treats a checkbox/radio button (DocumentSelectionMark) as a non-text glyph,
+        //   so it never shows up in analysis.Paragraphs.
+        // - Nothing else in this class reads analysis.Pages[].SelectionMarks, so without
+        //   this method, "which option was checked" would be silently lost for every page.
+        // How labels are guessed:
+        // - DI gives no direct link between a selection mark and the text label next to it.
+        // - As a best-effort guess, this uses whichever paragraph on the same page has the
+        //   closest span offset to the mark.
+        // How the result is rendered:
+        // - As a separate "Selected options" block appended after the page's normal content,
+        //   not mixed into the paragraph text itself - so a wrong label guess can't corrupt
+        //   unrelated prose.
         private static Dictionary<int, string> BuildSelectionMarkBlocks(AnalyzeResult analysis)
         {
             var result = new Dictionary<int, string>();
@@ -408,10 +422,12 @@ namespace ProtocolsIndexer.Services
             return result;
         }
 
-        // Headings/sections: paragraphs DI classified with a structural role (title,
-        // sectionHeading, pageHeader, footnote, ...) rather than plain body text.
-        // Offset/PageNumber come from Spans/BoundingRegions - DocumentParagraph has no
-        // PageNumber property of its own (same pattern BuildMarkdownPages already uses).
+        // Returns every heading/section paragraph - i.e. paragraphs DI classified with a
+        // structural role (title, sectionHeading, pageHeader, footnote, etc.) rather than
+        // as plain body text.
+        // - Offset and PageNumber are read from Spans/BoundingRegions, because
+        //   DocumentParagraph has no PageNumber property of its own (same approach
+        //   BuildMarkdownPages uses elsewhere).
         public IReadOnlyList<Heading> GetHeadings(AnalyzeResult result) =>
             result.Paragraphs
                 .Where(p => p.Role is not null)
