@@ -26,19 +26,17 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     public PdfValidationReport Validate(
         ExtractionResult<PdfPageRecord>         pagesExtraction,
-        ExtractionResult<PdfIndexRecord>        indexExtraction,
-        PdfJoinResult                            joinResult,
         PdfCleanResult                           cleanResult,
         int?                                     previousRunCleanedCount = null,
         IReadOnlyList<PdfExtractionDiagnostics>? diagnostics = null)
     {
         var redFlags = new List<string>();
 
-        // 1. Collect all errors from the 3 previous steps.
-        var issues = CollectIssues(pagesExtraction, indexExtraction, joinResult, cleanResult, redFlags);
+        // 1. Collect all errors from the previous steps.
+        var issues = CollectIssues(pagesExtraction, cleanResult);
 
-        // 2. Check whether extraction page numbers reconcile through join -> clean.
-        var reconciliation = CheckCleanVsJointCount(pagesExtraction, joinResult, cleanResult);
+        // 2. Check whether extraction page numbers reconcile through clean.
+        var reconciliation = CheckExtractVsCleanCount(pagesExtraction, cleanResult);
 
         // 3. Magnitude shift vs a previous run, if supplied.
         var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
