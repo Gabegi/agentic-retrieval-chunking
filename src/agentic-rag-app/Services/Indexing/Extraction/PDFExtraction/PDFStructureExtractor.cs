@@ -498,10 +498,13 @@ namespace ProtocolsIndexer.Services
                 if (cell.RowIndex < table.RowCount && cell.ColumnIndex < table.ColumnCount)
                     grid[cell.RowIndex, cell.ColumnIndex] = cell.Content?.Trim();
 
-            // DI marks header cells with Kind == ColumnHeader; header rows are assumed
-            // contiguous from the top (covers 0, 1, or multi-row headers). When no cell
-            // carries that kind at all, fall back to treating row 0 as the header so the
-            // output stays a valid markdown table.
+            // Determine how many header rows there are:
+            // - DI marks header cells with Kind == ColumnHeader.
+            // - Count header rows starting from the top and stopping at the first
+            //   non-header row - this correctly handles 0, 1, or multiple header rows.
+            // - If no cell is marked as a header at all, default to treating row 0 as the
+            //   header, so the output is still a valid markdown table (which requires
+            //   a header row and a separator row).
             var headerRowCount = 0;
             while (headerRowCount < table.RowCount
                    && table.Cells.Any(c => c.RowIndex == headerRowCount && c.Kind == DocumentTableCellKind.ColumnHeader))
