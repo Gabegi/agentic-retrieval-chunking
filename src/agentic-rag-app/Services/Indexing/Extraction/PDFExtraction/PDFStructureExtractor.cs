@@ -26,13 +26,11 @@ namespace ProtocolsIndexer.Services
 
         private readonly DocumentIntelligenceClient _diClient;
         private readonly ILogger _logger;
-        private readonly PDFMarkdownExtractor _markdownExtractor;
 
-        public PDFStructureExtractor(DocumentIntelligenceClient diClient, ILogger<PDFStructureExtractor> logger, PDFMarkdownExtractor markdownExtractor)
+        public PDFStructureExtractor(DocumentIntelligenceClient diClient, ILogger<PDFStructureExtractor> logger)
         {
             _diClient = diClient;
             _logger = logger;
-            _markdownExtractor = markdownExtractor;
         }
 
         // Main entry point, called once preflight/native-metadata reading has already happened.
@@ -65,9 +63,11 @@ namespace ProtocolsIndexer.Services
                     .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
                     .Replace("-", " ");
 
-            var pages = _markdownExtractor.BuildMarkdownPages(blobName, analysis, analysis.Pages!.Count, title, nativeMetadata.Bookmarks);
-
-            var structure = new PdfDocumentStructure(
+            return new PDFStructureExtractorResult(
+                true, 
+                analysis.Content, 
+                GetPages(analysis, blobName, title),
+                new PdfDocumentStructure(
                 GetHeadings(analysis),
                 GetBoilerplate(analysis),
                 GetTables(analysis),
@@ -75,9 +75,8 @@ namespace ProtocolsIndexer.Services
                 GetSelectionMarks(analysis),
                 GetFigures(analysis),
                 GetHandwrittenSpans(analysis),
-                GetLines(analysis));
-
-            return new PDFStructureExtractorResult(true, analysis.Content, pages, structure, analysis.Pages!.Count * CostPerPage, null);
+                GetLines(analysis)),
+                analysis.Pages!.Count * CostPerPage, null);
         }
 
         // Makes the single paid call to Document Intelligence.
@@ -160,6 +159,32 @@ namespace ProtocolsIndexer.Services
                     });
                 }
             }
+        }
+
+        // Returns one PdfPageRecord per PDF page, sliced directly from analysis.Content
+        // using each DocumentPage's own Spans - DI's structural page model - rather than
+        // splitting the content string on its "<!-- PageBreak -->" text marker. Page
+        // boundaries come from DI's own per-page data, so there's no possibility of a
+        // fragment-count-vs-pageCount mismatch to guard against.
+        // - Does not carry over what PDFMarkdownExtractor.BuildMarkdownPages also did:
+        //   bookmark breadcrumbs, cross-page heading carry-forward, noise-comment
+        //   stripping (PageHeader/PageFooter/PageNumber/FigureContent), setext-title
+        //   normalization, or repairing a <table> that DI split across two pages' Spans.
+        public IReadOnlyList<PdfPageRecord> GetPages(AnalyzeResult result, string blobName, string title) =>
+            result.Pages
+                .Select(p => new PdfPageRecord
+                {
+                    BlobName    = blobName,
+                    PageIndex   = p.PageNumber,
+                    PageContent = SliceBySpans(result.Content, p.Spans),
+                    Title       = title,
+                })
+                .ToList();
+
+        private static string SliceBySpans(string content, IReadOnlyList<DocumentSpan>? spans)
+        {
+            if (spans is not { Count: > 0 }) return "";
+            return string.Concat(spans.OrderBy(s => s.Offset).Select(s => content.Substring(s.Offset, s.Length)));
         }
 
         // Returns every true heading/title paragraph - i.e. paragraphs DI classified as

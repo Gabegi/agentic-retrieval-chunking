@@ -161,7 +161,6 @@ var host = new HostBuilder()
         {
             services.AddSingleton(_ =>
                 new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
-            services.AddSingleton<PDFMarkdownExtractor>();
             services.AddSingleton<PDFStructureExtractor>();
             services.AddSingleton<IPdfExtractor, DocumentIntelligenceExtractor>();
         }
