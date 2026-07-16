@@ -48,12 +48,11 @@ namespace ProtocolsIndexer.Services
         public async Task<PdfStructureExtraction> ExtractPdfStructureAsync(
             byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
-            var analyzeOutcome = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
-            if (!analyzeOutcome.Ok)
-                return new PdfStructureExtraction(false, null, null, null, analyzeOutcome.Error);
+            var analyzeResults = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
+            if (!analyzeResults.Ok)
+                return new PdfStructureExtraction(false, null, null, null, analyzeResults.Error);
 
-            var analysis  = analyzeOutcome.Result!;
-            var pageCount = analysis.Pages!.Count; // AnalyzeDocumentAsync guarantees Ok=true only for a non-empty analysis
+            var analysis = analyzeResults.Result!; // AnalyzeDocumentAsync guarantees Ok=true only for a non-empty analysis
 
             // Title: prefers the PDF's own Info-dictionary Title (nativeMetadata.Title) when
             // the file actually has one set - real PDF metadata, not a guess. Falls back to
@@ -64,7 +63,7 @@ namespace ProtocolsIndexer.Services
                     .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
                     .Replace("-", " ");
 
-            var pages = _markdownExtractor.BuildMarkdownPages(blobName, analysis, pageCount, title, nativeMetadata.Bookmarks);
+            var pages = _markdownExtractor.BuildMarkdownPages(blobName, analysis, analysis.Pages!.Count, title, nativeMetadata.Bookmarks);
 
             var metadata = new PdfStructureMetadata(
                 nativeMetadata,
@@ -74,7 +73,7 @@ namespace ProtocolsIndexer.Services
                 GetPageDimensions(analysis),
                 GetSelectionMarks(analysis));
 
-            return new PdfStructureExtraction(true, pages, metadata, pageCount * CostPerPage, null);
+            return new PdfStructureExtraction(true, pages, metadata, analysis.Pages!.Count * CostPerPage, null);
         }
 
         // Makes the single paid call to Document Intelligence.
