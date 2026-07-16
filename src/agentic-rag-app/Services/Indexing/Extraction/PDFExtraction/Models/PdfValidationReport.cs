@@ -7,8 +7,6 @@ public class PdfValidationReport
 {
     public DateTime RunAtUtc              { get; init; }
     public int      PagesExtracted        { get; init; }
-    public int      IndexRecordsExtracted { get; init; }
-    public int      JoinedRecords         { get; init; }
     public int      CleanedRecords        { get; init; }
     public bool     Passed                { get; init; }
     // Same rationale as CSV's ValidationReport.PassedExcludingMagnitude — lets a
@@ -22,7 +20,6 @@ public class PdfValidationReport
     public IReadOnlyList<string>               RedFlags                         { get; init; } = [];
     public IReadOnlyList<CleanedPdfPageRecord> SpotCheckSample                  { get; init; } = [];
     public IReadOnlyList<string>               DocumentsNeedingFallbackChunking { get; init; } = [];
-    public IReadOnlyList<string>               SkippedIndexDocuments            { get; init; } = [];  // "BlobName" of index records with no pages
     public int                                 MojibakeRepairedPages            { get; init; }
     public int                                 DetectedTableCount               { get; init; }
 }
