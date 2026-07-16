@@ -84,3 +84,44 @@ rules — is correctly configured.
    `cor-vnet-workplace-prd-we-001`.
 
 Not yet applied either way — pending a decision on which path to take.
+
+## Update 2026-07-16: platform team explanation changes the picture
+
+Platform team's response (paraphrased): all spoke VNets point to the hub firewall, and the
+firewall forwards to Cordaan's domain controllers; the DCs hold `file.core.windows.net`
+(the base zone, **not** `privatelink.file.core.windows.net`) as an authoritative zone
+on-prem.
+
+That's a different, more fundamental blocker than "our VNet isn't linked to the privatelink
+zone." The normal resolution chain for a private-linked storage FQDN is:
+
+1. Client resolves `corstfunccapdevwe.file.core.windows.net`.
+2. That query has to reach Azure public DNS, which returns a CNAME to
+   `corstfunccapdevwe.privatelink.file.core.windows.net`.
+3. The privatelink zone (which already has the correct record —
+   `corstfunccapdevwe.privatelink.file.core.windows.net` → `10.243.4.7`, confirmed above)
+   resolves the private IP.
+
+Because the DC is authoritative for the *base* `file.core.windows.net` zone, step 1 never
+leaves the on-prem DNS estate — the DC answers (or NXDOMAINs) locally and never forwards to
+Azure DNS. Steps 2–3 never run. This holds true **regardless of whether
+`cor-vnet-cap-dev-we-001` gets linked to `privatelink.file.core.windows.net`**, since the
+VNet uses the firewall (`10.240.0.68`) as its DNS server, not Azure-provided DNS directly —
+so remediation option 2 above (self-service Terraform VNet link) is likely necessary but
+**not sufficient** on its own.
+
+### Revised recommended action
+
+Ask the platform team to add a static A record directly inside their authoritative
+`file.core.windows.net` DC zone:
+
+```
+corstfunccapdevwe.file.core.windows.net  A  10.243.4.7
+```
+
+This is the IP already published in `privatelink.file.core.windows.net`'s own record set, so
+no new discovery work is needed on their end — it just needs to be mirrored into the zone
+that's actually in the resolution path. This sidesteps the CNAME hop entirely and doesn't
+depend on the firewall ever reaching Azure DNS for this suffix. The Terraform VNet-link
+option can still be pursued in parallel for correctness/future private endpoints, but
+shouldn't be assumed to unblock this deploy by itself.

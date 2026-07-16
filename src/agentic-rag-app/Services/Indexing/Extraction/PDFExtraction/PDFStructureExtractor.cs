@@ -7,12 +7,15 @@ using System.Security.Cryptography;
 
 namespace ProtocolsIndexer.Models
 {
-    // Small, capability-scoped return types for PDFStructureExtractor - one shape
-    // per Get* method, so callers only pull in the fields relevant to what they asked for.
+    // Return types used by PDFStructureExtractor's Get* methods:
+    // - Each record below matches one Get* method one-to-one.
+    // - This keeps callers focused only on the fields they actually asked for.
 
-    // Offset is the join key for whatever builds ChunkMetadata later (position in the
-    // single global result.Content string every span indexes into) - PageNumber is for
-    // display/debugging only, since it can't order two headings on the same page.
+    // A single heading/title paragraph detected in the PDF:
+    // - Offset = position of this heading inside the document's single combined text string.
+    //   This is what later code uses to line headings up with other content (the "join key").
+    // - PageNumber = which page the heading is on, for display/debugging only.
+    //   It can't be used for ordering, because two headings on the same page look identical by page number.
     public sealed record Heading(string Content, string Role, int Offset, int PageNumber);
 
     public sealed record PageDimensions(int PageNumber, double? Width, double? Height, string Unit);
@@ -23,10 +26,13 @@ namespace ProtocolsIndexer.Models
 
     public sealed record SelectionMarkInfo(int PageNumber, string State, int Offset);
 
-    // Raw structural ingredients for one document - not chunk metadata itself. Chunk
-    // boundaries don't exist at extraction time, so whatever builds ChunkMetadata later
-    // (by joining on Heading/TableInfo/SelectionMarkInfo's Offset) does that joining -
-    // this record only bundles what extraction already knows for free.
+    // Raw structural data extracted from one PDF - not the final chunk metadata.
+    // - At extraction time, chunk boundaries don't exist yet, so this record does NOT
+    //   assemble chunks itself.
+    // - It simply bundles everything the extraction step already produces for free
+    //   (headings, tables, page sizes, selection marks).
+    // - A later step builds the real ChunkMetadata by matching these items up using
+    //   their Offset values.
     public sealed record PdfStructureMetadata(
         DocMetadata NativeMetadata,
         IReadOnlyList<Heading> Headings,

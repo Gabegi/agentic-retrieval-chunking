@@ -15,10 +15,10 @@ namespace ProtocolsIndexer.Services
     // - ParseNativeMetadata: the PDF's own Info-dictionary + bookmark tree, via PdfPig.
     internal static class PdfMetadataExtractor
     {
-        // Reads native Title/Author/CreationDate + the bookmark tree off an open pdf.
+        // Reads pdf native Title/Author/CreationDate + the bookmark tree off an open pdf.
         // - Takes ownership of pdf's lifetime (disposes it here, not in the caller).
         // - Called once, by DocumentIntelligenceExtractor, after preflight opens pdf.
-        public static DocMetadata ParseNativeMetadata(PdfDocument pdf, string blobName, ILogger logger)
+        public static DocMetadata ExtractPdfNativeMetadata(PdfDocument pdf, string blobName, ILogger logger)
         {
             using (pdf)
             {
