@@ -72,7 +72,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
         // 8. Final pass/fail check.
         var errorCount     = issues.Count(i => i.Severity == "Error");
-        var totalAttempted = pagesExtraction.RowsAttempted + indexExtraction.RowsAttempted;
+        var totalAttempted = pagesExtraction.RowsAttempted;
         var errorRate       = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
 
         var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
@@ -82,8 +82,6 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         {
             RunAtUtc                         = DateTime.UtcNow,
             PagesExtracted                   = pagesExtraction.Records.Count,
-            IndexRecordsExtracted            = indexExtraction.Records.Count,
-            JoinedRecords                    = joinResult.Joined.Count,
             CleanedRecords                   = cleanResult.Records.Count,
             Issues                           = issues,
             ReconciliationProblems           = reconciliation,
@@ -91,7 +89,6 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             RedFlags                         = redFlags,
             SpotCheckSample                  = sample,
             DocumentsNeedingFallbackChunking = docsWithNoPagesWithHeadings,
-            SkippedIndexDocuments            = joinResult.SkippedIndexRecords.Select(r => r.BlobName).ToList(),
             MojibakeRepairedPages            = cleanResult.MojibakeRepairedPages,
             DetectedTableCount               = detectedTableCount,
             Passed                           = passed,
@@ -101,11 +98,8 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     // 1. Aggregate every error/warning bucket into one place.
     private static List<ValidationIssue> CollectIssues(
-        ExtractionResult<PdfPageRecord>  pagesExtraction,
-        ExtractionResult<PdfIndexRecord> indexExtraction,
-        PdfJoinResult                    joinResult,
-        PdfCleanResult                   cleanResult,
-        List<string>                     redFlags)
+        ExtractionResult<PdfPageRecord> pagesExtraction,
+        PdfCleanResult                  cleanResult)
     {
         var issues = new List<ValidationIssue>();
 
@@ -115,58 +109,28 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         issues.AddRange(pagesExtraction.Warnings.Select(w => new ValidationIssue
             { Stage = "Parse:Pages", Severity = "Warning", DocumentId = w.DocumentId ?? "", Message = w.Message }));
 
-        issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}", Reason = e.Reason }));
-
-        issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue
-            { Stage = "Join", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
-
-        issues.AddRange(joinResult.DataQualityWarnings.Select(w => new ValidationIssue
-            { Stage = "Join", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
-
         issues.AddRange(cleanResult.Errors.Select(e => new ValidationIssue
             { Stage = "Clean", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
 
         issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue
             { Stage = "Clean", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
 
-        // Index records with no pages never reach the search index — make that visible.
-        issues.AddRange(joinResult.SkippedIndexRecords.Select(r => new ValidationIssue
-        {
-            Stage      = "Join",
-            Severity   = "Warning",
-            DocumentId = r.BlobName,
-            Message    = "Index record has no pages — document will not be indexed.",
-        }));
-        if (joinResult.SkippedIndexRecords.Count > 0)
-            redFlags.Add($"{joinResult.SkippedIndexRecords.Count} index document(s) have no pages and will not be indexed.");
-
         return issues;
     }
 
-    // 2. Every page that comes out of Extraction must land in exactly one bucket:
-    // pagesExtraction.Records.Count == joinResult.Joined.Count + unmatchedPageCount
-    // (no inactive-skip bucket — PDFs have no active/inactive flag).
-    private static List<string> CheckCleanVsJointCount(
+    // 2. Every page that comes out of Extraction must land in exactly one Clean bucket:
+    // cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
+    // == pagesExtraction.Records.Count (no join step in between anymore).
+    private static List<string> CheckExtractVsCleanCount(
         ExtractionResult<PdfPageRecord> pagesExtraction,
-        PdfJoinResult                   joinResult,
         PdfCleanResult                  cleanResult)
     {
         var reconciliation = new List<string>();
 
-        var unmatchedBlobNames = joinResult.Errors.Select(e => e.DocumentId).ToHashSet();
-        var unmatchedPageCount = pagesExtraction.Records.Count(p => unmatchedBlobNames.Contains(p.BlobName));
-
-        if (joinResult.Joined.Count + unmatchedPageCount != pagesExtraction.Records.Count)
-            reconciliation.Add(
-                $"Parse->Join mismatch: {pagesExtraction.Records.Count} pages extracted, but " +
-                $"{joinResult.Joined.Count} joined + {unmatchedPageCount} unmatched.");
-
-        // Join -> Clean: every joined record is processed exactly once.
         if (cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
-                != joinResult.Joined.Count)
+                != pagesExtraction.Records.Count)
             reconciliation.Add(
-                $"Join->Clean mismatch: {joinResult.Joined.Count} joined, but " +
+                $"Extract->Clean mismatch: {pagesExtraction.Records.Count} pages extracted, but " +
                 $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored + " +
                 $"{cleanResult.DuplicatePagesSkipped} duplicate-skipped.");
 
