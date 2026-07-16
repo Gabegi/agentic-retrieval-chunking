@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Azure;
 using Azure.Storage.Blobs;
@@ -10,11 +11,11 @@ using ProtocolsIndexer.Observability.Reports;
 namespace ProtocolsIndexer.Services;
 
 // PDF implementation of IExtractionOrchestrator — mirrors CsvExtractionOrchestrator's
-// shape (download -> extract -> join -> clean -> validate -> report -> diff-ready
-// output), adapted to the PDF pipeline. Not registered as the active
-// IExtractionOrchestrator yet (CSV remains the sole active source — see program.cs);
-// this exists so the PDF pipeline can run end-to-end, and so each file's
-// PdfFileExtraction.Diagnostics (baseline/decoration/metadata — see PdfPigExtractor)
+// shape (download -> extract -> clean -> validate -> report -> diff-ready output),
+// adapted to the PDF pipeline. Not registered as the active IExtractionOrchestrator yet
+// (CSV remains the sole active source — see program.cs); this exists so the PDF
+// pipeline can run end-to-end, and so each file's PDFExtractionResult.Diagnostics
+// (currently always null - nothing populates it since the PdfPig backend was removed)
 // has somewhere to be written as a dev-only report. Extractors stay I/O-free;
 // orchestrators own reporting — same split ExtractionService/CsvExtractionOrchestrator
 // already follow for IRunReportWriter.
@@ -24,10 +25,8 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     private readonly BlobContainerClient                _stateContainer;
     private readonly IRunReportWriter                   _reportWriter;
     private readonly IPdfExtractor                      _extractor;
-    private readonly IPdfJoiner                         _joiner;
     private readonly IPdfCleaner                        _cleaner;
     private readonly IPdfPipelineValidator               _validator;
-    private readonly PdfBackendComparisonRunner          _comparisonRunner;
     private readonly ILogger<PdfExtractionOrchestrator>  _logger;
 
     public string Source => "pdf";
@@ -49,21 +48,17 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         BlobContainerClient                stateContainer,
         IRunReportWriter                   reportWriter,
         IPdfExtractor                      extractor,
-        IPdfJoiner                         joiner,
         IPdfCleaner                        cleaner,
         IPdfPipelineValidator              validator,
-        PdfBackendComparisonRunner         comparisonRunner,
         ILogger<PdfExtractionOrchestrator> logger)
     {
-        _container        = container;
-        _stateContainer   = stateContainer;
-        _reportWriter     = reportWriter;
-        _extractor        = extractor;
-        _joiner           = joiner;
-        _cleaner          = cleaner;
-        _validator        = validator;
-        _comparisonRunner = comparisonRunner;
-        _logger           = logger;
+        _container      = container;
+        _stateContainer = stateContainer;
+        _reportWriter   = reportWriter;
+        _extractor      = extractor;
+        _cleaner        = cleaner;
+        _validator      = validator;
+        _logger         = logger;
     }
 
     public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
@@ -72,18 +67,19 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
         var (fileResults, lastModifiedByBlob) = await ExtractAllFilesAsync(ct);
 
-        var (pagesResult, indexResult) = PdfExtractionAggregation.Aggregate(fileResults);
-        var joinResult  = _joiner.Join(pagesResult.Records, indexResult.Records);
-        var cleanResult = _cleaner.Clean(joinResult.Joined);
+        var pagesResult = PdfExtractionAggregation.Aggregate(fileResults);
+        var cleanResult = _cleaner.Clean(pagesResult.Records);
 
         var (previousCount, previousETag) = await PreviousRunCount(ct);
         var diagnostics = fileResults.Select(f => f.Diagnostics).OfType<PdfExtractionDiagnostics>().ToList();
-        var report = _validator.Validate(pagesResult, indexResult, joinResult, cleanResult, previousCount, diagnostics);
+        var structures = fileResults
+            .Where(f => f.Structure != null)
+            .ToDictionary(f => f.BlobName, f => f.Structure!, StringComparer.OrdinalIgnoreCase);
+        var report = _validator.Validate(pagesResult, cleanResult, previousCount, diagnostics, structures);
 
         await WriteReportsAsync(runAt, report, diagnostics, ct);
-        await RunBackendComparisonIfDevAsync(ct);
 
-        var (effectivePassed, errors, warnings, missingTitle, missingVersion) =
+        var (effectivePassed, errors, warnings, missingTitle) =
             LogAndEmitValidationTelemetry(report, cleanResult, overrideMagnitudeCheck);
 
         if (!effectivePassed)
@@ -96,7 +92,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         // instead of comparing against the same stale count.
         await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
 
-        return BuildExtractionOutput(report, cleanResult, errors, warnings, missingTitle, missingVersion, lastModifiedByBlob);
+        return BuildExtractionOutput(report, cleanResult, errors, warnings, missingTitle, lastModifiedByBlob);
     }
 
     // Downloads and extracts every PDF blob in the container. One file's exception
@@ -105,10 +101,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // already gives a corrupt PDF. Also captures each blob's storage LastModified —
     // that's what downstream diffing in ExtractionService needs to detect new/updated/
     // removed documents, not anything parsed out of the PDF's own text.
-    private async Task<(List<PdfFileExtraction> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractAllFilesAsync(
+    private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractAllFilesAsync(
         CancellationToken ct)
     {
-        var results      = new List<PdfFileExtraction>();
+        var results      = new List<PDFExtractionResult>();
         var lastModified  = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
 
         await foreach (var item in _container.GetBlobsAsync(cancellationToken: ct))
@@ -119,15 +115,24 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
             using var ms = new MemoryStream();
             await _container.GetBlobClient(item.Name).DownloadToAsync(ms, ct);
+            var pdfBytes = ms.ToArray();
+
+            // Computed here, before any backend is invoked, so it applies regardless of
+            // which IPdfExtractor ends up running - same bytes always hash the same,
+            // independent of blob name, so a byte-identical re-upload is detectable before
+            // paying for extraction again. Not yet compared against anything (no store of
+            // previously-seen hashes exists) - logged for now so the value is at least
+            // visible while that dedup check gets built.
+            _logger.LogDebug("'{Blob}' content hash: {Hash}", item.Name, ComputeContentHash(pdfBytes));
 
             try
             {
-                results.Add(await _extractor.ExtractPDFAsync(item.Name, ms.ToArray(), ct));
+                results.Add(await _extractor.ExtractPDFAsync(item.Name, pdfBytes, ct));
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Extractor threw for '{Blob}'; recording as a file-level error.", item.Name);
-                results.Add(new PdfFileExtraction([], null,
+                results.Add(new PDFExtractionResult(false, item.Name, pdfBytes.LongLength, null, null, null, null, null, null,
                     new ExtractionError { DocumentId = item.Name, Message = ex.Message, Reason = PdfOpenFailureReason.Unknown }));
             }
         }
@@ -137,9 +142,9 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
     // Dev-only (see IRunReportWriter.IsEnabled): the validation report (same shape
     // CsvExtractionOrchestrator writes) plus a second, PDF-only report of what each
-    // extraction step actually produced per file. PdfPigExtractor always populates
-    // PdfFileExtraction.Diagnostics — it's cheap to build; only writing it out per run
-    // is the part worth gating.
+    // extraction step actually produced per file. Currently always empty - diagnostics
+    // is only ever populated by the PdfPig backend, which has been removed; left in place
+    // as a report slot for whichever backend picks that reporting back up.
     private async Task WriteReportsAsync(
         DateTimeOffset runAt, PdfValidationReport report, List<PdfExtractionDiagnostics> diagnostics, CancellationToken ct)
     {
@@ -153,31 +158,11 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                 $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-diagnostics.json", diagnostics, ct);
     }
 
-    // Dev-only (see IRunReportWriter.IsEnabled): runs the PdfPig-vs-DocumentIntelligence
-    // comparison over the same "documents" container this run just processed, so a
-    // developer running this orchestrator locally gets backend-comparison output for
-    // free instead of needing a separate --compare-pdf-backends invocation. This
-    // re-downloads and re-extracts every file through every registered backend — real
-    // extra cost, acceptable because it only ever runs in dev. Diagnostic only: never
-    // allowed to affect this run's actual result, so failures are logged and swallowed.
-    private async Task RunBackendComparisonIfDevAsync(CancellationToken ct)
-    {
-        if (!_reportWriter.IsEnabled) return;
-
-        try
-        {
-            await _comparisonRunner.CompareAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Backend comparison run failed; continuing — this is diagnostic-only.");
-        }
-    }
-
     // Maps the validated, cleaned records into the source-agnostic ExtractionOutput
-    // returned to the caller. Two ExtractionOutput fields have no PDF equivalent and
+    // returned to the caller. Several ExtractionOutput fields have no PDF equivalent and
     // are always zero here — see PdfValidationReport's own comment: no Zenya
-    // attention-flag (StaleDocCount) and no folder/department concept for PDFs
+    // attention-flag (StaleDocCount), no version data (MissingVersionCount - nothing
+    // parses/populates Version for PDFs), and no folder/department concept
     // (MissingDepartmentCount).
     private static ExtractionOutput BuildExtractionOutput(
         PdfValidationReport                report,
@@ -185,7 +170,6 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         int                                 errors,
         int                                 warnings,
         int                                 missingTitle,
-        int                                 missingVersion,
         Dictionary<string, DateTimeOffset>  lastModifiedByBlob)
     {
         var extractionDocs = cleanResult.Records
@@ -196,13 +180,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                 Metadata: new Dictionary<string, string>
                 {
                     ["title"]              = r.Title,
-                    ["version"]            = r.Version,
-                    // Diff-relevant timestamp: the blob's own storage LastModified, not
-                    // the PDF's self-reported publication date (kept separately below).
+                    // Diff-relevant timestamp: the blob's own storage LastModified.
                     ["last_modified_date"] = lastModifiedByBlob.TryGetValue(r.BlobName, out var lm)
                         ? lm.ToString("yyyy-MM-dd")
                         : "",
-                    ["publication_date"]   = r.PublicationDate?.ToString("o") ?? "",
                 }))
             .ToList();
 
@@ -228,7 +209,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             DetectedTableCount:     report.DetectedTableCount,
             DocsWithoutHeadings:    report.DocumentsNeedingFallbackChunking.Count,
             MissingTitleCount:      missingTitle,
-            MissingVersionCount:    missingVersion,
+            MissingVersionCount:    0,  // no version data for PDFs
             MissingDepartmentCount: 0,  // no folder/department concept for PDFs
             Issues:                 issues,
             RedFlags:               report.RedFlags.ToList(),
@@ -236,9 +217,9 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     }
 
     // Everything this run logs and emits as metrics, in one place — mirrors
-    // CsvExtractionOrchestrator.LogAndEmitValidationTelemetry, minus the two metrics
-    // (StaleDocs, "department" metadata) that have no PDF equivalent.
-    private (bool EffectivePassed, int Errors, int Warnings, int MissingTitle, int MissingVersion)
+    // CsvExtractionOrchestrator.LogAndEmitValidationTelemetry, minus the metrics
+    // (StaleDocs, "department"/"version" metadata) that have no PDF equivalent.
+    private (bool EffectivePassed, int Errors, int Warnings, int MissingTitle)
         LogAndEmitValidationTelemetry(
             PdfValidationReport report,
             PdfCleanResult      cleanResult,
@@ -280,15 +261,21 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
         // Metadata completeness — a document only counts as "missing" if EVERY one of
         // its pages lacks that field, matching CsvExtractionOrchestrator's rule.
-        var byDocument     = cleanResult.Records.GroupBy(r => r.BlobName).ToList();
-        var missingTitle   = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
-        var missingVersion = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Version)));
+        var byDocument   = cleanResult.Records.GroupBy(r => r.BlobName).ToList();
+        var missingTitle = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
 
-        Instrumentation.MissingMetadata.Add(missingTitle,   sourceTag, new("field", "title"));
-        Instrumentation.MissingMetadata.Add(missingVersion, sourceTag, new("field", "version"));
+        Instrumentation.MissingMetadata.Add(missingTitle, sourceTag, new("field", "title"));
 
-        return (effectivePassed, errors, warnings, missingTitle, missingVersion);
+        return (effectivePassed, errors, warnings, missingTitle);
     }
+
+    // Stable hash of the PDF's raw bytes, used as a dedup/caching key:
+    // - Same file content -> same hash, regardless of the blob's file name.
+    // - Would let a future caller detect "this exact file was already processed" and skip
+    //   paying for another extraction call - not wired into a skip decision yet, since
+    //   there's nowhere that stores previously-seen hashes across runs.
+    private static string ComputeContentHash(byte[] pdfBytes) =>
+        Convert.ToHexString(SHA256.HashData(pdfBytes));
 
     private async Task<(int? Count, ETag? ETag)> PreviousRunCount(CancellationToken ct)
     {

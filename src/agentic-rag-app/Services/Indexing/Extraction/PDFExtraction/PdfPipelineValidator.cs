@@ -21,46 +21,48 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     private static readonly Regex MarkdownHeading =
         new(@"^#{1,6}\s", RegexOptions.Multiline | RegexOptions.Compiled);
-    private static readonly Regex MarkdownTableLine =
-        new(@"^\s*\|.*\|\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
     public PdfValidationReport Validate(
-        ExtractionResult<PdfPageRecord>         pagesExtraction,
-        ExtractionResult<PdfIndexRecord>        indexExtraction,
-        PdfJoinResult                            joinResult,
-        PdfCleanResult                           cleanResult,
-        int?                                     previousRunCleanedCount = null,
-        IReadOnlyList<PdfExtractionDiagnostics>? diagnostics = null)
+        ExtractionResult<PdfPageRecord>                   pagesExtraction,
+        PdfCleanResult                                     cleanResult,
+        int?                                               previousRunCleanedCount = null,
+        IReadOnlyList<PdfExtractionDiagnostics>?           diagnostics = null,
+        IReadOnlyDictionary<string, PdfDocumentStructure>? structures = null)
     {
         var redFlags = new List<string>();
 
-        // 1. Collect all errors from the 3 previous steps.
-        var issues = CollectIssues(pagesExtraction, indexExtraction, joinResult, cleanResult, redFlags);
+        // 1. Collect all errors from the previous steps.
+        var issues = CollectIssues(pagesExtraction, cleanResult);
 
-        // 2. Check whether extraction page numbers reconcile through join -> clean.
-        var reconciliation = CheckCleanVsJointCount(pagesExtraction, joinResult, cleanResult);
+        // 2. Check whether extraction page numbers reconcile through clean.
+        var reconciliation = CheckExtractVsCleanCount(pagesExtraction, cleanResult);
 
         // 3. Magnitude shift vs a previous run, if supplied.
         var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
 
-        // 4. Text (char and language) + table format issues.
-        issues.AddRange(TextNTableQualityCheck(cleanResult));
+        // 4. Text (char/encoding) quality issues.
+        issues.AddRange(TextQualityCheck(cleanResult));
 
         // 4b. PDF-only: tables collapsed into repeated-phrase prose during extraction.
         issues.AddRange(TableFlatteningCheck(cleanResult));
 
-        // 5. Total tables detected this run — trended over time, not gated.
-        var detectedTableCount = CountDetectedTables(cleanResult);
+        // 4c. Table structure issues, from DI's own table data - not a text-pattern guess.
+        issues.AddRange(TableStructureQualityCheck(structures));
+
+        // 5. Total tables detected this run — real count from DI's table detection,
+        // trended over time, not gated.
+        var detectedTableCount = CountDetectedTables(structures);
 
         // 6. docsNeedingFallback = zero headings across every single page of that document.
         var docsWithNoPagesWithHeadings = DocsWithNoPagesWithHeading(cleanResult);
         if (docsWithNoPagesWithHeadings.Count > 0)
             redFlags.Add($"{docsWithNoPagesWithHeadings.Count} document(s) have no markdown headings — need fallback chunking.");
 
-        // 6b. PdfPig-only: documents short enough that cross-page decoration (header/
-        // footer) detection never ran at all (see PdfPigExtractor.MinPagesForDecorationDetection) —
-        // every line on those pages is kept as-is, decoration or not. Not an error, just
-        // a known coverage gap worth tracking until real data says it's worth solving.
+        // 6b. Documents short enough that cross-page decoration (header/footer) detection
+        // never ran at all - every line on those pages is kept as-is, decoration or not.
+        // Currently never triggers: diagnostics is only ever non-empty when something
+        // populates PdfFileExtraction.Diagnostics, which nothing does since the PdfPig
+        // backend (the only producer) was removed.
         if (diagnostics is { Count: > 0 })
         {
             var noDecorationCount = diagnostics.Count(d => !d.DecorationDetectionRan);
@@ -74,7 +76,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
         // 8. Final pass/fail check.
         var errorCount     = issues.Count(i => i.Severity == "Error");
-        var totalAttempted = pagesExtraction.RowsAttempted + indexExtraction.RowsAttempted;
+        var totalAttempted = pagesExtraction.RowsAttempted;
         var errorRate       = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
 
         var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
@@ -84,8 +86,6 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         {
             RunAtUtc                         = DateTime.UtcNow,
             PagesExtracted                   = pagesExtraction.Records.Count,
-            IndexRecordsExtracted            = indexExtraction.Records.Count,
-            JoinedRecords                    = joinResult.Joined.Count,
             CleanedRecords                   = cleanResult.Records.Count,
             Issues                           = issues,
             ReconciliationProblems           = reconciliation,
@@ -93,7 +93,6 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             RedFlags                         = redFlags,
             SpotCheckSample                  = sample,
             DocumentsNeedingFallbackChunking = docsWithNoPagesWithHeadings,
-            SkippedIndexDocuments            = joinResult.SkippedIndexRecords.Select(r => r.BlobName).ToList(),
             MojibakeRepairedPages            = cleanResult.MojibakeRepairedPages,
             DetectedTableCount               = detectedTableCount,
             Passed                           = passed,
@@ -103,11 +102,8 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     // 1. Aggregate every error/warning bucket into one place.
     private static List<ValidationIssue> CollectIssues(
-        ExtractionResult<PdfPageRecord>  pagesExtraction,
-        ExtractionResult<PdfIndexRecord> indexExtraction,
-        PdfJoinResult                    joinResult,
-        PdfCleanResult                   cleanResult,
-        List<string>                     redFlags)
+        ExtractionResult<PdfPageRecord> pagesExtraction,
+        PdfCleanResult                  cleanResult)
     {
         var issues = new List<ValidationIssue>();
 
@@ -117,58 +113,28 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         issues.AddRange(pagesExtraction.Warnings.Select(w => new ValidationIssue
             { Stage = "Parse:Pages", Severity = "Warning", DocumentId = w.DocumentId ?? "", Message = w.Message }));
 
-        issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}", Reason = e.Reason }));
-
-        issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue
-            { Stage = "Join", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
-
-        issues.AddRange(joinResult.DataQualityWarnings.Select(w => new ValidationIssue
-            { Stage = "Join", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
-
         issues.AddRange(cleanResult.Errors.Select(e => new ValidationIssue
             { Stage = "Clean", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
 
         issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue
             { Stage = "Clean", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
 
-        // Index records with no pages never reach the search index — make that visible.
-        issues.AddRange(joinResult.SkippedIndexRecords.Select(r => new ValidationIssue
-        {
-            Stage      = "Join",
-            Severity   = "Warning",
-            DocumentId = r.BlobName,
-            Message    = "Index record has no pages — document will not be indexed.",
-        }));
-        if (joinResult.SkippedIndexRecords.Count > 0)
-            redFlags.Add($"{joinResult.SkippedIndexRecords.Count} index document(s) have no pages and will not be indexed.");
-
         return issues;
     }
 
-    // 2. Every page that comes out of Extraction must land in exactly one bucket:
-    // pagesExtraction.Records.Count == joinResult.Joined.Count + unmatchedPageCount
-    // (no inactive-skip bucket — PDFs have no active/inactive flag).
-    private static List<string> CheckCleanVsJointCount(
+    // 2. Every page that comes out of Extraction must land in exactly one Clean bucket:
+    // cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
+    // == pagesExtraction.Records.Count (no join step in between anymore).
+    private static List<string> CheckExtractVsCleanCount(
         ExtractionResult<PdfPageRecord> pagesExtraction,
-        PdfJoinResult                   joinResult,
         PdfCleanResult                  cleanResult)
     {
         var reconciliation = new List<string>();
 
-        var unmatchedBlobNames = joinResult.Errors.Select(e => e.DocumentId).ToHashSet();
-        var unmatchedPageCount = pagesExtraction.Records.Count(p => unmatchedBlobNames.Contains(p.BlobName));
-
-        if (joinResult.Joined.Count + unmatchedPageCount != pagesExtraction.Records.Count)
-            reconciliation.Add(
-                $"Parse->Join mismatch: {pagesExtraction.Records.Count} pages extracted, but " +
-                $"{joinResult.Joined.Count} joined + {unmatchedPageCount} unmatched.");
-
-        // Join -> Clean: every joined record is processed exactly once.
         if (cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
-                != joinResult.Joined.Count)
+                != pagesExtraction.Records.Count)
             reconciliation.Add(
-                $"Join->Clean mismatch: {joinResult.Joined.Count} joined, but " +
+                $"Extract->Clean mismatch: {pagesExtraction.Records.Count} pages extracted, but " +
                 $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored + " +
                 $"{cleanResult.DuplicatePagesSkipped} duplicate-skipped.");
 
@@ -209,7 +175,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     // 4. Text-quality signals — identical checks to CSV's validator, applied to PDF's
     // rendered markdown content.
-    private static List<ValidationIssue> TextNTableQualityCheck(PdfCleanResult cleanResult)
+    private static List<ValidationIssue> TextQualityCheck(PdfCleanResult cleanResult)
     {
         var issues = new List<ValidationIssue>();
 
@@ -228,22 +194,37 @@ public class PdfPipelineValidator : IPdfPipelineValidator
                 issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
                     DocumentId = record.BlobName,
                     Message    = $"Page {record.PageIndex}: {corruptCharCount} control/unassigned character(s) — likely encoding corruption." });
+        }
 
-            var tableBlocks = record.PageContent
-                .Split("\n\n", StringSplitOptions.RemoveEmptyEntries)
-                .Where(block => MarkdownTableLine.IsMatch(block));
+        return issues;
+    }
 
-            foreach (var block in tableBlocks)
+    // 4c. Table structure issues read directly off DI's own table data (PdfDocumentStructure.Tables) -
+    // replaces a previous heuristic that pattern-matched GFM pipe-table syntax ("| a | b |")
+    // in the rendered content. DI's markdown output actually renders tables as HTML
+    // <table> elements (see PDFMarkdownExtractor), so that heuristic never matched real
+    // output and was silently a no-op.
+    private static List<ValidationIssue> TableStructureQualityCheck(
+        IReadOnlyDictionary<string, PdfDocumentStructure>? structures)
+    {
+        var issues = new List<ValidationIssue>();
+        if (structures is null) return issues;
+
+        foreach (var (blobName, structure) in structures)
+        {
+            foreach (var table in structure.Tables)
             {
-                var pipeCounts = MarkdownTableLine.Matches(block)
-                    .Select(m => m.Value.Count(ch => ch == '|'))
-                    .ToList();
-                if (pipeCounts.Count > 1 && pipeCounts.Distinct().Count() > 1)
+                if (table.RowCount <= 0 || table.ColumnCount <= 0)
                 {
                     issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
-                        DocumentId = record.BlobName,
-                        Message    = $"Page {record.PageIndex}: markdown table has inconsistent column counts across rows." });
-                    break; // one warning per page is enough
+                        DocumentId = blobName,
+                        Message    = $"Table at offset {table.Offset}: reported {table.RowCount} row(s) x {table.ColumnCount} column(s) — malformed." });
+                }
+                else if (table.Cells.Count == 0)
+                {
+                    issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
+                        DocumentId = blobName,
+                        Message    = $"Table at offset {table.Offset}: {table.RowCount}x{table.ColumnCount} reported but no cell data was extracted." });
                 }
             }
         }
@@ -292,12 +273,9 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             .ToList();
     }
 
-    // 5. Total table-like blocks across every cleaned page this run.
-    private static int CountDetectedTables(PdfCleanResult cleanResult) =>
-        cleanResult.Records.Sum(record =>
-            record.PageContent
-                .Split("\n\n", StringSplitOptions.RemoveEmptyEntries)
-                .Count(block => MarkdownTableLine.IsMatch(block)));
+    // 5. Total tables detected this run - real count from DI's own table detection.
+    private static int CountDetectedTables(IReadOnlyDictionary<string, PdfDocumentStructure>? structures) =>
+        structures?.Values.Sum(s => s.Tables.Count) ?? 0;
 
     // 6. Document flagged if none of its pages has a heading.
     private static List<string> DocsWithNoPagesWithHeading(PdfCleanResult cleanResult)

@@ -11,13 +11,12 @@ namespace ProtocolsIndexer.Services;
 // Document Intelligence call. IsPDFValid is the entry point: pre-open size check
 // (too-large/empty), then open/validate (encrypted/corrupt/malformed), then post-open
 // page count (zero/too-many-pages) - in that order, cheapest first, so a too-large file
-// never gets opened and an unopenable file never gets page-counted. TryOpenAndValidate
-// is also exposed on its own for PdfPigExtractor, which needs the open/validate step but
-// not Document Intelligence's size/page limits. The size/page-count limits are Document
-// Intelligence's own hard limits, fixed at the service level regardless of pricing tier -
-// see https://learn.microsoft.com/azure/ai-services/document-intelligence/service-limits
+// never gets opened and an unopenable file never gets page-counted. The size/page-count
+// limits are Document Intelligence's own hard limits, fixed at the service level
+// regardless of pricing tier - see
+// https://learn.microsoft.com/azure/ai-services/document-intelligence/service-limits
 // ("Adjustable: No" for both max document size and max pages, even on Standard S0).
-// Knows nothing about metadata - that's PdfMetadataExtractor's job entirely.
+// Knows nothing about metadata - that's PdfNativeMetadataExtractor's job entirely.
 public static class PdfDocumentValidator
 {
     public const long MaxBytes = 500L * 1024 * 1024; // DI hard limit, all paid tiers

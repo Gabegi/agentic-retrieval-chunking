@@ -4,5 +4,5 @@ namespace ProtocolsIndexer.Services;
 
 public interface IPdfCleaner
 {
-    PdfCleanResult Clean(IReadOnlyList<PdfJoinedPageRecord> pages);
+    PdfCleanResult Clean(IReadOnlyList<PdfPageRecord> pages);
 }
