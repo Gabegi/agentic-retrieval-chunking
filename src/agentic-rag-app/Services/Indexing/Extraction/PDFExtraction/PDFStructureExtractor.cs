@@ -445,9 +445,10 @@ namespace ProtocolsIndexer.Services
                 .Select(p => new PageDimensions(p.PageNumber, p.Width, p.Height, p.Unit.ToString() ?? ""))
                 .ToList();
 
-        // Tables with row/column position and cell kind (e.g. columnHeader vs content) per
-        // cell. Offset/PageNumber follow the same Spans/BoundingRegions pattern as
-        // GetHeadings - DocumentTable has no PageNumber property of its own either.
+        // Returns every table, including each cell's row/column position and kind
+        // (e.g. columnHeader vs. regular content).
+        // - Offset and PageNumber follow the same Spans/BoundingRegions pattern used in
+        //   GetHeadings, since DocumentTable also has no PageNumber property of its own.
         public IReadOnlyList<TableInfo> GetTables(AnalyzeResult result) =>
             result.Tables
                 .Select(t => new TableInfo(
