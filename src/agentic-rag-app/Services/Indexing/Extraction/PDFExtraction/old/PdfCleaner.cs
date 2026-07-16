@@ -1,15 +1,13 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-// Cleans joined PDF page records: repairs known mojibake, collapses excess blank
-// lines, parses the raw publication-date string, and de-duplicates pages. Mirrors
-// DataCleaner's structure and behavior, but is entirely self-contained — nothing
-// here is shared with CSVExtraction/, so that already-shipped pipeline is never
-// touched by PDF work. One bad page becomes a CleaningError; it never aborts the
-// whole run.
+// Cleans extracted PDF page records: repairs known mojibake, collapses excess blank
+// lines, and de-duplicates pages. Mirrors DataCleaner's structure and behavior, but is
+// entirely self-contained — nothing here is shared with CSVExtraction/, so that
+// already-shipped pipeline is never touched by PDF work. One bad page becomes a
+// CleaningError; it never aborts the whole run.
 public class PdfCleaner : IPdfCleaner
 {
     // Collapse 3+ consecutive newlines down to a single blank line.
@@ -24,17 +22,7 @@ public class PdfCleaner : IPdfCleaner
         ("Ã«", "ë"), ("Ã©", "é"), ("Ã¯", "ï"), ("Ã¼", "ü"),
     ];
 
-    // Publication dates are parsed out of free-form PDF text/filenames (no fixed
-    // machine format like Zenya's CSV export), so unlike CSV's ParseDateTime this is
-    // always best-effort: an unparseable or missing date only warns, never errors.
-    private static readonly string[] KnownDateFormats =
-    [
-        "d MMMM yyyy", "dd MMMM yyyy", "d-M-yyyy", "dd-MM-yyyy",
-    ];
-
-    private static readonly CultureInfo Dutch = CultureInfo.GetCultureInfo("nl-NL");
-
-    public PdfCleanResult Clean(IReadOnlyList<PdfJoinedPageRecord> pages)
+    public PdfCleanResult Clean(IReadOnlyList<PdfPageRecord> pages)
     {
         var result   = new PdfCleanResult();
         var seenKeys = new HashSet<(string BlobName, int Page)>();
@@ -53,7 +41,7 @@ public class PdfCleaner : IPdfCleaner
         return result;
     }
 
-    private static void ReportDuplicatePage(PdfJoinedPageRecord page, PdfCleanResult result)
+    private static void ReportDuplicatePage(PdfPageRecord page, PdfCleanResult result)
     {
         result.CountDuplicateSkipped();
         result.AddWarning(new CleaningWarning
@@ -63,7 +51,7 @@ public class PdfCleaner : IPdfCleaner
         });
     }
 
-    private static void CleanSinglePage(PdfJoinedPageRecord page, PdfCleanResult result)
+    private static void CleanSinglePage(PdfPageRecord page, PdfCleanResult result)
     {
         try
         {
@@ -86,15 +74,7 @@ public class PdfCleaner : IPdfCleaner
                     Message    = $"PageContent is empty after cleanup (page {page.PageIndex}) — likely a blank source page.",
                 });
 
-            var publicationDate = ParseOptionalPublicationDate(page.PublicationDateRaw);
-            if (publicationDate is null && !string.IsNullOrWhiteSpace(page.PublicationDateRaw))
-                result.AddWarning(new CleaningWarning
-                {
-                    DocumentId = page.BlobName,
-                    Message    = $"PublicationDateRaw '{page.PublicationDateRaw}' could not be parsed — leaving it unset.",
-                });
-
-            result.AddRecord(ToCleanedRecord(page, content, publicationDate));
+            result.AddRecord(ToCleanedRecord(page, content));
         }
         catch (Exception ex)
         {
@@ -102,14 +82,12 @@ public class PdfCleaner : IPdfCleaner
         }
     }
 
-    private static CleanedPdfPageRecord ToCleanedRecord(PdfJoinedPageRecord page, string content, DateTime? publicationDate) => new()
+    private static CleanedPdfPageRecord ToCleanedRecord(PdfPageRecord page, string content) => new()
     {
-        BlobName        = page.BlobName,
-        PageIndex       = page.PageIndex,
-        PageContent     = content,
-        Title           = TrimOrEmpty(page.Title),
-        Version         = TrimOrEmpty(page.Version),
-        PublicationDate = publicationDate,
+        BlobName    = page.BlobName,
+        PageIndex   = page.PageIndex,
+        PageContent = content,
+        Title       = TrimOrEmpty(page.Title),
     };
 
     private static string TrimOrEmpty(string? value) => value?.Trim() ?? "";
@@ -132,13 +110,5 @@ public class PdfCleaner : IPdfCleaner
 
         text = ExcessBlankLines.Replace(text, "\n\n");
         return (text.Trim(), mojibakeFixed);
-    }
-
-    private static DateTime? ParseOptionalPublicationDate(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
-        return DateTime.TryParseExact(raw.Trim(), KnownDateFormats, Dutch, DateTimeStyles.None, out var value)
-            ? value
-            : null;
     }
 }
