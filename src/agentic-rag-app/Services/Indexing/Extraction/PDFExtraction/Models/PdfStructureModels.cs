@@ -5,17 +5,17 @@ namespace ProtocolsIndexer.Models
     // Return types used by PDFStructureExtractor's Get* methods:
     // - Each record below matches one Get* method one-to-one.
     // - This keeps callers focused only on the fields they actually asked for.
-    // - Every Offset field below (Heading, TableInfo, SelectionMarkInfo) indexes into
-    //   analysis.Content. Because ExtractPdfStructureAsync requests
-    //   OutputContentFormat.Markdown, that string IS the markdown-rendered content, not
-    //   plain text - DI recomputes every span against whichever format was requested, so
-    //   this isn't an edge case to guard against, it's how these offsets work now. A
-    //   future ChunkMetadata builder must match content against these markdown-relative
-    //   offsets, not plain-text ones.
+    // - Every Offset field below (Heading, TableInfo, SelectionMarkInfo, FigureInfo,
+    //   LineInfo, HandwrittenSpan) indexes into analysis.Content / RawContent. Because
+    //   ExtractPdfStructureAsync requests OutputContentFormat.Markdown, that string IS the
+    //   markdown-rendered content, not plain text - DI recomputes every span against
+    //   whichever format was requested, so this isn't an edge case to guard against, it's
+    //   how these offsets work now. A future ChunkMetadata builder must match content
+    //   against these markdown-relative offsets, not plain-text ones.
 
-    // A single heading/title paragraph detected in the PDF:
-    // - PageNumber = which page the heading is on, for display/debugging only.
-    //   It can't be used for ordering, because two headings on the same page look identical by page number.
+    // A single heading/boilerplate paragraph detected in the PDF:
+    // - PageNumber = which page the paragraph is on, for display/debugging only.
+    //   It can't be used for ordering, because two on the same page look identical by page number.
     public sealed record Heading(string Content, string Role, int Offset, int PageNumber);
 
     public sealed record PageDimensions(int PageNumber, double? Width, double? Height, string Unit);
@@ -26,20 +26,31 @@ namespace ProtocolsIndexer.Models
 
     public sealed record SelectionMarkInfo(int PageNumber, string State, int Offset);
 
+    public sealed record FigureInfo(string? Caption, int Offset, int PageNumber);
+
+    public sealed record HandwrittenSpan(string Content, int Offset, double? Confidence);
+
+    public sealed record PolygonPoint(float X, float Y);
+
+    public sealed record LineInfo(string Content, int Offset, int PageNumber, IReadOnlyList<PolygonPoint> Polygon);
+
     // Raw structural data extracted from one PDF - not the final chunk metadata.
     // - At extraction time, chunk boundaries don't exist yet, so this record does NOT
     //   assemble chunks itself.
-    // - It simply bundles everything the extraction step already produces for free
-    //   (headings, tables, page sizes, selection marks).
+    // - It simply bundles everything the extraction step already produces for free.
     // - A later step builds the real ChunkMetadata by matching these items up using
     //   their Offset values.
-    public sealed record PdfStructureMetadata(
-        DocMetadata NativeMetadata,
-        IReadOnlyList<Heading> Headings,
-        IReadOnlyList<Bookmark>? Bookmarks,
+    // - NativeMetadata/Bookmarks live once, at the top level of PDFExtractionResult -
+    //   not duplicated in here.
+    public sealed record PdfDocumentStructure(
+        IReadOnlyList<Heading> Headings,               // title / sectionHeading roles only
+        IReadOnlyList<Heading> Boilerplate,             // pageHeader / pageFooter / footnote roles
         IReadOnlyList<TableInfo> Tables,
         IReadOnlyList<PageDimensions> PageDimensions,
-        IReadOnlyList<SelectionMarkInfo> SelectionMarks);
+        IReadOnlyList<SelectionMarkInfo> SelectionMarks,
+        IReadOnlyList<FigureInfo> Figures,
+        IReadOnlyList<HandwrittenSpan> HandwrittenSpans,
+        IReadOnlyList<LineInfo> Lines);
 
     // Result of calling the (paid) Document Intelligence analyze API once:
     // - Ok = true  -> Result contains a successful, non-empty analysis (at least one page -
@@ -49,15 +60,17 @@ namespace ProtocolsIndexer.Models
     //   (e.g. "Throttled" is worth retrying, "DiServiceError" probably isn't).
     public sealed record AnalyzeOutcome(bool Ok, AnalyzeResult? Result, ExtractionError? Error);
 
-    // Full result of ExtractPdfStructureAsync (the single entry point DocumentIntelligenceExtractor calls):
-    // - Ok = true  -> Pages/Metadata/EstimatedCostUsd are populated.
+    // Result of PDFStructureExtractor.ExtractPdfStructureAsync (the DI-scoped step only -
+    // preflight/native-metadata are separate steps, combined by DocumentIntelligenceExtractor
+    // into the final PDFExtractionResult):
+    // - Ok = true  -> RawContent/Pages/Structure/EstimatedCostUsd are populated.
     // - Ok = false -> Error explains what went wrong, whether the failure happened during
     //   preflight checks or during the paid Document Intelligence call itself.
-    // - Uses the same Ok/Error pattern as AnalyzeOutcome above.
-    public sealed record PdfStructureExtraction(
+    public sealed record PDFStructureExtractorResult(
         bool Ok,
+        string? RawContent,                            // analysis.Content, unsplit, before per-page assembly
         IReadOnlyList<PdfPageRecord>? Pages,
-        PdfStructureMetadata? Metadata,
+        PdfDocumentStructure? Structure,
         decimal? EstimatedCostUsd,
         ExtractionError? Error);
 }
