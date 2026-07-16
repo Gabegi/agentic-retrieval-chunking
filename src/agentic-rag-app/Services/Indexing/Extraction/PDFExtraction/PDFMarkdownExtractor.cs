@@ -1,42 +1,21 @@
-using System.Text;
+using System.Text.RegularExpressions;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services
 {
-    // Assembles a Document Intelligence AnalyzeResult into markdown-formatted PDF pages.
-    // Split out of PDFStructureExtractor so page/markdown assembly (this class) is
-    // separate from the raw DI call and the Get* structural probes (that class).
+    // Assembles a Document Intelligence AnalyzeResult into per-page markdown.
     //
-    // Candidate for replacement by DI's own native markdown output
-    // (AnalyzeDocumentOptions.OutputContentFormat = DocumentContentFormat.Markdown -
-    // already available in the pinned SDK 1.0.0, no package bump needed). Native output
-    // gives 6-level headings vs. this class's #/## only, HTML tables with real
-    // rowspan/colspan (this class reads Cell.RowIndex/ColumnIndex but never
-    // RowSpan/ColumnSpan, so merged cells are silently dropped, and doesn't escape "|"
-    // or newlines inside cell content), and inline ☒/☐ selection marks instead of
-    // BuildSelectionMarkBlocks' nearest-span-offset label guessing.
-    //
-    // Not switched yet - open questions tracked as a follow-up in
-    // docs/documentintelligence-vs-pdfpig.md rather than spiked ad hoc here:
-    // - whether <!-- PageBreak --> can land inside an open <table>...</table> (would
-    //   break naive per-page splitting worse than today's misplaced-but-intact table)
-    // - PageHeader/PageFooter/PageNumber survive as literal HTML-comment text in
-    //   .Content ("hidden from rendering" != removed) and need an explicit strip pass,
-    //   or every page's chunk picks up repeated header/footer boilerplate
-    // - Span/Table Offset values become markdown-relative once OutputContentFormat
-    //   changes - PdfStructureMetadata's Offset contract (unconsumed today, see
-    //   IPdfExtractor.cs:45-49) needs that written down before a future ChunkMetadata
-    //   builder assumes plain-text offsets
-    // - fragment count after splitting on PageBreak must equal pageCount, with a
-    //   logged fallback (skip breadcrumbs rather than misattribute) if DI merges or
-    //   drops a page
-    //
-    // BuildSectionBreadcrumbs and the heading-carry-forward pass below stay regardless
-    // of this decision - DI has no access to the PDF's own bookmark/outline tree at
-    // all, and carry-forward across heading-less pages isn't something DI's
-    // page-independent output does for you.
+    // ExtractPdfStructureAsync requests OutputContentFormat.Markdown, so analysis.Content
+    // already arrives as one markdown-flavored string for the whole document: ATX headings
+    // ("#" through "######", plus a setext "===" underline for the document title), HTML
+    // tables with real rowspan/colspan for merged cells, inline "☒"/"☐" selection marks in
+    // context, and "<!-- PageBreak -->" / "<!-- PageHeader=\"...\" -->" /
+    // "<!-- PageFooter=\"...\" -->" / "<!-- PageNumber=\"...\" -->" comments marking page
+    // boundaries and repeated boilerplate. This class's job is just to split that one
+    // string back into per-page PdfPageRecords and layer on the two things DI has no way
+    // to produce itself: bookmark breadcrumbs and cross-page heading carry-forward.
     public sealed class PDFMarkdownExtractor
     {
         private readonly ILogger _logger;
@@ -46,130 +25,133 @@ namespace ProtocolsIndexer.Services
             _logger = logger;
         }
 
-        // Builds one PdfPageRecord per PDF page, with content formatted as markdown
-        // (e.g. "## " for headings, real pipe tables with columns).
-        // - This is the actual output shape used by the DocumentIntelligence backend.
+        private static readonly Regex PageBreakRegex =
+            new(@"<!--\s*PageBreak\s*-->", RegexOptions.Compiled);
+
+        // Matches a whole "<!-- PageHeader="..." -->"-style line (also PageFooter/
+        // PageNumber/FigureContent) - DI repeats these verbatim on every page they apply
+        // to, so left in place every page's chunk would pick up the same boilerplate.
+        // Anchored to a full line (not "anywhere in the string") so a document that
+        // happens to contain this literal text in its own prose isn't eaten by accident.
+        // The quoted value is matched via (?:[^"\\]|\\.)* rather than a lazy ".*?", so an
+        // escaped quote inside the captured text doesn't truncate the match early.
+        private static readonly Regex NoiseCommentLineRegex = new(
+            @"^[ \t]*<!--\s*(?:Page(?:Header|Footer|Number)|FigureContent)\s*=\s*""(?:[^""\\]|\\.)*""\s*-->[ \t]*\r?\n?",
+            RegexOptions.Multiline | RegexOptions.Compiled);
+
+        // DI renders the document Title as a setext heading ("Title text" on one line,
+        // "===" underneath) rather than ATX "# ". Normalized to ATX up front so every
+        // later heading-detection pass (HeadingLineRegex, carry-forward) only has one
+        // syntax to recognize. Scoped to "=" underlines only - "-" underlines are
+        // ambiguous with a markdown thematic break (<hr>), so those are deliberately left
+        // alone rather than risk mis-normalizing an actual rule into a heading.
+        private static readonly Regex SetextTitleRegex = new(
+            @"^(?<title>[^\n]+)\r?\n=+[ \t]*$", RegexOptions.Multiline | RegexOptions.Compiled);
+
+        private static readonly Regex HeadingLineRegex =
+            new(@"^#{1,6}[ \t]+\S.*$", RegexOptions.Multiline | RegexOptions.Compiled);
+
+        private static readonly Regex TableOpenTagRegex  = new(@"<table\b",     RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex TableCloseTagRegex = new(@"</table\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Builds one PdfPageRecord per PDF page from DI's native markdown output.
         //
         // How bookmarks are used, when present:
         // - A breadcrumb line like "_Section: Chapter 3 > 3.2 Dosage_" is prepended to
-        //   every page that falls under that outline entry.
-        // - This breadcrumb is a stronger signal of "where am I in the document" than DI's
-        //   own per-paragraph heading roles, so it supplements (does not replace) the
-        //   "## " headings, which still come from DI's own Role classification.
-        // - If bookmarks are missing or empty (no outline in the PDF, or PdfPig couldn't
-        //   read one), pages simply get no breadcrumb - this is not treated as an error.
+        //   every page that falls under that outline entry - a stronger signal of a page's
+        //   place in the document than any heading DI itself renders, so this supplements
+        //   (does not replace) the document's own headings.
+        // - Missing/empty bookmarks (no outline in this PDF, or PdfPig couldn't read one)
+        //   just means no breadcrumb - never a hard requirement for extraction to succeed.
         public List<PdfPageRecord> BuildMarkdownPages(
             string blobName, AnalyzeResult analysis, int pageCount, IReadOnlyList<Bookmark>? bookmarks = null)
         {
-            var pageSegments = new Dictionary<int, List<string>>();
+            var content = SetextTitleRegex.Replace(analysis.Content ?? "", "# ${title}");
 
-            List<string> Segments(int pageNum) =>
-                pageSegments.TryGetValue(pageNum, out var l) ? l : pageSegments[pageNum] = [];
+            // Regex.Split both breaks the string apart on DI's page-boundary marker AND
+            // drops the delimiter itself, so no separate "strip PageBreak" step is needed.
+            var rawFragments = PageBreakRegex.Split(content);
 
-            // Why this filtering step exists:
-            // - DI also repeats every table cell's text as its own paragraph entry.
-            // - Without filtering these out, the same table content would appear twice:
-            //   once as jumbled prose (from paragraphs) and once as the markdown table below.
-            // - To prevent that, first collect every span range covered by a table, then
-            //   later skip any paragraph whose span falls inside one of those ranges.
-            var tableSpanRanges = (analysis.Tables ?? [])
-                .SelectMany(t => t.Spans ?? [])
-                .Select(sp => (Start: sp.Offset, End: sp.Offset + sp.Length))
-                .ToList();
+            // Must be checked here, against the untouched split - once fragments get
+            // merged below to repair a table sliced across a page break, fragments.Count
+            // legitimately stops matching pageCount, and that's expected, not a sign
+            // something is wrong. Checked before merging, a mismatch here means DI itself
+            // merged or dropped a page, so breadcrumb page-alignment can't be trusted.
+            var trustFragmentToPageMapping = rawFragments.Length == pageCount;
+            if (!trustFragmentToPageMapping)
+                _logger.LogWarning(
+                    "DocumentIntelligence: page-break count ({Fragments}) doesn't match PageCount ({PageCount}) for {BlobName}; skipping section breadcrumbs.",
+                    rawFragments.Length, pageCount, blobName);
 
-            bool OverlapsTable(IReadOnlyList<DocumentSpan>? spans) =>
-                spans != null && spans.Any(sp => tableSpanRanges.Any(r => sp.Offset < r.End && sp.Offset + sp.Length > r.Start));
+            // Repair fragments that DI's own page-break marker sliced through the middle
+            // of an HTML <table>...</table> - naive per-page splitting would otherwise hand
+            // downstream two fragments of broken table markup instead of one intact table.
+            // Merged content is attributed to the first page in the group: the table still
+            // ends up "misplaced" onto one page rather than split across two, which is no
+            // worse than this class's previous offset-based placement heuristic.
+            var mergedFragments             = new List<string>();
+            var mergedFragmentFirstPageIndex = new List<int>();
+            var pendingOpenTables = 0;
+            var groupStartIndex   = 0;
 
-            // Paragraph ordering:
-            // - analysis.Paragraphs already comes in correct reading order, because DI
-            //   resolves multi-column layouts itself.
-            // - This order is intentionally kept as-is, rather than re-sorted by vertical
-            //   position, which would incorrectly interleave left/right columns on
-            //   two-column pages.
-            // - Tables don't have a natural place in this paragraph list, so their position
-            //   is instead determined by comparing their span offsets to paragraph offsets.
-            var tablesByOffset = (analysis.Tables ?? [])
-                .Select(t => (Table: t, Offset: t.Spans is { Count: > 0 } ts ? ts[0].Offset : 0))
-                .OrderBy(t => t.Offset)
-                .ToList();
-            var nextTableIndex = 0;
-
-            void EmitTable(DocumentTable table)
+            for (var i = 0; i < rawFragments.Length; i++)
             {
-                var pageNum = table.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0;
-                if (pageNum == 0)
-                {
-                    _logger.LogWarning("DocumentIntelligence: table with no bounding region dropped in {BlobName}", blobName);
-                    return;
-                }
+                if (pendingOpenTables == 0)
+                    groupStartIndex = i;
 
-                var markdown = RenderMarkdownTable(table);
-                if (!string.IsNullOrWhiteSpace(markdown))
-                    Segments(pageNum).Add(markdown);
+                pendingOpenTables += TableOpenTagRegex.Matches(rawFragments[i]).Count;
+                pendingOpenTables -= TableCloseTagRegex.Matches(rawFragments[i]).Count;
+                if (pendingOpenTables < 0) pendingOpenTables = 0; // malformed input guard - never trust a negative balance
+
+                if (pendingOpenTables == 0)
+                {
+                    mergedFragments.Add(string.Concat(rawFragments[groupStartIndex..(i + 1)]));
+                    mergedFragmentFirstPageIndex.Add(groupStartIndex);
+                }
+            }
+            if (pendingOpenTables != 0) // unterminated table at end-of-document: emit what's left rather than drop it
+            {
+                mergedFragments.Add(string.Concat(rawFragments[groupStartIndex..]));
+                mergedFragmentFirstPageIndex.Add(groupStartIndex);
             }
 
-            foreach (var para in analysis.Paragraphs ?? [])
+            var breadcrumbByPage = trustFragmentToPageMapping
+                ? BuildSectionBreadcrumbs(bookmarks, pageCount)
+                : new Dictionary<int, string>();
+
+            // Populated only for the first page of each merged group - a later page
+            // swallowed into an earlier page's table-repair merge simply carries no
+            // content of its own, since its content already went out under the earlier page.
+            var pageContentByPage = new Dictionary<int, string>();
+            for (var g = 0; g < mergedFragments.Count; g++)
             {
-                if (para.Role == ParagraphRole.PageHeader
-                    || para.Role == ParagraphRole.PageFooter
-                    || para.Role == ParagraphRole.PageNumber)
-                    continue;
+                var pageNum = mergedFragmentFirstPageIndex[g] + 1; // fragments are 0-based, pages are 1-based
+                if (pageNum > pageCount) break; // guard against a pathological split producing more groups than pages
 
-                if (OverlapsTable(para.Spans))
-                    continue; // Skip: this text is already rendered as part of a table's markdown.
-
-                var paraOffset = para.Spans is { Count: > 0 } ps ? ps[0].Offset : 0;
-                while (nextTableIndex < tablesByOffset.Count && tablesByOffset[nextTableIndex].Offset < paraOffset)
-                    EmitTable(tablesByOffset[nextTableIndex++].Table);
-
-                var pageNum = para.BoundingRegions is { Count: > 0 } brP ? brP[0].PageNumber : 0;
-                if (pageNum == 0)
-                {
-                    _logger.LogWarning("DocumentIntelligence: paragraph with no bounding region dropped in {BlobName}", blobName);
-                    continue;
-                }
-
-                if (para.Role == ParagraphRole.Title)
-                    Segments(pageNum).Add($"# {para.Content}");
-                else if (para.Role == ParagraphRole.SectionHeading)
-                    Segments(pageNum).Add($"## {para.Content}");
-                else
-                    Segments(pageNum).Add(para.Content);
+                pageContentByPage[pageNum] = NoiseCommentLineRegex.Replace(mergedFragments[g], "").Trim('\r', '\n');
             }
 
-            while (nextTableIndex < tablesByOffset.Count)
-                EmitTable(tablesByOffset[nextTableIndex++].Table);
-
-            var breadcrumbByPage     = BuildSectionBreadcrumbs(bookmarks, pageCount);
-            var selectionBlockByPage = BuildSelectionMarkBlocks(analysis);
-
-            // Second pass over all pages, to finalize each page's content:
-            // - If a page's own content doesn't start with a heading, carry forward the
-            //   most recent heading seen so far, so every page keeps a sense of "what
-            //   section is this". This matters because chunking happens per page later,
-            //   and a page without its own heading couldn't recover this info afterward.
-            // - Then prepend the section breadcrumb (if any) and append the selection-mark
-            //   block (if any).
-            var pages        = new List<PdfPageRecord>();
+            var pages = new List<PdfPageRecord>();
             string? carryHeading = null;
-
-            static bool IsHeading(string s) => s.StartsWith("# ") || s.StartsWith("## ");
 
             for (var pageNum = 1; pageNum <= pageCount; pageNum++)
             {
-                var segments = pageSegments.TryGetValue(pageNum, out var s) ? s : [];
+                var pageContent = pageContentByPage.TryGetValue(pageNum, out var pc) ? pc : "";
 
-                if (segments.Count > 0 && !IsHeading(segments[0]) && carryHeading != null)
-                    segments = [carryHeading, .. segments];
+                var headingsOnPage   = HeadingLineRegex.Matches(pageContent);
+                var startsWithHeading = pageContent.TrimStart().StartsWith('#');
 
-                var lastHeadingOnPage = segments.LastOrDefault(IsHeading);
-                if (lastHeadingOnPage != null) carryHeading = lastHeadingOnPage;
+                var segments = new List<string>();
+                if (!startsWithHeading && carryHeading != null)
+                    segments.Add(carryHeading);
+                if (pageContent.Length > 0)
+                    segments.Add(pageContent);
+
+                if (headingsOnPage.Count > 0)
+                    carryHeading = headingsOnPage[^1].Value;
 
                 if (breadcrumbByPage.TryGetValue(pageNum, out var breadcrumb))
-                    segments = [breadcrumb, .. segments];
-
-                if (selectionBlockByPage.TryGetValue(pageNum, out var selectionBlock))
-                    segments = [.. segments, selectionBlock];
+                    segments.Insert(0, breadcrumb);
 
                 pages.Add(new PdfPageRecord
                 {
@@ -195,8 +177,11 @@ namespace ProtocolsIndexer.Services
         //      top-level bookmark correctly discards any deeper sub-sections left over from
         //      the previous chapter.
         //    - Then push the bookmark's title onto the stack.
-        //    - Joining the stack with " > " gives the breadcrumb text active from that
-        //      bookmark's page onward.
+        //    - Joining the stack's non-empty entries with " > " gives the breadcrumb text
+        //      active from that bookmark's page onward. An entry stays blank when a level
+        //      was skipped in the outline (e.g. a level-2 bookmark appearing directly under
+        //      a level-0 one) - filtered out here rather than joined, so a skipped level
+        //      renders as "Chapter 3 > 3.2.1", not "Chapter 3 >  > 3.2.1".
         // 3. Finally, walk every page number from 1 to pageCount and assign it whichever
         //    breadcrumb was most recently active as of that page.
         private static Dictionary<int, string> BuildSectionBreadcrumbs(IReadOnlyList<Bookmark>? bookmarks, int pageCount)
@@ -219,7 +204,7 @@ namespace ProtocolsIndexer.Services
                 while (stack.Count < bm.Level) stack.Add("");
                 stack.Add(bm.Title);
 
-                breakpoints.Add((bm.PageNumber!.Value, string.Join(" > ", stack)));
+                breakpoints.Add((bm.PageNumber!.Value, string.Join(" > ", stack.Where(s => s.Length > 0))));
             }
 
             var breakpointIndex = 0;
@@ -234,125 +219,6 @@ namespace ProtocolsIndexer.Services
             }
 
             return result;
-        }
-
-        // Builds a "Selected options" markdown block per page for checkboxes/radio buttons.
-        // Why this is needed:
-        // - DI treats a checkbox/radio button (DocumentSelectionMark) as a non-text glyph,
-        //   so it never shows up in analysis.Paragraphs.
-        // - Nothing else in this class reads analysis.Pages[].SelectionMarks, so without
-        //   this method, "which option was checked" would be silently lost for every page.
-        // How labels are guessed:
-        // - DI gives no direct link between a selection mark and the text label next to it.
-        // - As a best-effort guess, this uses whichever paragraph on the same page has the
-        //   closest span offset to the mark.
-        // How the result is rendered:
-        // - As a separate "Selected options" block appended after the page's normal content,
-        //   not mixed into the paragraph text itself - so a wrong label guess can't corrupt
-        //   unrelated prose.
-        private static Dictionary<int, string> BuildSelectionMarkBlocks(AnalyzeResult analysis)
-        {
-            var result = new Dictionary<int, string>();
-
-            var paragraphsByPage = (analysis.Paragraphs ?? [])
-                .Select(p => (
-                    Offset: p.Spans is { Count: > 0 } ps ? (int?)ps[0].Offset : null,
-                    PageNumber: p.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
-                    p.Content))
-                .Where(p => p.Offset is not null && p.PageNumber > 0)
-                .GroupBy(p => p.PageNumber)
-                .ToDictionary(g => g.Key, g => g.OrderBy(p => p.Offset).ToList());
-
-            foreach (var page in analysis.Pages ?? [])
-            {
-                if (page.SelectionMarks is not { Count: > 0 } marks) continue;
-
-                var lines = new List<string>();
-                foreach (var mark in marks.OrderBy(m => m.Span.Offset))
-                {
-                    var label = "(unlabeled)";
-                    if (paragraphsByPage.TryGetValue(page.PageNumber, out var candidates) && candidates.Count > 0)
-                    {
-                        var nearestText = candidates
-                            .OrderBy(c => Math.Abs(c.Offset!.Value - mark.Span.Offset))
-                            .First().Content?.Trim();
-
-                        if (!string.IsNullOrEmpty(nearestText))
-                            label = nearestText.Length > 100 ? nearestText[..100] + "…" : nearestText;
-                    }
-
-                    var box = mark.State == DocumentSelectionMarkState.Selected ? "[x]" : "[ ]";
-                    lines.Add($"- {box} {label}");
-                }
-
-                result[page.PageNumber] = "**Selected options:**\n" + string.Join("\n", lines);
-            }
-
-            return result;
-        }
-
-        // Renders one DI table as a proper markdown pipe table, using its row/column indices
-        // to place cells correctly (rather than just joining every cell's text in reading
-        // order, which loses the table structure).
-        // - Merged cells (row/column spans) are ignored: a merged cell's content is only
-        //   placed in its top-left "anchor" slot. This is an accepted simplification.
-        // - The table's caption and footnotes are rendered around the table rather than
-        //   dropped, because a caption like "Table 3: Dosage schedule" is often the
-        //   strongest retrieval signal for that table's content. These aren't duplicated
-        //   elsewhere, because their spans fall inside the table's own Spans range and are
-        //   already excluded from the paragraph loop in BuildMarkdownPages.
-        private static string RenderMarkdownTable(DocumentTable table)
-        {
-            if (table.RowCount == 0 || table.ColumnCount == 0) return "";
-
-            var grid = new string?[table.RowCount, table.ColumnCount];
-            foreach (var cell in table.Cells)
-                if (cell.RowIndex < table.RowCount && cell.ColumnIndex < table.ColumnCount)
-                    grid[cell.RowIndex, cell.ColumnIndex] = cell.Content?.Trim();
-
-            // Determine how many header rows there are:
-            // - DI marks header cells with Kind == ColumnHeader.
-            // - Count header rows starting from the top and stopping at the first
-            //   non-header row - this correctly handles 0, 1, or multiple header rows.
-            // - If no cell is marked as a header at all, default to treating row 0 as the
-            //   header, so the output is still a valid markdown table (which requires
-            //   a header row and a separator row).
-            var headerRowCount = 0;
-            while (headerRowCount < table.RowCount
-                   && table.Cells.Any(c => c.RowIndex == headerRowCount && c.Kind == DocumentTableCellKind.ColumnHeader))
-                headerRowCount++;
-            if (headerRowCount == 0) headerRowCount = 1;
-
-            var sb = new StringBuilder();
-
-            var caption = table.Caption?.Content?.Trim();
-            if (!string.IsNullOrEmpty(caption))
-                sb.Append("**").Append(caption).Append("**\n\n");
-
-            for (var r = 0; r < table.RowCount; r++)
-            {
-                sb.Append('|');
-                for (var c = 0; c < table.ColumnCount; c++)
-                    sb.Append(' ').Append(grid[r, c] ?? "").Append(" |");
-                sb.Append('\n');
-
-                if (r == headerRowCount - 1)
-                {
-                    sb.Append('|');
-                    for (var c = 0; c < table.ColumnCount; c++)
-                        sb.Append(" --- |");
-                    sb.Append('\n');
-                }
-            }
-
-            foreach (var footnote in table.Footnotes ?? [])
-            {
-                var text = footnote.Content?.Trim();
-                if (!string.IsNullOrEmpty(text))
-                    sb.Append("\n_").Append(text).Append("_\n");
-            }
-
-            return sb.ToString().TrimEnd();
         }
     }
 }

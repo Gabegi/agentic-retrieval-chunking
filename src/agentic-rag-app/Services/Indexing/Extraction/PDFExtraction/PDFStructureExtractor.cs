@@ -88,8 +88,16 @@ namespace ProtocolsIndexer.Services
                 {
                     _logger.LogInformation("Submitting '{Blob}' to Document Intelligence (attempt {Attempt}).", blobName, attempt + 1);
 
+                    // Markdown output (vs. DI's default plain text) is what lets
+                    // PDFMarkdownExtractor split on DI's own page/table/heading structure
+                    // instead of re-deriving it from paragraph roles and span offsets.
+                    var analyzeOptions = new AnalyzeDocumentOptions("prebuilt-layout", BinaryData.FromBytes(pdfBytes))
+                    {
+                        OutputContentFormat = DocumentContentFormat.Markdown,
+                    };
+
                     Operation<AnalyzeResult> operation = await _diClient.AnalyzeDocumentAsync(
-                        WaitUntil.Completed, "prebuilt-layout", BinaryData.FromBytes(pdfBytes), cancellationToken: ct);
+                        WaitUntil.Completed, analyzeOptions, cancellationToken: ct);
 
                     return new AnalyzeOutcome(true, operation.Value, null);
                 }

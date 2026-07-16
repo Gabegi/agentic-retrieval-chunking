@@ -5,10 +5,15 @@ namespace ProtocolsIndexer.Models
     // Return types used by PDFStructureExtractor's Get* methods:
     // - Each record below matches one Get* method one-to-one.
     // - This keeps callers focused only on the fields they actually asked for.
+    // - Every Offset field below (Heading, TableInfo, SelectionMarkInfo) indexes into
+    //   analysis.Content. Because ExtractPdfStructureAsync requests
+    //   OutputContentFormat.Markdown, that string IS the markdown-rendered content, not
+    //   plain text - DI recomputes every span against whichever format was requested, so
+    //   this isn't an edge case to guard against, it's how these offsets work now. A
+    //   future ChunkMetadata builder must match content against these markdown-relative
+    //   offsets, not plain-text ones.
 
     // A single heading/title paragraph detected in the PDF:
-    // - Offset = position of this heading inside the document's single combined text string.
-    //   This is what later code uses to line headings up with other content (the "join key").
     // - PageNumber = which page the heading is on, for display/debugging only.
     //   It can't be used for ordering, because two headings on the same page look identical by page number.
     public sealed record Heading(string Content, string Role, int Offset, int PageNumber);
