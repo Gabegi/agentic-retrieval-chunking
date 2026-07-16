@@ -170,7 +170,7 @@ namespace ProtocolsIndexer.Services
         // with all its parent sections.
         // How it works:
         // 1. Keep only bookmarks that have a resolvable page number (see
-        //    PdfMetadataExtractor.TryGetPageNumber); others are skipped, since they can't be
+        //    PdfNativeMetadataExtractor.TryGetPageNumber); others are skipped, since they can't be
         //    anchored to a page and would otherwise corrupt the algorithm below.
         // 2. Sort those bookmarks by page number, then walk them in order while maintaining
         //    a "stack" of section titles indexed by outline depth (Level):

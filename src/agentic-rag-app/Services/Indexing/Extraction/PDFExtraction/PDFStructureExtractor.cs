@@ -37,7 +37,7 @@ namespace ProtocolsIndexer.Services
         // Main entry point, called once preflight/native-metadata reading has already happened.
         // Expects the caller (DocumentIntelligenceExtractor) to have already:
         // - Validated the PDF (PdfDocumentValidator.IsPDFValid).
-        // - Read nativeMetadata/bookmarks via PdfMetadataExtractor.ParseNativeMetadata and
+        // - Read nativeMetadata/bookmarks via PdfNativeMetadataExtractor.ExtractPdfNativeMetadata and
         //   closed the PdfDocument - this method receives only the resulting data, never
         //   the PdfDocument object itself.
         // Steps performed here:
