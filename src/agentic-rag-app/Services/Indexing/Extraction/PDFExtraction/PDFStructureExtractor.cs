@@ -247,7 +247,7 @@ namespace ProtocolsIndexer.Services
                     continue;
 
                 if (OverlapsTable(para.Spans))
-                    continue; // already rendered as part of its table's markdown
+                    continue; // Skip: this text is already rendered as part of a table's markdown.
 
                 var paraOffset = para.Spans is { Count: > 0 } ps ? ps[0].Offset : 0;
                 while (nextTableIndex < tablesByOffset.Count && tablesByOffset[nextTableIndex].Offset < paraOffset)
@@ -274,9 +274,13 @@ namespace ProtocolsIndexer.Services
             var breadcrumbByPage     = BuildSectionBreadcrumbs(bookmarks, pageCount);
             var selectionBlockByPage = BuildSelectionMarkBlocks(analysis);
 
-            // Second pass: carry the most recent heading into a page whose own content
-            // doesn't start with one, so every page still carries its section identity —
-            // chunking happens per-page downstream, so this can't be recovered later.
+            // Second pass over all pages, to finalize each page's content:
+            // - If a page's own content doesn't start with a heading, carry forward the
+            //   most recent heading seen so far, so every page keeps a sense of "what
+            //   section is this". This matters because chunking happens per page later,
+            //   and a page without its own heading couldn't recover this info afterward.
+            // - Then prepend the section breadcrumb (if any) and append the selection-mark
+            //   block (if any).
             var pages        = new List<PdfPageRecord>();
             string? carryHeading = null;
 
