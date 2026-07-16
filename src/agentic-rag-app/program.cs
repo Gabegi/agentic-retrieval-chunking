@@ -174,6 +174,8 @@ var host = new HostBuilder()
         {
             services.AddSingleton(_ =>
                 new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
+            services.AddSingleton<PDFMarkdownExtractor>();
+            services.AddSingleton<PDFStructureExtractor>();
             services.AddSingleton<IPdfExtractor, DocumentIntelligenceExtractor>();
         }
         services.AddSingleton<IPdfJoiner,            PdfJoiner>();
@@ -256,6 +258,8 @@ async Task RunPdfBackendComparisonAsync(string[] cliArgs)
     {
         compareServices.AddSingleton(_ =>
             new DocumentIntelligenceClient(new Uri(documentIntelligenceEndpoint), compareCredential));
+        compareServices.AddSingleton<PDFMarkdownExtractor>();
+        compareServices.AddSingleton<PDFStructureExtractor>();
         compareServices.AddSingleton<IPdfExtractor, DocumentIntelligenceExtractor>();
     }
 

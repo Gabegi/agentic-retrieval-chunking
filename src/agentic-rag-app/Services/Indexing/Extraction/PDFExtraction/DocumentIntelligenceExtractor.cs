@@ -1,4 +1,3 @@
-using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProtocolsIndexer.Models;
@@ -24,10 +23,10 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     private readonly ILogger<DocumentIntelligenceExtractor> _logger;
     private readonly PDFStructureExtractor                   _structureExtractor;
 
-    public DocumentIntelligenceExtractor(DocumentIntelligenceClient client, ILogger<DocumentIntelligenceExtractor>? logger = null)
+    public DocumentIntelligenceExtractor(PDFStructureExtractor structureExtractor, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
         _logger             = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
-        _structureExtractor = new PDFStructureExtractor(client, _logger);
+        _structureExtractor = structureExtractor;
     }
 
     public async Task<PdfFileExtraction> ExtractPDFAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default)
