@@ -9,20 +9,16 @@ public class PdfCleanerTests
 {
     private static PdfCleaner BuildCleaner() => new();
 
-    private static PdfJoinedPageRecord Page(
-        string blobName           = "doc1.pdf",
-        int    pageIndex          = 0,
-        string content            = "Some content",
-        string title              = " Title ",
-        string version            = " 7.0 ",
-        string publicationDateRaw = "") => new()
+    private static PdfPageRecord Page(
+        string blobName  = "doc1.pdf",
+        int    pageIndex = 0,
+        string content   = "Some content",
+        string title     = " Title ") => new()
     {
-        BlobName           = blobName,
-        PageIndex          = pageIndex,
-        PageContent        = content,
-        Title              = title,
-        Version            = version,
-        PublicationDateRaw = publicationDateRaw,
+        BlobName    = blobName,
+        PageIndex   = pageIndex,
+        PageContent = content,
+        Title       = title,
     };
 
     [TestMethod]
@@ -34,8 +30,6 @@ public class PdfCleanerTests
         Assert.AreEqual(0, result.Errors.Count);
         var record = result.Records[0];
         Assert.AreEqual("Title", record.Title);
-        Assert.AreEqual("7.0", record.Version);
-        Assert.IsNull(record.PublicationDate);
     }
 
     [TestMethod]
@@ -83,33 +77,6 @@ public class PdfCleanerTests
         var result = BuildCleaner().Clean([Page(content: "Line one\n\n\n\n\nLine two")]);
 
         Assert.AreEqual("Line one\n\nLine two", result.Records[0].PageContent);
-    }
-
-    [TestMethod]
-    public void DutchLongFormDate_IsParsed()
-    {
-        var result = BuildCleaner().Clean([Page(publicationDateRaw: "12 maart 2024")]);
-
-        Assert.AreEqual(new DateTime(2024, 3, 12), result.Records[0].PublicationDate);
-        Assert.AreEqual(0, result.Warnings.Count(w => w.Message.Contains("could not be parsed")));
-    }
-
-    [TestMethod]
-    public void ShortFormDate_IsParsed()
-    {
-        var result = BuildCleaner().Clean([Page(publicationDateRaw: "12-03-2024")]);
-
-        Assert.AreEqual(new DateTime(2024, 3, 12), result.Records[0].PublicationDate);
-    }
-
-    [TestMethod]
-    public void UnparseableDate_ProducesWarningAndLeavesDateNull()
-    {
-        var result = BuildCleaner().Clean([Page(publicationDateRaw: "not-a-date")]);
-
-        Assert.IsNull(result.Records[0].PublicationDate);
-        Assert.IsTrue(result.Warnings.Any(w => w.Message.Contains("could not be parsed")));
-        Assert.AreEqual(0, result.Errors.Count);
     }
 
     [TestMethod]
