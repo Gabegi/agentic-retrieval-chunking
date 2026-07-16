@@ -2,16 +2,15 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-// Any PDF extraction backend (PdfPig, Document Intelligence, …) implements this.
-// Unlike ICsvExtractor's two file-shaped calls, a PDF has one file per document, so a
-// single Extract call must return both pages and this file's own parsed metadata —
+// A PDF extraction backend (Document Intelligence) implements this. Unlike
+// ICsvExtractor's two file-shaped calls, a PDF has one file per document, so a single
+// Extract call must return both pages and this file's own parsed metadata —
 // re-parsing the same PDF twice per file would double the backend's cost for nothing.
 // Async because DocumentIntelligenceExtractor does real network I/O (the analyze call,
-// plus its retry backoff) - PdfPigExtractor/CSV have no actual async work and just wrap
-// their synchronous result in Task.FromResult.
+// plus its retry backoff).
 public interface IPdfExtractor
 {
-    string Name { get; } // "PdfPig" | "DocumentIntelligence" — used by the comparison runner
+    string Name { get; } // "DocumentIntelligence"
 
     Task<PdfFileExtraction> ExtractPDFAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default);
 }
