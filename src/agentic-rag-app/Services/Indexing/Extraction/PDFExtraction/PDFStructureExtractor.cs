@@ -2,7 +2,6 @@ using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
-using System.Security.Cryptography;
 
 namespace ProtocolsIndexer.Services
 {
@@ -56,7 +55,7 @@ namespace ProtocolsIndexer.Services
             var analysis  = analyzeOutcome.Result!;
             var pageCount = analysis.Pages?.Count ?? 0;
 
-            var index = PdfNativeMetadataExtractor.Parse(blobName, nativeMetadata.Title);
+            var index = Parse(blobName, nativeMetadata.Title);
             var pages = _markdownExtractor.BuildMarkdownPages(blobName, analysis, pageCount, nativeMetadata.Bookmarks);
 
             var metadata = new PdfStructureMetadata(
@@ -120,13 +119,6 @@ namespace ProtocolsIndexer.Services
             }
         }
 
-        // Computes a stable hash of the PDF's raw bytes, used as a dedup/caching key:
-        // - Same file content -> same hash, regardless of the blob's file name.
-        // - Lets the caller detect "this exact file was already processed" and skip
-        //   paying for another Document Intelligence call.
-        public static string ComputeContentHash(byte[] pdfBytes) =>
-            Convert.ToHexString(SHA256.HashData(pdfBytes));
-
         // Returns every heading/section paragraph - i.e. paragraphs DI classified with a
         // structural role (title, sectionHeading, pageHeader, footnote, etc.) rather than
         // as plain body text.
@@ -183,5 +175,35 @@ namespace ProtocolsIndexer.Services
                 .SelectMany(s => s.Spans)
                 .Select(span => result.Content.Substring(span.Offset, span.Length))
                 .ToList();
+
+                // Derives Zenya's Title/Version/PublicationDate for a PDF (no external index
+        // file to join against, unlike Zenya's index.csv). Shared by both IPdfExtractor
+        // backends so metadata parses identically either way.
+        // - Title: prefers nativeTitle (the PDF's own Info-dictionary Title, from
+        //   ParseNativeMetadata) when the file actually has one set - real PDF metadata,
+        //   not a guess. Falls back to the blob-name-derived title otherwise.
+        // - Version/PublicationDateRaw: left empty - no confirmed Cordaan pattern yet,
+        //   and unlike Title there's no native PDF field to fall back to.
+        // - Previously matched Dutch/LCI-specific regexes on first-page text (ported
+        //   from a different corpus); removed after confirming they don't apply to
+        //   Cordaan's documents, along with the first-page-text parameter they read.
+        public static PdfIndexRecord Parse(string blobName, string? nativeTitle = null)
+        {
+            var title = !string.IsNullOrWhiteSpace(nativeTitle)
+                ? nativeTitle
+                : blobName.Split('/')[0]
+                    .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
+                    .Replace("-", " ");
+
+            return new PdfIndexRecord
+            {
+                BlobName           = blobName,
+                Title              = title,
+                Version            = "",
+                PublicationDateRaw = "",
+            };
+        }
     }
+
+    
 }

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Azure;
 using Azure.Storage.Blobs;
@@ -119,10 +120,19 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
             using var ms = new MemoryStream();
             await _container.GetBlobClient(item.Name).DownloadToAsync(ms, ct);
+            var pdfBytes = ms.ToArray();
+
+            // Computed here, before any backend is invoked, so it applies regardless of
+            // which IPdfExtractor ends up running - same bytes always hash the same,
+            // independent of blob name, so a byte-identical re-upload is detectable before
+            // paying for extraction again. Not yet compared against anything (no store of
+            // previously-seen hashes exists) - logged for now so the value is at least
+            // visible while that dedup check gets built.
+            _logger.LogDebug("'{Blob}' content hash: {Hash}", item.Name, ComputeContentHash(pdfBytes));
 
             try
             {
-                results.Add(await _extractor.ExtractPDFAsync(item.Name, ms.ToArray(), ct));
+                results.Add(await _extractor.ExtractPDFAsync(item.Name, pdfBytes, ct));
             }
             catch (Exception ex)
             {
@@ -289,6 +299,14 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
         return (effectivePassed, errors, warnings, missingTitle, missingVersion);
     }
+
+    // Stable hash of the PDF's raw bytes, used as a dedup/caching key:
+    // - Same file content -> same hash, regardless of the blob's file name.
+    // - Would let a future caller detect "this exact file was already processed" and skip
+    //   paying for another extraction call - not wired into a skip decision yet, since
+    //   there's nowhere that stores previously-seen hashes across runs.
+    private static string ComputeContentHash(byte[] pdfBytes) =>
+        Convert.ToHexString(SHA256.HashData(pdfBytes));
 
     private async Task<(int? Count, ETag? ETag)> PreviousRunCount(CancellationToken ct)
     {

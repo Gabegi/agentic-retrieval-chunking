@@ -85,32 +85,6 @@ namespace ProtocolsIndexer.Services
                     ? doc.PageNumber
                     : null;
 
-        // Derives Zenya's Title/Version/PublicationDate for a PDF (no external index
-        // file to join against, unlike Zenya's index.csv). Shared by both IPdfExtractor
-        // backends so metadata parses identically either way.
-        // - Title: prefers nativeTitle (the PDF's own Info-dictionary Title, from
-        //   ParseNativeMetadata) when the file actually has one set - real PDF metadata,
-        //   not a guess. Falls back to the blob-name-derived title otherwise.
-        // - Version/PublicationDateRaw: left empty - no confirmed Cordaan pattern yet,
-        //   and unlike Title there's no native PDF field to fall back to.
-        // - Previously matched Dutch/LCI-specific regexes on first-page text (ported
-        //   from a different corpus); removed after confirming they don't apply to
-        //   Cordaan's documents, along with the first-page-text parameter they read.
-        public static PdfIndexRecord Parse(string blobName, string? nativeTitle = null)
-        {
-            var title = !string.IsNullOrWhiteSpace(nativeTitle)
-                ? nativeTitle
-                : blobName.Split('/')[0]
-                    .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
-                    .Replace("-", " ");
-
-            return new PdfIndexRecord
-            {
-                BlobName           = blobName,
-                Title              = title,
-                Version            = "",
-                PublicationDateRaw = "",
-            };
-        }
+        
     }
 }
