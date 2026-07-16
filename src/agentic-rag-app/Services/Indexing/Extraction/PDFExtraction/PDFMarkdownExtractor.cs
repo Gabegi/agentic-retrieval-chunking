@@ -8,6 +8,35 @@ namespace ProtocolsIndexer.Services
     // Assembles a Document Intelligence AnalyzeResult into markdown-formatted PDF pages.
     // Split out of PDFStructureExtractor so page/markdown assembly (this class) is
     // separate from the raw DI call and the Get* structural probes (that class).
+    //
+    // Candidate for replacement by DI's own native markdown output
+    // (AnalyzeDocumentOptions.OutputContentFormat = DocumentContentFormat.Markdown -
+    // already available in the pinned SDK 1.0.0, no package bump needed). Native output
+    // gives 6-level headings vs. this class's #/## only, HTML tables with real
+    // rowspan/colspan (this class reads Cell.RowIndex/ColumnIndex but never
+    // RowSpan/ColumnSpan, so merged cells are silently dropped, and doesn't escape "|"
+    // or newlines inside cell content), and inline ☒/☐ selection marks instead of
+    // BuildSelectionMarkBlocks' nearest-span-offset label guessing.
+    //
+    // Not switched yet - open questions tracked as a follow-up in
+    // docs/documentintelligence-vs-pdfpig.md rather than spiked ad hoc here:
+    // - whether <!-- PageBreak --> can land inside an open <table>...</table> (would
+    //   break naive per-page splitting worse than today's misplaced-but-intact table)
+    // - PageHeader/PageFooter/PageNumber survive as literal HTML-comment text in
+    //   .Content ("hidden from rendering" != removed) and need an explicit strip pass,
+    //   or every page's chunk picks up repeated header/footer boilerplate
+    // - Span/Table Offset values become markdown-relative once OutputContentFormat
+    //   changes - PdfStructureMetadata's Offset contract (unconsumed today, see
+    //   IPdfExtractor.cs:45-49) needs that written down before a future ChunkMetadata
+    //   builder assumes plain-text offsets
+    // - fragment count after splitting on PageBreak must equal pageCount, with a
+    //   logged fallback (skip breadcrumbs rather than misattribute) if DI merges or
+    //   drops a page
+    //
+    // BuildSectionBreadcrumbs and the heading-carry-forward pass below stay regardless
+    // of this decision - DI has no access to the PDF's own bookmark/outline tree at
+    // all, and carry-forward across heading-less pages isn't something DI's
+    // page-independent output does for you.
     public sealed class PDFMarkdownExtractor
     {
         private readonly ILogger _logger;
