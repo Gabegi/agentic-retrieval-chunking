@@ -49,14 +49,13 @@ namespace ProtocolsIndexer.Models
     public sealed record AnalyzeOutcome(bool Ok, AnalyzeResult? Result, ExtractionError? Error);
 
     // Full result of ExtractPdfStructureAsync (the single entry point DocumentIntelligenceExtractor calls):
-    // - Ok = true  -> Pages/Index/Metadata/EstimatedCostUsd are populated.
+    // - Ok = true  -> Pages/Metadata/EstimatedCostUsd are populated.
     // - Ok = false -> Error explains what went wrong, whether the failure happened during
     //   preflight checks or during the paid Document Intelligence call itself.
     // - Uses the same Ok/Error pattern as AnalyzeOutcome above.
     public sealed record PdfStructureExtraction(
         bool Ok,
         IReadOnlyList<PdfPageRecord>? Pages,
-        PdfIndexRecord? Index,
         PdfStructureMetadata? Metadata,
         decimal? EstimatedCostUsd,
         ExtractionError? Error);
