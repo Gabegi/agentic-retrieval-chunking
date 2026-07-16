@@ -125,3 +125,22 @@ that's actually in the resolution path. This sidesteps the CNAME hop entirely an
 depend on the firewall ever reaching Azure DNS for this suffix. The Terraform VNet-link
 option can still be pursued in parallel for correctness/future private endpoints, but
 shouldn't be assumed to unblock this deploy by itself.
+
+### Why this isn't self-service
+
+`file.core.windows.net` (no `privatelink.` prefix) isn't an Azure Private DNS Zone at all —
+it's an Active Directory–integrated DNS zone hosted on Cordaan's domain controllers. That's
+a completely different admin plane:
+
+- No Azure resource ID, no RBAC role applies to it — it's managed via AD DNS (DNS Manager /
+  `DnsServer` PowerShell module against a DC), which requires either being a domain admin or
+  having a delegated ACE on that specific AD DNS zone.
+- Our OIDC service principal authenticates to Azure Resource Manager. It has no domain
+  identity and no path into AD DNS management — Azure RBAC grants don't reach into
+  on-prem/AD-integrated infrastructure at all.
+- Even `providers.tf`'s `hub` alias — which does have write access to the Azure-side zones —
+  is explicitly scoped to ARM (`azurerm` provider), which can't touch a DC's local DNS zone
+  either.
+
+This one has to go back to the platform team; only someone with AD DNS admin rights on those
+domain controllers can add the record.

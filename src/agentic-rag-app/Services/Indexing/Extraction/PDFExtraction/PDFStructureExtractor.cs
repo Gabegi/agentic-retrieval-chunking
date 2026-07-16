@@ -459,16 +459,19 @@ namespace ProtocolsIndexer.Services
                     t.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
                 .ToList();
 
-        // Checkboxes/radio buttons with selected/unselected state, per page. Offset comes
-        // from Span (singular - one mark, one position, unlike paragraphs/tables' Spans).
+        // Returns every checkbox/radio button on every page, with its selected/unselected
+        // state.
+        // - Offset comes from Span (singular), since a selection mark has exactly one
+        //   position - unlike paragraphs/tables, which use the plural Spans.
         public IReadOnlyList<SelectionMarkInfo> GetSelectionMarks(AnalyzeResult result) =>
             result.Pages
                 .SelectMany(p => p.SelectionMarks.Select(sm => new SelectionMarkInfo(p.PageNumber, sm.State.ToString(), sm.Span.Offset)))
                 .ToList();
 
-        // Handwritten spans at >0.8 confidence (same threshold as the original quickstart
-        // sample). Styles point at spans into result.Content - they don't carry the text
-        // directly, so this substrings it out.
+        // Returns every span of handwritten text with confidence above 0.8
+        // (the same threshold used in the original quickstart sample).
+        // - "Styles" entries only point at spans within result.Content; they don't carry
+        //   the text itself, so the actual string has to be extracted with Substring.
         public IReadOnlyList<string> GetHandwrittenContent(AnalyzeResult result) =>
             result.Styles
                 .Where(s => s.IsHandwritten == true && s.Confidence > 0.8)
@@ -476,14 +479,16 @@ namespace ProtocolsIndexer.Services
                 .Select(span => result.Content.Substring(span.Offset, span.Length))
                 .ToList();
 
-        // Column-aware markdown table rendering using Document Intelligence's row/column
-        // indices — a real pipe table with a header row, unlike the comparison spike's
-        // flat " | " join of every cell in reading order. Row/column spans are ignored:
-        // a merged cell fills only its anchor slot, which is acceptable for this use.
-        // Caption/footnotes are rendered around the table rather than dropped — a table's
-        // caption ("Table 3: Dosage schedule") is often the strongest retrieval signal for
-        // that table's content, and their spans fall inside the table's own Spans range, so
-        // they're already excluded from the paragraph loop above (no duplicate emission).
+        // Renders one DI table as a proper markdown pipe table, using its row/column indices
+        // to place cells correctly (rather than just joining every cell's text in reading
+        // order, which loses the table structure).
+        // - Merged cells (row/column spans) are ignored: a merged cell's content is only
+        //   placed in its top-left "anchor" slot. This is an accepted simplification.
+        // - The table's caption and footnotes are rendered around the table rather than
+        //   dropped, because a caption like "Table 3: Dosage schedule" is often the
+        //   strongest retrieval signal for that table's content. These aren't duplicated
+        //   elsewhere, because their spans fall inside the table's own Spans range and are
+        //   already excluded from the paragraph loop in BuildMarkdownPages.
         private static string RenderMarkdownTable(DocumentTable table)
         {
             if (table.RowCount == 0 || table.ColumnCount == 0) return "";
