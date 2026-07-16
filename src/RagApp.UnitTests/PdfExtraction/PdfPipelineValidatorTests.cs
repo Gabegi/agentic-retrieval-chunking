@@ -18,13 +18,31 @@ public class PdfPipelineValidatorTests
         Title       = title,
     };
 
+    private static PdfDocumentStructure Structure(params TableInfo[] tables) => new(
+        Headings: [],
+        Boilerplate: [],
+        Tables: tables,
+        PageDimensions: [],
+        SelectionMarks: [],
+        Figures: [],
+        HandwrittenSpans: [],
+        Lines: []);
+
     // Builds a clean, all-good pipeline: one page, cleaned, no errors anywhere - the
     // baseline every test below perturbs one piece of.
     private static (ExtractionResult<PdfPageRecord> Pages, PdfCleanResult Clean) HappyPath()
     {
-        var fileExtraction = new PdfFileExtraction(
-            Pages: [new PdfPageRecord { BlobName = "doc1.pdf", PageIndex = 0, PageContent = "## Heading\nSome markdown content", Title = "Title" }],
-            Error: null);
+        var fileExtraction = new PDFExtractionResult(
+            Ok:               true,
+            BlobName:         "doc1.pdf",
+            FileSizeBytes:    1024,
+            PdfSpecVersion:   1.7,
+            NativeMetadata:   null,
+            RawContent:       "## Heading\nSome markdown content",
+            Pages:            [new PdfPageRecord { BlobName = "doc1.pdf", PageIndex = 0, PageContent = "## Heading\nSome markdown content", Title = "Title" }],
+            Structure:        null,
+            EstimatedCostUsd: 0.01m,
+            Error:            null);
         var pages = PdfExtractionAggregation.Aggregate([fileExtraction]);
         var clean = BuildCleaner().Clean(pages.Records);
         return (pages, clean);
@@ -145,5 +163,66 @@ public class PdfPipelineValidatorTests
 
         Assert.IsFalse(report.Passed);
         Assert.IsTrue(report.ReconciliationProblems.Any(p => p.Contains("Zero cleaned records")));
+    }
+
+    [TestMethod]
+    public void DetectedTableCount_SumsRealTableDataAcrossFiles()
+    {
+        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Some content")]);
+        var pages = new ExtractionResult<PdfPageRecord>();
+        var structures = new Dictionary<string, PdfDocumentStructure>
+        {
+            ["doc1.pdf"] = Structure(
+                new TableInfo(2, 3, [new TableCellInfo(0, 0, "content", "a")], Offset: 0, PageNumber: 1),
+                new TableInfo(1, 1, [new TableCellInfo(0, 0, "content", "b")], Offset: 10, PageNumber: 1)),
+        };
+
+        var report = BuildValidator().Validate(pages, clean, structures: structures);
+
+        Assert.AreEqual(2, report.DetectedTableCount);
+    }
+
+    [TestMethod]
+    public void MalformedTable_ZeroRowsOrColumns_IsFlaggedAsWarning()
+    {
+        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Some content")]);
+        var pages = new ExtractionResult<PdfPageRecord>();
+        var structures = new Dictionary<string, PdfDocumentStructure>
+        {
+            ["doc1.pdf"] = Structure(new TableInfo(0, 0, [], Offset: 0, PageNumber: 1)),
+        };
+
+        var report = BuildValidator().Validate(pages, clean, structures: structures);
+
+        Assert.IsTrue(report.Issues.Any(i =>
+            i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("malformed")));
+    }
+
+    [TestMethod]
+    public void TableWithNoCellData_IsFlaggedAsWarning()
+    {
+        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Some content")]);
+        var pages = new ExtractionResult<PdfPageRecord>();
+        var structures = new Dictionary<string, PdfDocumentStructure>
+        {
+            ["doc1.pdf"] = Structure(new TableInfo(2, 2, [], Offset: 0, PageNumber: 1)),
+        };
+
+        var report = BuildValidator().Validate(pages, clean, structures: structures);
+
+        Assert.IsTrue(report.Issues.Any(i =>
+            i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("no cell data")));
+    }
+
+    [TestMethod]
+    public void NoStructuresProvided_DetectedTableCountIsZeroAndNoQualityIssues()
+    {
+        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Some content")]);
+        var pages = new ExtractionResult<PdfPageRecord>();
+
+        var report = BuildValidator().Validate(pages, clean);
+
+        Assert.AreEqual(0, report.DetectedTableCount);
+        Assert.IsFalse(report.Issues.Any(i => i.Stage == "TextQuality"));
     }
 }

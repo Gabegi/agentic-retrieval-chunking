@@ -12,10 +12,10 @@ namespace ProtocolsIndexer.Services;
 // over that lifetime - it reads native metadata/bookmarks off the PdfDocument and disposes it
 // before returning, so nothing here needs its own `using` block. The resulting
 // DocMetadata is handed to PDFStructureExtractor.ExtractPdfStructureAsync, which does
-// the paid call, markdown page assembly, and structural metadata from there.
-// Produces one PdfPageRecord per PDF page with markdown-flavored content
-// ("## " headings, real column-aware pipe tables), same shape CSV's
-// PageRecord.PageContent arrives in.
+// the paid call, markdown page assembly, and structural extraction from there.
+// This class is the assembler: it combines what each of the three steps produced into
+// one PDFExtractionResult - the complete record of everything the pipeline learned about
+// this PDF - rather than each step's output getting scattered/lost along the way.
 public class DocumentIntelligenceExtractor : IPdfExtractor
 {
     public string Name => "DocumentIntelligence";
@@ -29,12 +29,18 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         _structureExtractor = structureExtractor;
     }
 
-    public async Task<PdfFileExtraction> ExtractPDFAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default)
+    public async Task<PDFExtractionResult> ExtractPDFAsync(string blobName, byte[] pdfBytes, CancellationToken ct = default)
     {
+        var fileSizeBytes = pdfBytes.LongLength;
+
         // Step 1: local, free structural check — rejects oversized/corrupt/encrypted/
         // too-many-page files before spending a paid Document Intelligence call on them.
         if (!PdfDocumentValidator.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var validationError))
-            return new PdfFileExtraction([], validationError);
+            return new PDFExtractionResult(false, blobName, fileSizeBytes, null, null, null, null, null, null, validationError);
+
+        // Captured before Step 2 disposes pdf - PdfPig's own PDF spec version (e.g. 1.7),
+        // otherwise only ever logged and then lost.
+        var pdfSpecVersion = (double?)pdf.Version;
 
         // Step 2: ParseNativeMetadata takes ownership of pdf's lifetime (disposes it internally)
         // and reads everything PdfPig can offer beyond DI: native Title/Author/
@@ -42,15 +48,21 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         var nativeMetadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(pdf, blobName, _logger);
 
         // Step 3: submit to Document Intelligence's prebuilt-layout model and assemble
-        // pages/structural metadata — lives in PDFStructureExtractor.
-        var outcome = await _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName, nativeMetadata, ct);
-        if (!outcome.Ok)
-            return new PdfFileExtraction([], outcome.Error);
+        // pages/structural data — lives in PDFStructureExtractor.
+        var structureResult = await _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName, nativeMetadata, ct);
+        if (!structureResult.Ok)
+            return new PDFExtractionResult(false, blobName, fileSizeBytes, pdfSpecVersion, nativeMetadata, null, null, null, null, structureResult.Error);
 
-        return new PdfFileExtraction(outcome.Pages!, Error: null, EstimatedCostUsd: outcome.EstimatedCostUsd)
-        {
-            StructureMetadata = outcome.Metadata,
-            NativeMetadata    = nativeMetadata,
-        };
+        return new PDFExtractionResult(
+            Ok:               true,
+            BlobName:         blobName,
+            FileSizeBytes:    fileSizeBytes,
+            PdfSpecVersion:   pdfSpecVersion,
+            NativeMetadata:   nativeMetadata,
+            RawContent:       structureResult.RawContent,
+            Pages:            structureResult.Pages,
+            Structure:        structureResult.Structure,
+            EstimatedCostUsd: structureResult.EstimatedCostUsd,
+            Error:            null);
     }
 }

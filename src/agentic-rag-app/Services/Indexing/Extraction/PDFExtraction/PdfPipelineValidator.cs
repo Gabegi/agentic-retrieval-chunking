@@ -21,14 +21,13 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     private static readonly Regex MarkdownHeading =
         new(@"^#{1,6}\s", RegexOptions.Multiline | RegexOptions.Compiled);
-    private static readonly Regex MarkdownTableLine =
-        new(@"^\s*\|.*\|\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
     public PdfValidationReport Validate(
-        ExtractionResult<PdfPageRecord>         pagesExtraction,
-        PdfCleanResult                           cleanResult,
-        int?                                     previousRunCleanedCount = null,
-        IReadOnlyList<PdfExtractionDiagnostics>? diagnostics = null)
+        ExtractionResult<PdfPageRecord>                   pagesExtraction,
+        PdfCleanResult                                     cleanResult,
+        int?                                               previousRunCleanedCount = null,
+        IReadOnlyList<PdfExtractionDiagnostics>?           diagnostics = null,
+        IReadOnlyDictionary<string, PdfDocumentStructure>? structures = null)
     {
         var redFlags = new List<string>();
 
@@ -41,14 +40,18 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         // 3. Magnitude shift vs a previous run, if supplied.
         var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
 
-        // 4. Text (char and language) + table format issues.
-        issues.AddRange(TextNTableQualityCheck(cleanResult));
+        // 4. Text (char/encoding) quality issues.
+        issues.AddRange(TextQualityCheck(cleanResult));
 
         // 4b. PDF-only: tables collapsed into repeated-phrase prose during extraction.
         issues.AddRange(TableFlatteningCheck(cleanResult));
 
-        // 5. Total tables detected this run — trended over time, not gated.
-        var detectedTableCount = CountDetectedTables(cleanResult);
+        // 4c. Table structure issues, from DI's own table data - not a text-pattern guess.
+        issues.AddRange(TableStructureQualityCheck(structures));
+
+        // 5. Total tables detected this run — real count from DI's table detection,
+        // trended over time, not gated.
+        var detectedTableCount = CountDetectedTables(structures);
 
         // 6. docsNeedingFallback = zero headings across every single page of that document.
         var docsWithNoPagesWithHeadings = DocsWithNoPagesWithHeading(cleanResult);
@@ -172,7 +175,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     // 4. Text-quality signals — identical checks to CSV's validator, applied to PDF's
     // rendered markdown content.
-    private static List<ValidationIssue> TextNTableQualityCheck(PdfCleanResult cleanResult)
+    private static List<ValidationIssue> TextQualityCheck(PdfCleanResult cleanResult)
     {
         var issues = new List<ValidationIssue>();
 
@@ -191,22 +194,37 @@ public class PdfPipelineValidator : IPdfPipelineValidator
                 issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
                     DocumentId = record.BlobName,
                     Message    = $"Page {record.PageIndex}: {corruptCharCount} control/unassigned character(s) — likely encoding corruption." });
+        }
 
-            var tableBlocks = record.PageContent
-                .Split("\n\n", StringSplitOptions.RemoveEmptyEntries)
-                .Where(block => MarkdownTableLine.IsMatch(block));
+        return issues;
+    }
 
-            foreach (var block in tableBlocks)
+    // 4c. Table structure issues read directly off DI's own table data (PdfDocumentStructure.Tables) -
+    // replaces a previous heuristic that pattern-matched GFM pipe-table syntax ("| a | b |")
+    // in the rendered content. DI's markdown output actually renders tables as HTML
+    // <table> elements (see PDFMarkdownExtractor), so that heuristic never matched real
+    // output and was silently a no-op.
+    private static List<ValidationIssue> TableStructureQualityCheck(
+        IReadOnlyDictionary<string, PdfDocumentStructure>? structures)
+    {
+        var issues = new List<ValidationIssue>();
+        if (structures is null) return issues;
+
+        foreach (var (blobName, structure) in structures)
+        {
+            foreach (var table in structure.Tables)
             {
-                var pipeCounts = MarkdownTableLine.Matches(block)
-                    .Select(m => m.Value.Count(ch => ch == '|'))
-                    .ToList();
-                if (pipeCounts.Count > 1 && pipeCounts.Distinct().Count() > 1)
+                if (table.RowCount <= 0 || table.ColumnCount <= 0)
                 {
                     issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
-                        DocumentId = record.BlobName,
-                        Message    = $"Page {record.PageIndex}: markdown table has inconsistent column counts across rows." });
-                    break; // one warning per page is enough
+                        DocumentId = blobName,
+                        Message    = $"Table at offset {table.Offset}: reported {table.RowCount} row(s) x {table.ColumnCount} column(s) — malformed." });
+                }
+                else if (table.Cells.Count == 0)
+                {
+                    issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
+                        DocumentId = blobName,
+                        Message    = $"Table at offset {table.Offset}: {table.RowCount}x{table.ColumnCount} reported but no cell data was extracted." });
                 }
             }
         }
@@ -255,12 +273,9 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             .ToList();
     }
 
-    // 5. Total table-like blocks across every cleaned page this run.
-    private static int CountDetectedTables(PdfCleanResult cleanResult) =>
-        cleanResult.Records.Sum(record =>
-            record.PageContent
-                .Split("\n\n", StringSplitOptions.RemoveEmptyEntries)
-                .Count(block => MarkdownTableLine.IsMatch(block)));
+    // 5. Total tables detected this run - real count from DI's own table detection.
+    private static int CountDetectedTables(IReadOnlyDictionary<string, PdfDocumentStructure>? structures) =>
+        structures?.Values.Sum(s => s.Tables.Count) ?? 0;
 
     // 6. Document flagged if none of its pages has a heading.
     private static List<string> DocsWithNoPagesWithHeading(PdfCleanResult cleanResult)

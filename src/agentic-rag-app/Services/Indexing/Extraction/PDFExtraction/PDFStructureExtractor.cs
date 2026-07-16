@@ -170,7 +170,7 @@ namespace ProtocolsIndexer.Services
         //   BuildMarkdownPages uses elsewhere).
         public IReadOnlyList<Heading> GetHeadings(AnalyzeResult result) =>
             result.Paragraphs
-                .Where(p => p.Role is ParagraphRole.Title or ParagraphRole.SectionHeading)
+                .Where(p => p.Role == ParagraphRole.Title || p.Role == ParagraphRole.SectionHeading)
                 .Select(ToHeading)
                 .ToList();
 
@@ -181,7 +181,7 @@ namespace ProtocolsIndexer.Services
         // structure.
         public IReadOnlyList<Heading> GetBoilerplate(AnalyzeResult result) =>
             result.Paragraphs
-                .Where(p => p.Role is ParagraphRole.PageHeader or ParagraphRole.PageFooter or ParagraphRole.Footnote)
+                .Where(p => p.Role == ParagraphRole.PageHeader || p.Role == ParagraphRole.PageFooter || p.Role == ParagraphRole.Footnote)
                 .Select(ToHeading)
                 .ToList();
 

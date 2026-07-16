@@ -2,14 +2,14 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-// Folds one-file-at-a-time PdfFileExtraction results (from IPdfExtractor.Extract,
+// Folds one-file-at-a-time PDFExtractionResult results (from IPdfExtractor.Extract,
 // called once per PDF blob) into the same batch-level ExtractionResult<T> shape
 // CsvExtractor already hands to ICsvJoiner in one go. A file-level extraction error
 // (corrupt PDF, backend exception) is recorded once against pages - a file that
 // failed to parse contributes nothing.
 public static class PdfExtractionAggregation
 {
-    public static ExtractionResult<PdfPageRecord> Aggregate(IEnumerable<PdfFileExtraction> fileResults)
+    public static ExtractionResult<PdfPageRecord> Aggregate(IEnumerable<PDFExtractionResult> fileResults)
     {
         var pages = new ExtractionResult<PdfPageRecord>();
 
@@ -21,7 +21,7 @@ public static class PdfExtractionAggregation
                 continue;
             }
 
-            foreach (var page in file.Pages) pages.AddRecord(page);
+            foreach (var page in file.Pages!) pages.AddRecord(page); // Ok=true guarantees Pages is populated
 
             foreach (var pageError in file.PageErrors) pages.AddError(pageError);
             foreach (var warning in file.Warnings) pages.AddWarning(warning);

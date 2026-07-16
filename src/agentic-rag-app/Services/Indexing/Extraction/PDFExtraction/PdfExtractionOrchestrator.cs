@@ -14,7 +14,7 @@ namespace ProtocolsIndexer.Services;
 // shape (download -> extract -> clean -> validate -> report -> diff-ready output),
 // adapted to the PDF pipeline. Not registered as the active IExtractionOrchestrator yet
 // (CSV remains the sole active source — see program.cs); this exists so the PDF
-// pipeline can run end-to-end, and so each file's PdfFileExtraction.Diagnostics
+// pipeline can run end-to-end, and so each file's PDFExtractionResult.Diagnostics
 // (currently always null - nothing populates it since the PdfPig backend was removed)
 // has somewhere to be written as a dev-only report. Extractors stay I/O-free;
 // orchestrators own reporting — same split ExtractionService/CsvExtractionOrchestrator
@@ -72,7 +72,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
         var (previousCount, previousETag) = await PreviousRunCount(ct);
         var diagnostics = fileResults.Select(f => f.Diagnostics).OfType<PdfExtractionDiagnostics>().ToList();
-        var report = _validator.Validate(pagesResult, cleanResult, previousCount, diagnostics);
+        var structures = fileResults
+            .Where(f => f.Structure != null)
+            .ToDictionary(f => f.BlobName, f => f.Structure!, StringComparer.OrdinalIgnoreCase);
+        var report = _validator.Validate(pagesResult, cleanResult, previousCount, diagnostics, structures);
 
         await WriteReportsAsync(runAt, report, diagnostics, ct);
 
@@ -98,10 +101,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // already gives a corrupt PDF. Also captures each blob's storage LastModified —
     // that's what downstream diffing in ExtractionService needs to detect new/updated/
     // removed documents, not anything parsed out of the PDF's own text.
-    private async Task<(List<PdfFileExtraction> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractAllFilesAsync(
+    private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractAllFilesAsync(
         CancellationToken ct)
     {
-        var results      = new List<PdfFileExtraction>();
+        var results      = new List<PDFExtractionResult>();
         var lastModified  = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
 
         await foreach (var item in _container.GetBlobsAsync(cancellationToken: ct))
@@ -129,7 +132,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Extractor threw for '{Blob}'; recording as a file-level error.", item.Name);
-                results.Add(new PdfFileExtraction([],
+                results.Add(new PDFExtractionResult(false, item.Name, pdfBytes.LongLength, null, null, null, null, null, null,
                     new ExtractionError { DocumentId = item.Name, Message = ex.Message, Reason = PdfOpenFailureReason.Unknown }));
             }
         }
