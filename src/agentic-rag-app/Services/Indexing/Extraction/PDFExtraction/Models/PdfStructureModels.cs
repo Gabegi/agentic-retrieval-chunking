@@ -1,3 +1,5 @@
+using Azure.AI.DocumentIntelligence;
+
 namespace ProtocolsIndexer.Models
 {
     // Return types used by PDFStructureExtractor's Get* methods:
