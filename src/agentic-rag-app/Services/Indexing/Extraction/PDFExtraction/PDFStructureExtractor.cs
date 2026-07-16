@@ -55,6 +55,22 @@ namespace ProtocolsIndexer.Services
             var analysis  = analyzeOutcome.Result!;
             var pageCount = analysis.Pages?.Count ?? 0;
 
+            // PdfDocumentValidator's preflight already rejected zero-page PDFs (via PdfPig),
+            // so getting here with pageCount == 0 means DI itself analyzed the document but
+            // produced no pages - a DI-side failure mode, not something to silently treat as
+            // a successful-but-empty extraction (that would otherwise surface much later, as
+            // an unexplained "no pages, won't be indexed" red flag in PdfPipelineValidator).
+            if (pageCount == 0)
+            {
+                _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
+                return new PdfStructureExtraction(false, null, null, null, null, new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = "Document Intelligence analysis returned zero pages.",
+                    Reason = PdfOpenFailureReason.EmptyDocument,
+                });
+            }
+
             var index = Parse(blobName, nativeMetadata.Title);
             var pages = _markdownExtractor.BuildMarkdownPages(blobName, analysis, pageCount, nativeMetadata.Bookmarks);
 
@@ -77,8 +93,12 @@ namespace ProtocolsIndexer.Services
         //   still hit 429 even if DocumentIntelligenceClientOptions.Retry was configured
         //   when the client was built. Without this loop, that would surface as an
         //   unhandled exception.
-        // - Any other error is caught and returned as Ok=false with a typed reason,
-        //   instead of throwing.
+        // - Any RequestFailedException, plus any other unexpected exception (SDK bug,
+        //   deserialization failure, etc.), is caught and returned as Ok=false with a
+        //   typed reason, instead of throwing. OperationCanceledException is the one
+        //   deliberate exception to that: it means ct itself fired (e.g. host shutdown),
+        //   not a per-document failure, so it's left to propagate and stop the whole run
+        //   rather than being recorded as this one document failing to extract.
         private async Task<AnalyzeOutcome> AnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
         {
             for (var attempt = 0; ; attempt++)
@@ -114,6 +134,16 @@ namespace ProtocolsIndexer.Services
                         DocumentId = blobName,
                         Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
                         Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
+                    });
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Unexpected error analyzing '{Blob}' with Document Intelligence.", blobName);
+                    return new AnalyzeOutcome(false, null, new ExtractionError
+                    {
+                        DocumentId = blobName,
+                        Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
+                        Reason = PdfOpenFailureReason.Unknown,
                     });
                 }
             }
@@ -175,34 +205,6 @@ namespace ProtocolsIndexer.Services
                 .SelectMany(s => s.Spans)
                 .Select(span => result.Content.Substring(span.Offset, span.Length))
                 .ToList();
-
-                // Derives Zenya's Title/Version/PublicationDate for a PDF (no external index
-        // file to join against, unlike Zenya's index.csv). Shared by both IPdfExtractor
-        // backends so metadata parses identically either way.
-        // - Title: prefers nativeTitle (the PDF's own Info-dictionary Title, from
-        //   ParseNativeMetadata) when the file actually has one set - real PDF metadata,
-        //   not a guess. Falls back to the blob-name-derived title otherwise.
-        // - Version/PublicationDateRaw: left empty - no confirmed Cordaan pattern yet,
-        //   and unlike Title there's no native PDF field to fall back to.
-        // - Previously matched Dutch/LCI-specific regexes on first-page text (ported
-        //   from a different corpus); removed after confirming they don't apply to
-        //   Cordaan's documents, along with the first-page-text parameter they read.
-        public static PdfIndexRecord Parse(string blobName, string? nativeTitle = null)
-        {
-            var title = !string.IsNullOrWhiteSpace(nativeTitle)
-                ? nativeTitle
-                : blobName.Split('/')[0]
-                    .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
-                    .Replace("-", " ");
-
-            return new PdfIndexRecord
-            {
-                BlobName           = blobName,
-                Title              = title,
-                Version            = "",
-                PublicationDateRaw = "",
-            };
-        }
     }
 
     

@@ -85,6 +85,6 @@ namespace ProtocolsIndexer.Services
                     ? doc.PageNumber
                     : null;
 
-        
+
     }
 }
