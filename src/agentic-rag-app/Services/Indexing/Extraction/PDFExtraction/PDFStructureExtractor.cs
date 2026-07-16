@@ -41,14 +41,18 @@ namespace ProtocolsIndexer.Models
         IReadOnlyList<PageDimensions> PageDimensions,
         IReadOnlyList<SelectionMarkInfo> SelectionMarks);
 
-    // Result of the one paid DI call. Ok=false carries a typed ExtractionError instead of
-    // an unhandled exception, so callers can branch on Reason (Throttled is worth a retry
-    // upstream; DiServiceError probably isn't).
+    // Result of calling the (paid) Document Intelligence analyze API once:
+    // - Ok = true  -> Result contains the successful analysis.
+    // - Ok = false -> Error contains a typed reason instead of throwing an exception.
+    //   This lets callers check Error.Reason and decide what to do
+    //   (e.g. "Throttled" is worth retrying, "DiServiceError" probably isn't).
     public sealed record AnalyzeOutcome(bool Ok, AnalyzeResult? Result, ExtractionError? Error);
 
-    // Full result of ExtractPdfStructureAsync - the one call DocumentIntelligenceExtractor
-    // makes. Ok=false covers every failure point (preflight, the paid call) with a single
-    // typed ExtractionError, same Ok/Error shape as AnalyzeOutcome one level up.
+    // Full result of ExtractPdfStructureAsync (the single entry point DocumentIntelligenceExtractor calls):
+    // - Ok = true  -> Pages/Index/Metadata/EstimatedCostUsd are populated.
+    // - Ok = false -> Error explains what went wrong, whether the failure happened during
+    //   preflight checks or during the paid Document Intelligence call itself.
+    // - Uses the same Ok/Error pattern as AnalyzeOutcome above.
     public sealed record PdfStructureExtraction(
         bool Ok,
         IReadOnlyList<PdfPageRecord>? Pages,
@@ -60,19 +64,17 @@ namespace ProtocolsIndexer.Models
 
 namespace ProtocolsIndexer.Services
 {
-    // Everything the DocumentIntelligence backend needs from one PDF file except
-    // preflight and PdfPig-native reads: the one paid analyze call (with retry on 429),
-    // markdown page assembly, and every DI structural capability probe (headings/tables/
-    // page dimensions/selection marks) — bundled for whatever builds ChunkMetadata later.
-    // Preflight (PdfDocumentValidator.IsPDFValid) and the PdfPig-only reads
-    // (PdfMetadataExtractor.ParseNativeMetadata) stay in DocumentIntelligenceExtractor,
-    // since it owns the PdfDocument's lifetime and that read needs the object open;
-    // this class only ever sees the raw bytes and the results of that read, passed in
-    // as parameters.
+    // Handles everything Document Intelligence (DI) needs to do with one PDF, except for
+    // preflight checks and PdfPig-native reads. Specifically, this class:
+    // - Makes the one paid "analyze" call to DI, retrying automatically if throttled (429).
+    // - Assembles the DI response into markdown-formatted pages.
+    // - Extracts every DI structural feature (headings, tables, page dimensions, selection marks)
+    //   so a later step can use them to build ChunkMetadata.
     public sealed class PDFStructureExtractor
     {
-        // prebuilt-layout is billed at $10 / 1,000 pages. Verify against current
-        // Azure pricing before trusting cost estimates derived from this constant.
+        // Cost per page for Azure's "prebuilt-layout" model:
+        // - Priced at $10 per 1,000 pages, i.e. $0.01/page, as of when this was written.
+        // - Check current Azure pricing before trusting any cost estimate based on this constant.
         private const decimal CostPerPage = 0.01m;
 
         private static readonly TimeSpan[] BackoffDelays =
@@ -89,14 +91,17 @@ namespace ProtocolsIndexer.Services
             _logger = logger;
         }
 
-        // The one method DocumentIntelligenceExtractor calls, once preflight has already
-        // opened and validated the PdfDocument (PdfDocumentValidator.IsPDFValid) and
-        // PdfMetadataExtractor.ParseNativeMetadata has read nativeMetadata/bookmarks off
-        // it and disposed it - this method never sees the PdfDocument itself, only the
-        // results of that read, passed in as parameters. From here: submit to Document
-        // Intelligence, then assemble markdown pages and every structural probe from the
-        // same AnalyzeResult. Ok=false covers the paid call's failure with a typed
-        // ExtractionError.
+        // Main entry point, called once preflight/native-metadata reading has already happened.
+        // Expects the caller (DocumentIntelligenceExtractor) to have already:
+        // - Validated the PDF (PdfDocumentValidator.IsPDFValid).
+        // - Read nativeMetadata/bookmarks via PdfMetadataExtractor.ParseNativeMetadata and
+        //   closed the PdfDocument - this method receives only the resulting data, never
+        //   the PdfDocument object itself.
+        // Steps performed here:
+        // 1. Submit the PDF to Document Intelligence for analysis.
+        // 2. If that call fails, return immediately with Ok=false and a typed ExtractionError.
+        // 3. Otherwise, build markdown pages and extract every structural feature
+        //    (headings, tables, page dimensions, selection marks) from the same result.
         public async Task<PdfStructureExtraction> ExtractPdfStructureAsync(
             byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
@@ -121,13 +126,16 @@ namespace ProtocolsIndexer.Services
             return new PdfStructureExtraction(true, pages, index, metadata, pageCount * CostPerPage, null);
         }
 
-        // The one paid call. Retries on 429 using the backoff pattern MS's own docs
-        // recommend (2-5-13-34s). NB: WaitUntil.Completed polls internally, and a known
-        // SDK issue (Azure/azure-sdk-for-net#50904) means that internal poll can still 429
-        // independent of any DocumentIntelligenceClientOptions.Retry configured where the
-        // client was constructed - this loop is why that gap doesn't just surface as an
-        // unhandled exception. Any other failure returns Ok=false with a typed reason
-        // instead of throwing.
+        // Makes the single paid call to Document Intelligence.
+        // - On a 429 (throttled) response, waits and retries using Microsoft's recommended
+        //   backoff schedule: 2s, then 5s, then 13s, then 34s.
+        // - Why this retry loop is needed: WaitUntil.Completed polls DI internally, and a
+        //   known SDK bug (Azure/azure-sdk-for-net#50904) means that internal polling can
+        //   still hit 429 even if DocumentIntelligenceClientOptions.Retry was configured
+        //   when the client was built. Without this loop, that would surface as an
+        //   unhandled exception.
+        // - Any other error is caught and returned as Ok=false with a typed reason,
+        //   instead of throwing.
         private async Task<AnalyzeOutcome> AnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
         {
             for (var attempt = 0; ; attempt++)
@@ -160,25 +168,27 @@ namespace ProtocolsIndexer.Services
             }
         }
 
-        // Stable content-hash for dedup/caching keys upstream - same bytes always produce
-        // the same key regardless of blob name, so re-uploads of an unchanged file can be
-        // recognized before paying for another analyze call.
+        // Computes a stable hash of the PDF's raw bytes, used as a dedup/caching key:
+        // - Same file content -> same hash, regardless of the blob's file name.
+        // - Lets the caller detect "this exact file was already processed" and skip
+        //   paying for another Document Intelligence call.
         public static string ComputeContentHash(byte[] pdfBytes) =>
             Convert.ToHexString(SHA256.HashData(pdfBytes));
 
-        // Assembles one PdfPageRecord per PDF page with markdown-flavored content
-        // ("## " headings, real column-aware pipe tables) - the DocumentIntelligence
-        // backend's actual output shape, as opposed to the Get* probes below, which exist
-        // for the DI-vs-PdfPig capability comparison and deliberately drop the
-        // page-number/span-offset info this method needs to place content in order.
+        // Builds one PdfPageRecord per PDF page, with content formatted as markdown
+        // (e.g. "## " for headings, real pipe tables with columns).
+        // - This is the actual output shape used by the DocumentIntelligence backend.
+        // - It differs from the Get* probe methods below, which strip out page numbers
+        //   and offsets - info this method needs in order to place content in the right order.
         //
-        // bookmarks, when available, prepend a section breadcrumb ("_Section: Chapter 3 >
-        // 3.2 Dosage_") to every page under that outline entry - a stronger signal of a
-        // page's place in the document than DI's own per-paragraph heading roles, which
-        // this breadcrumb supplements rather than replaces (the "## " headings below still
-        // come from DI's Role classification). null/empty bookmarks (no outline in this
-        // PDF, or PdfPig failed to read one) just means no breadcrumb - never a hard
-        // requirement for extraction to succeed.
+        // How bookmarks are used, when present:
+        // - A breadcrumb line like "_Section: Chapter 3 > 3.2 Dosage_" is prepended to
+        //   every page that falls under that outline entry.
+        // - This breadcrumb is a stronger signal of "where am I in the document" than DI's
+        //   own per-paragraph heading roles, so it supplements (does not replace) the
+        //   "## " headings, which still come from DI's own Role classification.
+        // - If bookmarks are missing or empty (no outline in the PDF, or PdfPig couldn't
+        //   read one), pages simply get no breadcrumb - this is not treated as an error.
         public List<PdfPageRecord> BuildMarkdownPages(
             string blobName, AnalyzeResult analysis, int pageCount, IReadOnlyList<Bookmark>? bookmarks = null)
         {
@@ -187,10 +197,12 @@ namespace ProtocolsIndexer.Services
             List<string> Segments(int pageNum) =>
                 pageSegments.TryGetValue(pageNum, out var l) ? l : pageSegments[pageNum] = [];
 
-            // DI repeats every table cell's text as its own entry in analysis.Paragraphs,
-            // so without filtering, table content is emitted twice: once as jumbled prose,
-            // once as the markdown table below. Build the set of spans covered by tables
-            // up front and drop any paragraph whose span falls inside one.
+            // Why this filtering step exists:
+            // - DI also repeats every table cell's text as its own paragraph entry.
+            // - Without filtering these out, the same table content would appear twice:
+            //   once as jumbled prose (from paragraphs) and once as the markdown table below.
+            // - To prevent that, first collect every span range covered by a table, then
+            //   later skip any paragraph whose span falls inside one of those ranges.
             var tableSpanRanges = (analysis.Tables ?? [])
                 .SelectMany(t => t.Spans ?? [])
                 .Select(sp => (Start: sp.Offset, End: sp.Offset + sp.Length))
@@ -199,10 +211,14 @@ namespace ProtocolsIndexer.Services
             bool OverlapsTable(IReadOnlyList<DocumentSpan>? spans) =>
                 spans != null && spans.Any(sp => tableSpanRanges.Any(r => sp.Offset < r.End && sp.Offset + sp.Length > r.Start));
 
-            // analysis.Paragraphs is already in reading order -- DI resolves multi-column
-            // layouts etc. -- so it's kept as-is rather than re-sorted by Y, which would
-            // interleave left/right columns on two-column pages. Tables are positioned by
-            // comparing span offsets against paragraph offsets instead.
+            // Paragraph ordering:
+            // - analysis.Paragraphs already comes in correct reading order, because DI
+            //   resolves multi-column layouts itself.
+            // - This order is intentionally kept as-is, rather than re-sorted by vertical
+            //   position, which would incorrectly interleave left/right columns on
+            //   two-column pages.
+            // - Tables don't have a natural place in this paragraph list, so their position
+            //   is instead determined by comparing their span offsets to paragraph offsets.
             var tablesByOffset = (analysis.Tables ?? [])
                 .Select(t => (Table: t, Offset: t.Spans is { Count: > 0 } ts ? ts[0].Offset : 0))
                 .OrderBy(t => t.Offset)
