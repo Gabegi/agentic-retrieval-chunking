@@ -22,9 +22,9 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     public string Name => "DocumentIntelligence";
 
     private readonly ILogger<DocumentIntelligenceExtractor> _logger;
-    private readonly PDFDocumentAnalyzer                      _structureExtractor;
+    private readonly PdfDocumentAnalyzer                      _structureExtractor;
 
-    public DocumentIntelligenceExtractor(PDFDocumentAnalyzer structureExtractor, ILogger<DocumentIntelligenceExtractor>? logger = null)
+    public DocumentIntelligenceExtractor(PdfDocumentAnalyzer structureExtractor, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
         _logger             = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
         _structureExtractor = structureExtractor;
@@ -76,7 +76,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             // Bookmarks are PdfPig-derived (NativeMetadata), not DI-derived, so this is
             // computed here rather than inside PDFDocumentAnalyzer/PdfDocumentStructure,
             // which is scoped to what DI itself produces.
-            SectionBreadcrumbs = PDFSectionBreadCrumbBuilder.BuildSectionBreadcrumbs(nativeMetadata.Bookmarks, nativeMetadata.PageCount),
+            SectionBreadcrumbs = PdfSectionBreadCrumbBuilder.BuildSectionBreadcrumbs(nativeMetadata.Bookmarks, nativeMetadata.PageCount),
         };
     }
 

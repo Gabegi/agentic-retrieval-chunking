@@ -17,7 +17,7 @@ namespace ProtocolsIndexer.Services
     //   dimensions, selection marks, figures, sections, page quality, lines) into
     //   PdfDocumentStructure.
     // - Surfaces DI's own warnings plus whatever this class flags along the way.
-    public sealed class PDFDocumentAnalyzer
+    public sealed class PdfDocumentAnalyzer
     {
         // Azure "prebuilt-layout" pricing: $10 / 1,000 pages = $0.01/page (at time of
         // writing). Verify current pricing before trusting any cost estimate based on this.
@@ -36,7 +36,7 @@ namespace ProtocolsIndexer.Services
         private readonly DocumentIntelligenceClient _diClient;
         private readonly ILogger _logger;
 
-        public PDFDocumentAnalyzer(DocumentIntelligenceClient diClient, ILogger<PDFDocumentAnalyzer> logger)
+        public PdfDocumentAnalyzer(DocumentIntelligenceClient diClient, ILogger<PdfDocumentAnalyzer> logger)
         {
             _diClient = diClient;
             _logger = logger;
