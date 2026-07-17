@@ -41,4 +41,10 @@ public record PDFExtractionResult(
     // Per-step diagnostic snapshot (see PdfExtractionDiagnostics) - currently always null;
     // nothing populates it since the PdfPig backend (the only producer) was removed.
     public PdfExtractionDiagnostics? Diagnostics { get; init; }
+
+    // Page number -> breadcrumb text (e.g. "Section: Chapter 3 > 3.2 Dosage"), built from
+    // NativeMetadata.Bookmarks by PDFSectionBreadCrumbBuilder. Empty when the PDF has no
+    // outline. Not consumed by anything yet - a future chunk-builder attaches the entry
+    // for whichever page(s) a chunk falls on.
+    public IReadOnlyDictionary<int, string> SectionBreadcrumbs { get; init; } = new Dictionary<int, string>();
 }

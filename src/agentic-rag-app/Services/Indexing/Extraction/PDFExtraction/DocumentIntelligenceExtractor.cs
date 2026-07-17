@@ -72,6 +72,11 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             // PdfExtractionAggregation -> PdfPipelineValidator -> PdfValidationReport.Issues
             // path every other extraction warning already uses.
             Warnings = structureResult.Warnings.Select(w => ToExtractionWarning(w, blobName)).ToList(),
+
+            // Bookmarks are PdfPig-derived (NativeMetadata), not DI-derived, so this is
+            // computed here rather than inside PDFDocumentAnalyzer/PdfDocumentStructure,
+            // which is scoped to what DI itself produces.
+            SectionBreadcrumbs = PDFSectionBreadCrumbBuilder.BuildSectionBreadcrumbs(nativeMetadata.Bookmarks, nativeMetadata.PageCount),
         };
     }
 
