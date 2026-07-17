@@ -266,16 +266,19 @@ namespace ProtocolsIndexer.Services
                 .Select(p => new PageDimensions(p.PageNumber, p.Width, p.Height, p.Unit.ToString() ?? ""))
                 .ToList();
 
-        // Returns every table, including each cell's row/column position and kind
-        // (e.g. columnHeader vs. regular content).
+        // Returns every table, including each cell's row/column position, kind (e.g.
+        // columnHeader vs. regular content), and row/column span for merged cells.
         // - Offset and PageNumber follow the same Spans/BoundingRegions pattern used in
         //   GetHeadings, since DocumentTable also has no PageNumber property of its own.
+        // - RowSpan/ColumnSpan are null for an ordinary single-cell entry; without them, a
+        //   merged header cell would look like a missing cell to anything reconstructing
+        //   the table layout from Cells alone.
         public IReadOnlyList<TableInfo> GetTables(AnalyzeResult result) =>
             result.Tables
                 .Select(t => new TableInfo(
                     t.RowCount,
                     t.ColumnCount,
-                    t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString() ?? "", c.Content)).ToList(),
+                    t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString() ?? "", c.Content, c.RowSpan, c.ColumnSpan)).ToList(),
                     t.Spans is { Count: > 0 } ts ? ts[0].Offset : 0,
                     t.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
                 .ToList();
