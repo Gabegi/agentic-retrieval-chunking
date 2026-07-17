@@ -443,13 +443,16 @@ namespace ProtocolsIndexer.Services
         // - RowSpan/ColumnSpan are null for an ordinary single-cell entry; without them, a
         //   merged header cell would look like a missing cell to anything reconstructing
         //   the table layout from Cells alone.
-        public IReadOnlyList<TableInfo> GetTables(AnalyzeResult result) =>
+        // - Offset is null (not 0) when Spans is empty: 0 is a legitimately valid offset,
+        //   so it can't double as "no span data" without a downstream consumer confusing
+        //   "at position 0" with "unknown".
+        private IReadOnlyList<TableInfo> GetTables(AnalyzeResult result) =>
             result.Tables
                 .Select(t => new TableInfo(
                     t.RowCount,
                     t.ColumnCount,
                     t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString() ?? "", c.Content, c.RowSpan, c.ColumnSpan)).ToList(),
-                    t.Spans is { Count: > 0 } ts ? ts[0].Offset : 0,
+                    t.Spans is { Count: > 0 } ts ? ts[0].Offset : null,
                     t.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
                 .ToList();
 
