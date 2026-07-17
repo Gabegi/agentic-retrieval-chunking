@@ -462,7 +462,7 @@ namespace ProtocolsIndexer.Services
         //   position - unlike paragraphs/tables, which use the plural Spans.
         // - Confidence/Polygon are free fields on the same DocumentSelectionMark object
         //   already being read for State/Offset - not separately fetched.
-        public IReadOnlyList<SelectionMarkInfo> GetSelectionMarks(AnalyzeResult result) =>
+        private IReadOnlyList<SelectionMarkInfo> GetSelectionMarks(AnalyzeResult result) =>
             result.Pages
                 .SelectMany(p => p.SelectionMarks.Select(sm => new SelectionMarkInfo(
                     p.PageNumber, sm.State.ToString(), sm.Span.Offset, sm.Confidence, ToPolygonPoints(sm.Polygon))))
