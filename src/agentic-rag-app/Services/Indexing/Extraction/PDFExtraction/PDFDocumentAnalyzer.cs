@@ -418,6 +418,13 @@ namespace ProtocolsIndexer.Services
         private static readonly Regex TableOpenTagRegex  = new(@"<table\b",    RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex TableCloseTagRegex = new(@"</table\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // DI renders the document Title as setext ("Title" line + "===" underline), not
+        // ATX ("# "), unlike every other heading. Scoped to "=" underlines only - "-"
+        // underlines are ambiguous with a markdown thematic break (<hr>), so those are
+        // deliberately left alone rather than risk mis-normalizing an actual rule.
+        private static readonly Regex SetextTitleRegex = new(
+            @"^(?<title>[^\n]+)\r?\n=+[ \t]*$", RegexOptions.Multiline | RegexOptions.Compiled);
+
         private static string SliceBySpans(string content, IReadOnlyList<DocumentSpan>? spans)
         {
             if (spans is not { Count: > 0 }) return "";
