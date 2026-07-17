@@ -20,13 +20,22 @@ namespace ProtocolsIndexer.Models
 
     public sealed record PageDimensions(int PageNumber, double? Width, double? Height, string Unit);
 
-    public sealed record TableCellInfo(int RowIndex, int ColumnIndex, string Kind, string Content);
+    // RowSpan/ColumnSpan are null for a regular single-cell entry and only set on a cell
+    // that merges multiple rows/columns - without them, a merged header cell looks like a
+    // missing cell to anything reconstructing the table layout downstream.
+    public sealed record TableCellInfo(int RowIndex, int ColumnIndex, string Kind, string Content, int? RowSpan, int? ColumnSpan);
 
     public sealed record TableInfo(int RowCount, int ColumnCount, IReadOnlyList<TableCellInfo> Cells, int Offset, int PageNumber);
 
-    public sealed record SelectionMarkInfo(int PageNumber, string State, int Offset);
+    // Confidence/Polygon come straight off the same DocumentSelectionMark GetSelectionMarks
+    // already iterates for State/Offset - free fields on an object already in hand.
+    public sealed record SelectionMarkInfo(int PageNumber, string State, int Offset, double Confidence, IReadOnlyList<PolygonPoint> Polygon);
 
-    public sealed record FigureInfo(string? Caption, int Offset, int PageNumber);
+    // Id only matters if a caller ever fetches the actual cropped figure image via the
+    // figures output endpoint - Offset/Caption are enough for text-only consumers.
+    // Elements are DI's own JSON-pointer refs (e.g. "/paragraphs/12") into the paragraphs
+    // that discuss/describe this figure - broader than just its Caption.
+    public sealed record FigureInfo(string? Caption, int Offset, int PageNumber, string? Id, IReadOnlyList<string> Elements);
 
     public sealed record HandwrittenSpan(string Content, int Offset, double? Confidence);
 
