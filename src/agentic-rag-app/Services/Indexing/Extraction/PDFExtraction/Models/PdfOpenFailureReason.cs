@@ -15,4 +15,5 @@ public enum PdfOpenFailureReason
     TooManyPages,     // exceeds Document Intelligence's max pages per analyze call (PdfDocumentValidator)
     Throttled,        // Document Intelligence returned 429 and retries were exhausted
     DiServiceError,   // Document Intelligence returned a non-429 request failure
+    UnexpectedContentFormat, // DI returned Text instead of the requested Markdown - offsets would be untrustworthy
 }
