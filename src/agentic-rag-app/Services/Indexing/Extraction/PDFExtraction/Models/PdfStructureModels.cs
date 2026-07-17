@@ -37,8 +37,6 @@ namespace ProtocolsIndexer.Models
     // that discuss/describe this figure - broader than just its Caption.
     public sealed record FigureInfo(string? Caption, int Offset, int PageNumber, string? Id, IReadOnlyList<string> Elements);
 
-    public sealed record HandwrittenSpan(string Content, int Offset, double? Confidence);
-
     public sealed record PolygonPoint(float X, float Y);
 
     public sealed record LineInfo(string Content, int Offset, int PageNumber, IReadOnlyList<PolygonPoint> Polygon);
@@ -85,7 +83,6 @@ namespace ProtocolsIndexer.Models
         IReadOnlyList<PageDimensions> PageDimensions,
         IReadOnlyList<SelectionMarkInfo> SelectionMarks,
         IReadOnlyList<FigureInfo> Figures,
-        IReadOnlyList<HandwrittenSpan> HandwrittenSpans,
         IReadOnlyList<LineInfo> Lines,
         IReadOnlyList<SectionInfo> Sections,
         IReadOnlyList<PageQuality> PageQuality);
