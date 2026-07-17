@@ -6,7 +6,7 @@ namespace ProtocolsIndexer.Models
     // - Each record below matches one Get* method one-to-one.
     // - This keeps callers focused only on the fields they actually asked for.
     // - Every Offset field below (Heading, TableInfo, SelectionMarkInfo, FigureInfo,
-    //   LineInfo, HandwrittenSpan) indexes into analysis.Content / RawContent. Because
+    //   LineInfo) indexes into analysis.Content / RawContent. Because
     //   AnalyzeDocumentAsync requests OutputContentFormat.Markdown, that string IS the
     //   markdown-rendered content, not plain text - DI recomputes every span against
     //   whichever format was requested, so this isn't an edge case to guard against, it's
