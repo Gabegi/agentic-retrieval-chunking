@@ -351,12 +351,13 @@ namespace ProtocolsIndexer.Services
         // Prefers the PDF's own Info-dictionary Title (nativeMetadata.Title) when the file
         // actually has one set - real PDF metadata, not a guess. Falls back to a
         // blob-name-derived title otherwise.
+        // - Path.GetFileNameWithoutExtension, not blobName.Split('/')[0]: for a nested path
+        //   like "protocols/policy-2024.pdf", Split('/')[0] returns "protocols" (the
+        //   folder) - the filename is the last segment, not the first.
         private static string GetTitle(DocMetadata nativeMetadata, string blobName) =>
             !string.IsNullOrWhiteSpace(nativeMetadata.Title)
                 ? nativeMetadata.Title
-                : blobName.Split('/')[0]
-                    .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
-                    .Replace("-", " ");
+                : Path.GetFileNameWithoutExtension(blobName).Replace("-", " ");
 
         // Returns one PdfPageRecord per PDF page, sliced directly from analysis.Content
         // using each DocumentPage's own Spans - DI's structural page model - rather than
