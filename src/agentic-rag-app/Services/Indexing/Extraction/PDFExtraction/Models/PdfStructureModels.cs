@@ -12,11 +12,16 @@ namespace ProtocolsIndexer.Models
     //   whichever format was requested, so this isn't an edge case to guard against, it's
     //   how these offsets work now. A future ChunkMetadata builder must match content
     //   against these markdown-relative offsets, not plain-text ones.
+    // - Heading/TableInfo/FigureInfo/LineInfo's Offset is nullable: it's an anchor into
+    //   the first Span/BoundingRegion only, and when DI didn't provide one, null means
+    //   "unknown" - never 0, since 0 is itself a legitimately valid offset (the very start
+    //   of the content) and couldn't otherwise be told apart from "no span data". Selection
+    //   marks don't have this ambiguity (DI always gives exactly one Span per mark).
 
     // A single heading/boilerplate paragraph detected in the PDF:
     // - PageNumber = which page the paragraph is on, for display/debugging only.
     //   It can't be used for ordering, because two on the same page look identical by page number.
-    public sealed record Heading(string Content, string Role, int Offset, int PageNumber);
+    public sealed record Heading(string Content, string Role, int? Offset, int PageNumber);
 
     public sealed record PageDimensions(int PageNumber, double? Width, double? Height, string Unit);
 
@@ -25,7 +30,7 @@ namespace ProtocolsIndexer.Models
     // missing cell to anything reconstructing the table layout downstream.
     public sealed record TableCellInfo(int RowIndex, int ColumnIndex, string Kind, string Content, int? RowSpan, int? ColumnSpan);
 
-    public sealed record TableInfo(int RowCount, int ColumnCount, IReadOnlyList<TableCellInfo> Cells, int Offset, int PageNumber);
+    public sealed record TableInfo(int RowCount, int ColumnCount, IReadOnlyList<TableCellInfo> Cells, int? Offset, int PageNumber);
 
     // Confidence/Polygon come straight off the same DocumentSelectionMark GetSelectionMarks
     // already iterates for State/Offset - free fields on an object already in hand.
@@ -35,11 +40,11 @@ namespace ProtocolsIndexer.Models
     // figures output endpoint - Offset/Caption are enough for text-only consumers.
     // Elements are DI's own JSON-pointer refs (e.g. "/paragraphs/12") into the paragraphs
     // that discuss/describe this figure - broader than just its Caption.
-    public sealed record FigureInfo(string? Caption, int Offset, int PageNumber, string? Id, IReadOnlyList<string> Elements);
+    public sealed record FigureInfo(string? Caption, int? Offset, int PageNumber, string? Id, IReadOnlyList<string> Elements);
 
     public sealed record PolygonPoint(float X, float Y);
 
-    public sealed record LineInfo(string Content, int Offset, int PageNumber, IReadOnlyList<PolygonPoint> Polygon);
+    public sealed record LineInfo(string Content, int? Offset, int PageNumber, IReadOnlyList<PolygonPoint> Polygon);
 
     // One DI section's extent, captured as every Span rather than a single anchor Offset
     // (the pattern Heading/TableInfo/FigureInfo use): a section only means something as a

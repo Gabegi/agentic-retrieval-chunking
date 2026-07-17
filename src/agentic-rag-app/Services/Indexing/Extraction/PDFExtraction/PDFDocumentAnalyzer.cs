@@ -487,11 +487,11 @@ namespace ProtocolsIndexer.Services
         // the most granular positional data DI offers for free. Potentially a lot of data
         // (every line, every page); nothing persists this permanently today (dev-only
         // reports only), so that's a future storage-cost concern, not a correctness one.
-        public IReadOnlyList<LineInfo> GetLines(AnalyzeResult result) =>
+        private IReadOnlyList<LineInfo> GetLines(AnalyzeResult result) =>
             result.Pages
                 .SelectMany(p => p.Lines.Select(line => new LineInfo(
                     line.Content,
-                    line.Spans is { Count: > 0 } ls ? ls[0].Offset : 0,
+                    line.Spans is { Count: > 0 } ls ? ls[0].Offset : null,
                     p.PageNumber,
                     ToPolygonPoints(line.Polygon))))
                 .ToList();
@@ -517,7 +517,7 @@ namespace ProtocolsIndexer.Services
         // - Elements are left as DI's raw JSON-pointer strings; resolving them into actual
         //   paragraphs/tables/figures/subsections is a future chunk-builder's job, not
         //   done here.
-        public IReadOnlyList<SectionInfo> GetSections(AnalyzeResult result) =>
+        private IReadOnlyList<SectionInfo> GetSections(AnalyzeResult result) =>
             result.Sections
                 .Select(s => new SectionInfo(
                     s.Spans.Select(sp => new SectionSpan(sp.Offset, sp.Length)).ToList(),
@@ -529,7 +529,7 @@ namespace ProtocolsIndexer.Services
         // GetSections. Pages with zero detected words (e.g. a blank page) are omitted rather
         // than reported as 0.0, since 0 confidence would misleadingly suggest DI is unsure
         // about content that simply isn't there.
-        public IReadOnlyList<PageQuality> GetPageQuality(AnalyzeResult result) =>
+        private IReadOnlyList<PageQuality> GetPageQuality(AnalyzeResult result) =>
             result.Pages
                 .Where(p => p.Words.Count > 0)
                 .Select(p => new PageQuality(p.PageNumber, p.Words.Average(w => (double)w.Confidence)))
@@ -540,7 +540,7 @@ namespace ProtocolsIndexer.Services
         // DIAnalyzeDocumentAsync already treats as an outright failure. Wraps Azure's
         // DocumentIntelligenceWarning in this project's own record so callers don't need a
         // reference to the Azure SDK type.
-        public IReadOnlyList<AnalysisWarning> GetWarnings(AnalyzeResult result) =>
+        private IReadOnlyList<AnalysisWarning> GetWarnings(AnalyzeResult result) =>
             result.Warnings
                 .Select(w => new AnalysisWarning(w.Code, w.Message, w.Target))
                 .ToList();
