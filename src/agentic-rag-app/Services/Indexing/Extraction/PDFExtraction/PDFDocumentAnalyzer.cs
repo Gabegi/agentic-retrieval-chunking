@@ -284,12 +284,15 @@ namespace ProtocolsIndexer.Services
                 .ToList();
 
         // Returns every checkbox/radio button on every page, with its selected/unselected
-        // state.
+        // state, DI's own confidence in that reading, and its bounding polygon.
         // - Offset comes from Span (singular), since a selection mark has exactly one
         //   position - unlike paragraphs/tables, which use the plural Spans.
+        // - Confidence/Polygon are free fields on the same DocumentSelectionMark object
+        //   already being read for State/Offset - not separately fetched.
         public IReadOnlyList<SelectionMarkInfo> GetSelectionMarks(AnalyzeResult result) =>
             result.Pages
-                .SelectMany(p => p.SelectionMarks.Select(sm => new SelectionMarkInfo(p.PageNumber, sm.State.ToString(), sm.Span.Offset)))
+                .SelectMany(p => p.SelectionMarks.Select(sm => new SelectionMarkInfo(
+                    p.PageNumber, sm.State.ToString(), sm.Span.Offset, sm.Confidence, ToPolygonPoints(sm.Polygon))))
                 .ToList();
 
         // Returns every figure (image/diagram) DI detected, with its caption text if it has
