@@ -45,10 +45,10 @@ namespace ProtocolsIndexer.Services
         // 3. Otherwise, build markdown pages and extract every structural feature DI offers
         //    for free (headings, boilerplate, tables, page dimensions, selection marks,
         //    figures, handwritten spans, lines) from the same result.
-        public async Task<PDFStructureExtractorResult> ExtractPdfStructureAsync(
+        public async Task<PDFStructureExtractorResult> AnalyzeDocumentAsync(
             byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
-            var analyzeResults = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
+            var analyzeResults = await DIAnalyzeDocumentAsync(pdfBytes, blobName, ct);
             if (!analyzeResults.Ok)
                 return new PDFStructureExtractorResult(false, null, null, null, null, analyzeResults.Error);
 
