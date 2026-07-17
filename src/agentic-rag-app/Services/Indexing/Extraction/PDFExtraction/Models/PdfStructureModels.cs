@@ -110,5 +110,9 @@ namespace ProtocolsIndexer.Models
         IReadOnlyList<PdfPageRecord>? Pages,
         PdfDocumentStructure? Structure,
         decimal? EstimatedCostUsd,
-        ExtractionError? Error);
+        ExtractionError? Error)
+    {
+        // Empty (not null) when Ok is false - there's no analysis to have warned about.
+        public IReadOnlyList<AnalysisWarning> Warnings { get; init; } = [];
+    }
 }
