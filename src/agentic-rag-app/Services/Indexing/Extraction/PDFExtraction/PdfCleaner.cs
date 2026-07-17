@@ -18,9 +18,13 @@ public class PdfCleaner : IPdfCleaner
 
     // Same class of Windows-1252/UTF-8 mis-decode as CSV's DataCleaner sees — PDF text
     // extraction can hit the same corruption if the backend mis-decodes embedded fonts.
+    // Order matters: "â€" is a string-prefix of "â€™"/"â€œ"/"â€“"/"â€”", so it must be
+    // checked LAST - otherwise it eats the first two characters of those longer patterns
+    // before their own (more specific) match ever gets a chance to fire, leaving a stray
+    // fallback character plus an unrepaired remainder instead of the real fix.
     private static readonly (string Pattern, string Fix)[] KnownMojibakePatterns =
     [
-        ("â€™", "'"), ("â€œ", "\""), ("â€", "\""), ("â€“", "–"), ("â€”", "—"),
+        ("â€™", "'"), ("â€œ", "\""), ("â€“", "–"), ("â€”", "—"), ("â€", "\""),
         ("Ã«", "ë"), ("Ã©", "é"), ("Ã¯", "ï"), ("Ã¼", "ü"),
     ];
 
