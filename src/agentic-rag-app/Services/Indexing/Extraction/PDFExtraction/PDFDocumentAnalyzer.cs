@@ -81,7 +81,10 @@ namespace ProtocolsIndexer.Services
                 GetPageQuality(analysis)),
                 analysis.Pages!.Count * CostPerPage, null)
             {
-                Warnings = GetWarnings(analysis),
+                // DI's own top-level warnings, plus whatever the analyze call itself flagged
+                // (e.g. non-BMP characters) - merged into one list so callers only ever have
+                // one place to look, regardless of which stage a warning came from.
+                Warnings = analyzeResults.Warnings.Concat(GetWarnings(analysis)).ToList(),
             };
         }
 
