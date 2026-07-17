@@ -4,10 +4,12 @@ namespace ProtocolsIndexer.Services;
 
 public interface IPdfPipelineValidator
 {
+    // Takes raw per-file results directly - the validator owns flattening them into a
+    // page-level batch (and into a per-blob Structure lookup) itself, rather than
+    // receiving a pre-aggregated shape a separate class built. See PdfPipelineValidator.
     PdfValidationReport Validate(
-        ExtractionResult<PdfPageRecord>                       pagesExtraction,
-        PdfCleanResult                                         cleanResult,
-        int?                                                   previousRunCleanedCount = null,
-        IReadOnlyList<PdfExtractionDiagnostics>?               diagnostics = null,
-        IReadOnlyDictionary<string, PdfDocumentStructure>?     structures = null);
+        IReadOnlyList<PDFExtractionResult>        fileResults,
+        PdfCleanResult                             cleanResult,
+        int?                                       previousRunCleanedCount = null,
+        IReadOnlyList<PdfExtractionDiagnostics>?   diagnostics = null);
 }

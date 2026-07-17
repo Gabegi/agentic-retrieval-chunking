@@ -33,25 +33,6 @@ public class PdfCleanerTests
     }
 
     [TestMethod]
-    public void DuplicatePage_SameBlobAndPageIndex_SecondIsSkipped()
-    {
-        var result = BuildCleaner().Clean([Page(pageIndex: 0), Page(pageIndex: 0)]);
-
-        Assert.AreEqual(1, result.Records.Count);
-        Assert.AreEqual(1, result.DuplicatePagesSkipped);
-        Assert.AreEqual(1, result.Warnings.Count);
-    }
-
-    [TestMethod]
-    public void SamePageIndexDifferentBlob_IsNotADuplicate()
-    {
-        var result = BuildCleaner().Clean([Page(blobName: "doc1.pdf", pageIndex: 0), Page(blobName: "doc2.pdf", pageIndex: 0)]);
-
-        Assert.AreEqual(2, result.Records.Count);
-        Assert.AreEqual(0, result.DuplicatePagesSkipped);
-    }
-
-    [TestMethod]
     public void EmptyContentAfterCleanup_ProducesWarningNotError()
     {
         var result = BuildCleaner().Clean([Page(content: "   ")]);
@@ -77,22 +58,5 @@ public class PdfCleanerTests
         var result = BuildCleaner().Clean([Page(content: "Line one\n\n\n\n\nLine two")]);
 
         Assert.AreEqual("Line one\n\nLine two", result.Records[0].PageContent);
-    }
-
-    [TestMethod]
-    public void OneBadPageAmongGoodPages_OnlyBadPageIsSkippedAsDuplicate()
-    {
-        var pages = new[]
-        {
-            Page(blobName: "doc1.pdf", pageIndex: 0),
-            Page(blobName: "doc1.pdf", pageIndex: 0), // duplicate, not an error
-            Page(blobName: "doc2.pdf", pageIndex: 0),
-        };
-
-        var result = BuildCleaner().Clean(pages);
-
-        Assert.AreEqual(2, result.Records.Count);
-        Assert.AreEqual(1, result.DuplicatePagesSkipped);
-        Assert.AreEqual(0, result.Errors.Count);
     }
 }

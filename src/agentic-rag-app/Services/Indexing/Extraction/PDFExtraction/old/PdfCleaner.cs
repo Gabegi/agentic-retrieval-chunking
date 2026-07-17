@@ -3,11 +3,13 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services;
 
-// Cleans extracted PDF page records: repairs known mojibake, collapses excess blank
-// lines, and de-duplicates pages. Mirrors DataCleaner's structure and behavior, but is
-// entirely self-contained — nothing here is shared with CSVExtraction/, so that
-// already-shipped pipeline is never touched by PDF work. One bad page becomes a
-// CleaningError; it never aborts the whole run.
+// Cleans extracted PDF page records: repairs known mojibake and collapses excess blank
+// lines. Mirrors DataCleaner's structure and behavior. One bad page becomes a
+// CleaningError; it never aborts the whole run. Deliberately has no opinion about
+// duplicate (BlobName, PageIndex) pages — a genuine duplicate can only mean the
+// extractor returned the same page twice, which is an invariant violation, not a
+// content-quality issue to clean around. That's asserted once, in
+// PdfPipelineValidator, not here.
 public class PdfCleaner : IPdfCleaner
 {
     // Collapse 3+ consecutive newlines down to a single blank line.
@@ -24,31 +26,12 @@ public class PdfCleaner : IPdfCleaner
 
     public PdfCleanResult Clean(IReadOnlyList<PdfPageRecord> pages)
     {
-        var result   = new PdfCleanResult();
-        var seenKeys = new HashSet<(string BlobName, int Page)>();
+        var result = new PdfCleanResult();
 
         foreach (var page in pages)
-        {
-            if (!seenKeys.Add((page.BlobName, page.PageIndex)))
-            {
-                ReportDuplicatePage(page, result);
-                continue;
-            }
-
             CleanSinglePage(page, result);
-        }
 
         return result;
-    }
-
-    private static void ReportDuplicatePage(PdfPageRecord page, PdfCleanResult result)
-    {
-        result.CountDuplicateSkipped();
-        result.AddWarning(new CleaningWarning
-        {
-            DocumentId = page.BlobName,
-            Message    = $"Duplicate page {page.PageIndex} in source — kept the first occurrence.",
-        });
     }
 
     private static void CleanSinglePage(PdfPageRecord page, PdfCleanResult result)
