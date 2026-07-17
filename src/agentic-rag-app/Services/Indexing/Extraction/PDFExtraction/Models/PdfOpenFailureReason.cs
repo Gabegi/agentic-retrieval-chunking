@@ -16,4 +16,5 @@ public enum PdfOpenFailureReason
     Throttled,        // Document Intelligence returned 429 and retries were exhausted
     DiServiceError,   // Document Intelligence returned a non-429 request failure
     UnexpectedContentFormat, // DI returned Text instead of the requested Markdown - offsets would be untrustworthy
+    MissingAnalysisResult,   // AnalyzeOutcome.Ok was true but Result was null - an internal bug, not a DI failure
 }

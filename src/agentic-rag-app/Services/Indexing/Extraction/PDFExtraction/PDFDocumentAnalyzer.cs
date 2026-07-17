@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
@@ -51,10 +52,9 @@ namespace ProtocolsIndexer.Services
             byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
             var analyzeResults = await DIAnalyzeDocumentAsync(pdfBytes, blobName, ct);
-            if (!analyzeResults.Ok)
-                return new PDFStructureExtractorResult(false, null, null, null, null, analyzeResults.Error);
 
-            var analysis = analyzeResults.Result!; // AnalyzeDocumentAsync guarantees Ok=true only for a non-empty analysis
+            if (!TryValidateAnalyzeOutcome(analyzeResults, blobName, out var analysis, out var error))
+                return new PDFStructureExtractorResult(false, null, null, null, null, error);
 
             // Title: prefers the PDF's own Info-dictionary Title (nativeMetadata.Title) when
             // the file actually has one set - real PDF metadata, not a guess. Falls back to
@@ -189,6 +189,54 @@ namespace ProtocolsIndexer.Services
             }
 
             return new AnalyzeOutcome(true, result, null) { Warnings = warnings };
+        }
+
+        // Decides whether analyzeResults is actually usable - folding both failure signals
+        // that matter into one check, since callers only ever have one real question
+        // ("do I have a usable analysis or not"), not two. Same Try(out, out) +
+        // [NotNullWhen] shape as PdfDocumentValidator.IsPDFValid/TryOpenAndValidate: the
+        // compiler proves result is non-null on true and error is non-null on false,
+        // instead of the caller trusting a bare `analyzeResults.Result!`.
+        // - Ok=false: a reported, already-logged failure - Error is already set by whichever
+        //   check inside DIAnalyzeDocumentAsync/ValidateAnalyzeResult rejected it.
+        // - Ok=true but Result=null: the invariant those methods are supposed to enforce
+        //   (Ok=true always comes with a non-null Result) didn't hold. This should never
+        //   trip, but a future bug in either of those methods would otherwise surface as an
+        //   unhandled NullReferenceException several lines downstream instead of the typed
+        //   ExtractionError every other failure in this class produces. LogError (not the
+        //   LogWarning the rest of this class uses) is deliberate: this signals a bug in
+        //   our own code, not a routine DI-side failure.
+        private bool TryValidateAnalyzeOutcome(
+            AnalyzeOutcome outcome, string blobName,
+            [NotNullWhen(true)]  out AnalyzeResult?   result,
+            [NotNullWhen(false)] out ExtractionError? error)
+        {
+            if (!outcome.Ok)
+            {
+                result = null;
+                error  = outcome.Error;
+                return false;
+            }
+
+            if (outcome.Result != null)
+            {
+                result = outcome.Result;
+                error  = null;
+                return true;
+            }
+
+            _logger.LogError(
+                "'{Blob}': Document Intelligence analysis reported Ok=true but returned no result - this indicates a bug in DIAnalyzeDocumentAsync/ValidateAnalyzeResult.",
+                blobName);
+
+            result = null;
+            error = new ExtractionError
+            {
+                DocumentId = blobName,
+                Message = "Document Intelligence analysis reported success but returned no result.",
+                Reason = PdfOpenFailureReason.MissingAnalysisResult,
+            };
+            return false;
         }
 
         // Confirms DI actually returned markdown - the trust boundary every Offset field in
