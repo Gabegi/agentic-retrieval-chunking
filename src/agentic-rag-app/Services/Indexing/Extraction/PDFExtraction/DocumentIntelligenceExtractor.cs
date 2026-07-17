@@ -48,8 +48,8 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         var nativeMetadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(pdf, blobName, _logger);
 
         // Step 3: submit to Document Intelligence's prebuilt-layout model and assemble
-        // pages/structural data — lives in PDFStructureExtractor.
-        var structureResult = await _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName, nativeMetadata, ct);
+        // pages/structural data — lives in PDFDocumentAnalyzer.
+        var structureResult = await _structureExtractor.AnalyzeDocumentAsync(pdfBytes, blobName, nativeMetadata, ct);
         if (!structureResult.Ok)
             return new PDFExtractionResult(false, blobName, fileSizeBytes, pdfSpecVersion, nativeMetadata, null, null, null, null, structureResult.Error);
 
