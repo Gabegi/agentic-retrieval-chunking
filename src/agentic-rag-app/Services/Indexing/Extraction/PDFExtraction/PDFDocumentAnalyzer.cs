@@ -89,14 +89,21 @@ namespace ProtocolsIndexer.Services
             };
         }
 
-        // Makes the single paid call to Document Intelligence.
-        // - On a 429 (throttled) response, waits and retries using Microsoft's recommended
-        //   backoff schedule: 2s, then 5s, then 13s, then 34s.
-        // - Why this retry loop is needed: WaitUntil.Completed polls DI internally, and a
-        //   known SDK bug (Azure/azure-sdk-for-net#50904) means that internal polling can
-        //   still hit 429 even if DocumentIntelligenceClientOptions.Retry was configured
-        //   when the client was built. Without this loop, that would surface as an
-        //   unhandled exception.
+        // Makes the single paid call to Document Intelligence - submitting exactly once,
+        // no matter how much throttling happens afterward.
+        // - Why WaitUntil.Started, not WaitUntil.Completed: WaitUntil.Completed polls DI
+        //   internally, and a known SDK bug (Azure/azure-sdk-for-net#50904) means that
+        //   internal polling can still hit 429 even if DocumentIntelligenceClientOptions.Retry
+        //   was configured when the client was built. The previous version of this method
+        //   caught that 429 and retried by calling AnalyzeDocumentAsync again from
+        //   scratch - but the original operation was already running server-side, so every
+        //   retry submitted a brand-new, separately-billed analysis (up to 5x cost under
+        //   sustained throttling). WaitUntil.Started returns as soon as the POST succeeds;
+        //   everything from here on only ever retries the free status-poll GET, never the
+        //   paid POST.
+        // - On a 429 from a status poll, waits and retries using Microsoft's recommended
+        //   backoff schedule: 2s, then 5s, then 13s, then 34s. PollingInterval (not
+        //   BackoffDelays) governs the ordinary, non-throttled wait between polls.
         // - Any RequestFailedException, plus any other unexpected exception (SDK bug,
         //   deserialization failure, etc.), is caught and returned as Ok=false with a
         //   typed reason, instead of throwing. OperationCanceledException is the one
@@ -111,34 +118,62 @@ namespace ProtocolsIndexer.Services
         //   PdfPipelineValidator). This is why Ok=true guarantees Result.Pages is non-empty.
         private async Task<AnalyzeOutcome> DIAnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
         {
-            for (var attempt = 0; ; attempt++)
+            _logger.LogInformation("Submitting '{Blob}' to Document Intelligence.", blobName);
+
+            // Markdown output (vs. DI's default plain text) is what lets
+            // PDFMarkdownExtractor split on DI's own page/table/heading structure instead
+            // of re-deriving it from paragraph roles and span offsets.
+            var analyzeOptions = new AnalyzeDocumentOptions("prebuilt-layout", BinaryData.FromBytes(pdfBytes))
+            {
+                OutputContentFormat = DocumentContentFormat.Markdown,
+            };
+
+            Operation<AnalyzeResult> operation;
+            try
+            {
+                operation = await _diClient.AnalyzeDocumentAsync(WaitUntil.Started, analyzeOptions, cancellationToken: ct);
+            }
+            catch (RequestFailedException ex)
+            {
+                _logger.LogWarning(ex, "Document Intelligence rejected the analyze submission for '{Blob}'.", blobName);
+                return new AnalyzeOutcome(false, null, new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
+                    Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
+                });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Unexpected error submitting '{Blob}' to Document Intelligence.", blobName);
+                return new AnalyzeOutcome(false, null, new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
+                    Reason = PdfOpenFailureReason.Unknown,
+                });
+            }
+
+            for (var attempt = 0; !operation.HasCompleted; attempt++)
             {
                 try
                 {
-                    _logger.LogInformation("Submitting '{Blob}' to Document Intelligence (attempt {Attempt}).", blobName, attempt + 1);
-
-                    // Markdown output (vs. DI's default plain text) is what lets
-                    // PDFMarkdownExtractor split on DI's own page/table/heading structure
-                    // instead of re-deriving it from paragraph roles and span offsets.
-                    var analyzeOptions = new AnalyzeDocumentOptions("prebuilt-layout", BinaryData.FromBytes(pdfBytes))
-                    {
-                        OutputContentFormat = DocumentContentFormat.Markdown,
-                    };
-
-                    Operation<AnalyzeResult> operation = await _diClient.AnalyzeDocumentAsync(
-                        WaitUntil.Completed, analyzeOptions, cancellationToken: ct);
-
-                    return ValidateAnalyzeResult(operation.Value, blobName);
+                    await operation.UpdateStatusAsync(ct);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 429 && attempt < BackoffDelays.Length)
                 {
                     var wait = BackoffDelays[attempt];
-                    _logger.LogWarning("DI throttled '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
+                    _logger.LogWarning("DI throttled polling '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
                     await Task.Delay(wait, ct);
+                    continue;
                 }
                 catch (RequestFailedException ex)
                 {
-                    _logger.LogWarning(ex, "Document Intelligence failed to analyze '{Blob}'.", blobName);
+                    if (ex.Status == 429)
+                        _logger.LogWarning(ex, "Document Intelligence throttled '{Blob}' - retries exhausted after {Attempts} attempt(s).", blobName, attempt + 1);
+                    else
+                        _logger.LogWarning(ex, "Document Intelligence failed while polling '{Blob}'.", blobName);
+
                     return new AnalyzeOutcome(false, null, new ExtractionError
                     {
                         DocumentId = blobName,
@@ -148,7 +183,7 @@ namespace ProtocolsIndexer.Services
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _logger.LogWarning(ex, "Unexpected error analyzing '{Blob}' with Document Intelligence.", blobName);
+                    _logger.LogWarning(ex, "Unexpected error polling '{Blob}' with Document Intelligence.", blobName);
                     return new AnalyzeOutcome(false, null, new ExtractionError
                     {
                         DocumentId = blobName,
@@ -156,7 +191,12 @@ namespace ProtocolsIndexer.Services
                         Reason = PdfOpenFailureReason.Unknown,
                     });
                 }
+
+                if (!operation.HasCompleted)
+                    await Task.Delay(PollingInterval, ct);
             }
+
+            return ValidateAnalyzeResult(operation.Value, blobName);
         }
 
         // Single place that decides whether a raw DI response is usable, and collects
