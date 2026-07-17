@@ -7,11 +7,13 @@ namespace ProtocolsIndexer.Services
 {
     // Handles everything Document Intelligence (DI) needs to do with one PDF, except for
     // preflight checks and PdfPig-native reads. Specifically, this class:
-    // - Makes the one paid "analyze" call to DI, retrying automatically if throttled (429).
+    // - Makes the one paid "analyze" call to DI, retrying automatically if throttled (429),
+    //   and verifying the response is actually markdown before trusting any offset in it.
     // - Assembles the DI response into markdown-formatted pages.
     // - Extracts every DI structural feature (headings, boilerplate, tables, page
-    //   dimensions, selection marks, figures, handwritten spans, lines) into
-    //   PdfDocumentStructure, maximizing what this extraction step captures.
+    //   dimensions, selection marks, figures, sections, page quality, handwritten spans,
+    //   lines) into PdfDocumentStructure, maximizing what this extraction step captures.
+    // - Surfaces non-fatal analysis warnings DI attached to the document.
     public sealed class PDFDocumentAnalyzer
     {
         // Cost per page for Azure's "prebuilt-layout" model:
@@ -64,8 +66,8 @@ namespace ProtocolsIndexer.Services
                     .Replace("-", " ");
 
             return new PDFStructureExtractorResult(
-                true, 
-                analysis.Content, 
+                true,
+                analysis.Content,
                 GetPages(analysis, blobName, title),
                 new PdfDocumentStructure(
                 GetHeadings(analysis),
@@ -75,8 +77,13 @@ namespace ProtocolsIndexer.Services
                 GetSelectionMarks(analysis),
                 GetFigures(analysis),
                 GetHandwrittenSpans(analysis),
-                GetLines(analysis)),
-                analysis.Pages!.Count * CostPerPage, null);
+                GetLines(analysis),
+                GetSections(analysis),
+                GetPageQuality(analysis)),
+                analysis.Pages!.Count * CostPerPage, null)
+            {
+                Warnings = GetWarnings(analysis),
+            };
         }
 
         // Makes the single paid call to Document Intelligence.
@@ -119,6 +126,16 @@ namespace ProtocolsIndexer.Services
                         WaitUntil.Completed, analyzeOptions, cancellationToken: ct);
 
                     var result = operation.Value;
+
+                    var formatError = ValidateContentFormat(result, blobName);
+                    if (formatError != null)
+                    {
+                        _logger.LogWarning(
+                            "Document Intelligence returned unexpected content format '{Format}' for '{Blob}'.",
+                            result.ContentFormat, blobName);
+                        return new AnalyzeOutcome(false, null, formatError);
+                    }
+
                     if ((result.Pages?.Count ?? 0) == 0)
                     {
                         _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
