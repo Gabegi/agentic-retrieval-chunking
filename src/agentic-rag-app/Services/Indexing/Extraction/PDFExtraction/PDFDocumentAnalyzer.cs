@@ -400,7 +400,7 @@ namespace ProtocolsIndexer.Services
         // - Offset and PageNumber are read from Spans/BoundingRegions, because
         //   DocumentParagraph has no PageNumber property of its own (same approach
         //   BuildMarkdownPages uses elsewhere).
-        public IReadOnlyList<Heading> GetHeadings(AnalyzeResult result) =>
+        private IReadOnlyList<Heading> GetHeadings(AnalyzeResult result) =>
             result.Paragraphs
                 .Where(p => p.Role == ParagraphRole.Title || p.Role == ParagraphRole.SectionHeading)
                 .Select(ToHeading)
@@ -416,7 +416,7 @@ namespace ProtocolsIndexer.Services
         //   category anything downstream currently needs split out. Without it, paragraphs
         //   DI tags PageNumber fell through both GetHeadings and GetBoilerplate and vanished
         //   silently.
-        public IReadOnlyList<Heading> GetBoilerplate(AnalyzeResult result) =>
+        private IReadOnlyList<Heading> GetBoilerplate(AnalyzeResult result) =>
             result.Paragraphs
                 .Where(p => p.Role == ParagraphRole.PageHeader || p.Role == ParagraphRole.PageFooter
                          || p.Role == ParagraphRole.Footnote || p.Role == ParagraphRole.PageNumber)
@@ -426,12 +426,12 @@ namespace ProtocolsIndexer.Services
         private static Heading ToHeading(DocumentParagraph p) => new(
             p.Content,
             p.Role.ToString()!,
-            p.Spans is { Count: > 0 } ps ? ps[0].Offset : 0,
+            p.Spans is { Count: > 0 } ps ? ps[0].Offset : null,
             p.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0);
 
         // Returns each page's width/height/unit as measured by DI itself -
         // not the dimensions declared in the PDF's own MediaBox.
-        public IReadOnlyList<PageDimensions> GetPageDimensions(AnalyzeResult result) =>
+        private IReadOnlyList<PageDimensions> GetPageDimensions(AnalyzeResult result) =>
             result.Pages
                 .Select(p => new PageDimensions(p.PageNumber, p.Width, p.Height, p.Unit.ToString() ?? ""))
                 .ToList();
