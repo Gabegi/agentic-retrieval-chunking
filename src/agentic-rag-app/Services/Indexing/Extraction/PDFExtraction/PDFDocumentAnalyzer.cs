@@ -327,6 +327,12 @@ namespace ProtocolsIndexer.Services
         // downstream. Doesn't fail extraction - logged immediately for real-time
         // visibility, and returned as an AnalysisWarning so it also reaches the same
         // blob-stored validation report every other warning does.
+        // - This is a heuristic, not an exact surrogate-pair count: EnumerateRunes()
+        //   replaces a malformed/unpaired lone surrogate with a single U+FFFD replacement
+        //   rune, so a lone surrogate contributes 0 to Length-minus-RuneCount even though
+        //   it's arguably a more interesting anomaly (actual encoding corruption) than a
+        //   well-formed pair. Exact only for well-formed strings - good enough for "should
+        //   I take a closer look", not for a precise count of every non-BMP occurrence.
         private IReadOnlyList<AnalysisWarning> CheckNonBmpCharacters(AnalyzeResult result, string blobName)
         {
             var nonBmpCount = result.Content.Length - result.Content.EnumerateRunes().Count();
