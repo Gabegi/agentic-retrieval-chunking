@@ -131,6 +131,29 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return pages;
     }
 
+    // Blob names differing only by case are legal in Azure Blob Storage but collide under
+    // the case-insensitive lookup table-structure checks need (matching a page's BlobName
+    // back to its file's Structure regardless of any casing variance elsewhere). A naive
+    // ToDictionary(..., OrdinalIgnoreCase) would throw ArgumentException on a real
+    // collision and abort the whole run with an unhelpful crash - build it defensively and
+    // surface any collision as a reconciliation problem instead, same treatment every other
+    // "the extractor produced something it shouldn't have" case gets.
+    private static (Dictionary<string, PdfDocumentStructure> Structures, List<string> Collisions) BuildStructureLookup(
+        IReadOnlyList<PDFExtractionResult> fileResults)
+    {
+        var structures = new Dictionary<string, PdfDocumentStructure>(StringComparer.OrdinalIgnoreCase);
+        var collisions  = new List<string>();
+
+        foreach (var file in fileResults.Where(f => f.Structure != null))
+        {
+            if (!structures.TryAdd(file.BlobName, file.Structure!))
+                collisions.Add(
+                    $"Blob name '{file.BlobName}' collides case-insensitively with another blob in this run — structure data for one was dropped.");
+        }
+
+        return (structures, collisions);
+    }
+
     // 1. Aggregate every error/warning bucket into one place.
     private static List<ValidationIssue> CollectIssues(
         ExtractionResult<PdfPageRecord> pagesExtraction,
@@ -138,8 +161,11 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     {
         var issues = new List<ValidationIssue>();
 
+        // RowNumber is a CSV concept (which row in index.csv) - never set for a PDF
+        // file-level error, so it would always read as "File 0:" here. DocumentId
+        // (the blob name) already identifies which file this is.
         issues.AddRange(pagesExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"File {e.RowNumber}: {e.Message}", Reason = e.Reason }));
+            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = e.Message, Reason = e.Reason }));
 
         issues.AddRange(pagesExtraction.Warnings.Select(w => new ValidationIssue
             { Stage = "Parse:Pages", Severity = "Warning", DocumentId = w.DocumentId ?? "", Message = w.Message }));
@@ -191,6 +217,12 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     }
 
     // 3. Magnitude shift vs a previous run, if supplied.
+    // Design constraint for a future content-hash-based extraction skip: cleanResult only
+    // reflects files actually (re-)extracted this run. If a skipped-because-unchanged file
+    // stops contributing to cleanResult.Records.Count without its prior known page count
+    // being folded back in some other way, the very first hash-skip run looks like a
+    // massive drop vs. previousRunCleanedCount and trips the gate below for a corpus that
+    // didn't actually shrink. Resolve this before shipping hash-skip, not after.
     private static List<string> CheckMagnitudeShift(PdfCleanResult cleanResult, int? previousRunCleanedCount)
     {
         var magnitude = new List<string>();
