@@ -99,7 +99,7 @@ namespace ProtocolsIndexer.Services
         //   callers should treat as a successful-but-empty analysis (that would otherwise
         //   surface much later, as an unexplained "no pages, won't be indexed" red flag in
         //   PdfPipelineValidator). This is why Ok=true guarantees Result.Pages is non-empty.
-        private async Task<AnalyzeOutcome> AnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
+        private async Task<AnalyzeOutcome> DIAnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
         {
             for (var attempt = 0; ; attempt++)
             {
