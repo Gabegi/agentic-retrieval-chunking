@@ -65,7 +65,8 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     {
         var runAt = DateTimeOffset.UtcNow;
 
-        var (fileResults, lastModifiedByBlob) = await ExtractAllFilesAsync(ct);
+        // 1/ Extract Data from PDFs
+        var (fileResults, lastModifiedByBlob) = await ExtractPdfsFromBlobAsync(ct);
 
         var pagesResult = PdfExtractionAggregation.Aggregate(fileResults);
         var cleanResult = _cleaner.Clean(pagesResult.Records);
@@ -101,7 +102,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // already gives a corrupt PDF. Also captures each blob's storage LastModified —
     // that's what downstream diffing in ExtractionService needs to detect new/updated/
     // removed documents, not anything parsed out of the PDF's own text.
-    private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractAllFilesAsync(
+    private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractPdfsFromBlobAsync(
         CancellationToken ct)
     {
         var results      = new List<PDFExtractionResult>();
