@@ -12,7 +12,7 @@ namespace ProtocolsIndexer.Services
     // - Extracts every DI structural feature (headings, boilerplate, tables, page
     //   dimensions, selection marks, figures, handwritten spans, lines) into
     //   PdfDocumentStructure, maximizing what this extraction step captures.
-    public sealed class PDFStructureExtractor
+    public sealed class PDFDocumentAnalyzer
     {
         // Cost per page for Azure's "prebuilt-layout" model:
         // - Priced at $10 per 1,000 pages, i.e. $0.01/page, as of when this was written.
@@ -27,7 +27,7 @@ namespace ProtocolsIndexer.Services
         private readonly DocumentIntelligenceClient _diClient;
         private readonly ILogger _logger;
 
-        public PDFStructureExtractor(DocumentIntelligenceClient diClient, ILogger<PDFStructureExtractor> logger)
+        public PDFDocumentAnalyzer(DocumentIntelligenceClient diClient, ILogger<PDFDocumentAnalyzer> logger)
         {
             _diClient = diClient;
             _logger = logger;
@@ -45,10 +45,10 @@ namespace ProtocolsIndexer.Services
         // 3. Otherwise, build markdown pages and extract every structural feature DI offers
         //    for free (headings, boilerplate, tables, page dimensions, selection marks,
         //    figures, handwritten spans, lines) from the same result.
-        public async Task<PDFStructureExtractorResult> ExtractPdfStructureAsync(
+        public async Task<PDFStructureExtractorResult> AnalyzeDocumentAsync(
             byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
-            var analyzeResults = await AnalyzeDocumentAsync(pdfBytes, blobName, ct);
+            var analyzeResults = await DIAnalyzeDocumentAsync(pdfBytes, blobName, ct);
             if (!analyzeResults.Ok)
                 return new PDFStructureExtractorResult(false, null, null, null, null, analyzeResults.Error);
 
@@ -99,7 +99,7 @@ namespace ProtocolsIndexer.Services
         //   callers should treat as a successful-but-empty analysis (that would otherwise
         //   surface much later, as an unexplained "no pages, won't be indexed" red flag in
         //   PdfPipelineValidator). This is why Ok=true guarantees Result.Pages is non-empty.
-        private async Task<AnalyzeOutcome> AnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
+        private async Task<AnalyzeOutcome> DIAnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
         {
             for (var attempt = 0; ; attempt++)
             {
@@ -118,8 +118,7 @@ namespace ProtocolsIndexer.Services
                     Operation<AnalyzeResult> operation = await _diClient.AnalyzeDocumentAsync(
                         WaitUntil.Completed, analyzeOptions, cancellationToken: ct);
 
-                    var result = operation.Value;
-                    if ((result.Pages?.Count ?? 0) == 0)
+                    if ((operation.Value.Pages?.Count ?? 0) == 0)
                     {
                         _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
                         return new AnalyzeOutcome(false, null, new ExtractionError
@@ -130,7 +129,7 @@ namespace ProtocolsIndexer.Services
                         });
                     }
 
-                    return new AnalyzeOutcome(true, result, null);
+                    return new AnalyzeOutcome(true, operation.Value, null);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 429 && attempt < BackoffDelays.Length)
                 {

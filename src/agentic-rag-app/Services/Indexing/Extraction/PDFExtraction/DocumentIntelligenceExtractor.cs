@@ -21,9 +21,9 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     public string Name => "DocumentIntelligence";
 
     private readonly ILogger<DocumentIntelligenceExtractor> _logger;
-    private readonly PDFStructureExtractor                   _structureExtractor;
+    private readonly PDFDocumentAnalyzer                   _structureExtractor;
 
-    public DocumentIntelligenceExtractor(PDFStructureExtractor structureExtractor, ILogger<DocumentIntelligenceExtractor>? logger = null)
+    public DocumentIntelligenceExtractor(PDFDocumentAnalyzer structureExtractor, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
         _logger             = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
         _structureExtractor = structureExtractor;
@@ -49,7 +49,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
         // Step 3: submit to Document Intelligence's prebuilt-layout model and assemble
         // pages/structural data — lives in PDFStructureExtractor.
-        var structureResult = await _structureExtractor.ExtractPdfStructureAsync(pdfBytes, blobName, nativeMetadata, ct);
+        var structureResult = await _structureExtractor.AnalyzeDocumentAsync(pdfBytes, blobName, nativeMetadata, ct);
         if (!structureResult.Ok)
             return new PDFExtractionResult(false, blobName, fileSizeBytes, pdfSpecVersion, nativeMetadata, null, null, null, null, structureResult.Error);
 
