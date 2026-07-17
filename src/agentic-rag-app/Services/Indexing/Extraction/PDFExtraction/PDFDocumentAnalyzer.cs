@@ -178,6 +178,26 @@ namespace ProtocolsIndexer.Services
             }
         }
 
+        // Confirms DI actually returned markdown - the trust boundary every Offset field in
+        // this file depends on. Every record below indexes into analysis.Content assuming
+        // it's markdown-formatted (see the OutputContentFormat comment above); if DI ever
+        // returned Text instead, every offset would still "work" but silently point at the
+        // wrong characters, producing garbled content several steps downstream instead of
+        // an obvious failure here. Turning that assumption into a hard check here - right
+        // where retry/error handling already exists - is cheaper than debugging offset
+        // drift later.
+        private static ExtractionError? ValidateContentFormat(AnalyzeResult result, string blobName)
+        {
+            if (result.ContentFormat == DocumentContentFormat.Markdown) return null;
+
+            return new ExtractionError
+            {
+                DocumentId = blobName,
+                Message = $"Document Intelligence returned content format '{result.ContentFormat}', expected Markdown.",
+                Reason = PdfOpenFailureReason.UnexpectedContentFormat,
+            };
+        }
+
         // Returns one PdfPageRecord per PDF page, sliced directly from analysis.Content
         // using each DocumentPage's own Spans - DI's structural page model - rather than
         // splitting the content string on its "<!-- PageBreak -->" text marker. Page
@@ -217,13 +237,19 @@ namespace ProtocolsIndexer.Services
                 .ToList();
 
         // Returns every paragraph DI classified as repeated-boilerplate structure (page
-        // header, page footer, footnote) rather than a real heading - the same roles
-        // PDFMarkdownExtractor.NoiseCommentLineRegex already strips out of page content as
-        // noise. Kept separate from GetHeadings so "Headings" only ever means real section
-        // structure.
+        // header, page footer, footnote, page number) rather than a real heading - the same
+        // roles PDFMarkdownExtractor.NoiseCommentLineRegex already strips out of page
+        // content as noise. Kept separate from GetHeadings so "Headings" only ever means
+        // real section structure.
+        // - PageNumber is included here (not a bug fix worth its own bucket): it's
+        //   repeated-per-page furniture in the same spirit as header/footer, not a distinct
+        //   category anything downstream currently needs split out. Without it, paragraphs
+        //   DI tags PageNumber fell through both GetHeadings and GetBoilerplate and vanished
+        //   silently.
         public IReadOnlyList<Heading> GetBoilerplate(AnalyzeResult result) =>
             result.Paragraphs
-                .Where(p => p.Role == ParagraphRole.PageHeader || p.Role == ParagraphRole.PageFooter || p.Role == ParagraphRole.Footnote)
+                .Where(p => p.Role == ParagraphRole.PageHeader || p.Role == ParagraphRole.PageFooter
+                         || p.Role == ParagraphRole.Footnote || p.Role == ParagraphRole.PageNumber)
                 .Select(ToHeading)
                 .ToList();
 
