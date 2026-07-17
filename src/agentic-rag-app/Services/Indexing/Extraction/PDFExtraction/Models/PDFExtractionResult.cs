@@ -1,7 +1,7 @@
 namespace ProtocolsIndexer.Models;
 
 // One PDF file's complete extraction outcome - everything every step of the pipeline
-// (PdfDocumentValidator, PdfNativeMetadataExtractor, PDFStructureExtractor) produced for
+// (PdfDocumentValidator, PdfNativeMetadataExtractor, PDFDocumentAnalyzer) produced for
 // this file, combined into one object by DocumentIntelligenceExtractor. Error is set (and
 // every data field null) when the file couldn't be parsed at all (corrupt PDF, backend
 // exception) — the orchestrator folds this into the same ExtractionResult<T>.Errors
@@ -24,7 +24,7 @@ public record PDFExtractionResult(
     // when the file failed before/during opening.
     DocMetadata? NativeMetadata,
 
-    // Step 3: PDFStructureExtractor - the paid Document Intelligence call.
+    // Step 3: PDFDocumentAnalyzer - the paid Document Intelligence call.
     string?                       RawContent,       // analysis.Content, unsplit, before per-page assembly
     IReadOnlyList<PdfPageRecord>? Pages,
     PdfDocumentStructure?         Structure,

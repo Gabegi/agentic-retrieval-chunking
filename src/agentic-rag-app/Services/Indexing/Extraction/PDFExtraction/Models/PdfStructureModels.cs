@@ -2,12 +2,12 @@ using Azure.AI.DocumentIntelligence;
 
 namespace ProtocolsIndexer.Models
 {
-    // Return types used by PDFStructureExtractor's Get* methods:
+    // Return types used by PDFDocumentAnalyzer's Get* methods:
     // - Each record below matches one Get* method one-to-one.
     // - This keeps callers focused only on the fields they actually asked for.
     // - Every Offset field below (Heading, TableInfo, SelectionMarkInfo, FigureInfo,
     //   LineInfo, HandwrittenSpan) indexes into analysis.Content / RawContent. Because
-    //   ExtractPdfStructureAsync requests OutputContentFormat.Markdown, that string IS the
+    //   AnalyzeDocumentAsync requests OutputContentFormat.Markdown, that string IS the
     //   markdown-rendered content, not plain text - DI recomputes every span against
     //   whichever format was requested, so this isn't an edge case to guard against, it's
     //   how these offsets work now. A future ChunkMetadata builder must match content
@@ -54,13 +54,13 @@ namespace ProtocolsIndexer.Models
 
     // Result of calling the (paid) Document Intelligence analyze API once:
     // - Ok = true  -> Result contains a successful, non-empty analysis (at least one page -
-    //   a zero-page result is deliberately folded into Ok = false, see AnalyzeDocumentAsync).
+    //   a zero-page result is deliberately folded into Ok = false, see DIAnalyzeDocumentAsync).
     // - Ok = false -> Error contains a typed reason instead of throwing an exception.
     //   This lets callers check Error.Reason and decide what to do
     //   (e.g. "Throttled" is worth retrying, "DiServiceError" probably isn't).
     public sealed record AnalyzeOutcome(bool Ok, AnalyzeResult? Result, ExtractionError? Error);
 
-    // Result of PDFStructureExtractor.ExtractPdfStructureAsync (the DI-scoped step only -
+    // Result of PDFDocumentAnalyzer.AnalyzeDocumentAsync (the DI-scoped step only -
     // preflight/native-metadata are separate steps, combined by DocumentIntelligenceExtractor
     // into the final PDFExtractionResult):
     // - Ok = true  -> RawContent/Pages/Structure/EstimatedCostUsd are populated.

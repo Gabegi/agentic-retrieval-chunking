@@ -7,7 +7,7 @@ namespace ProtocolsIndexer.Services
 {
     // Assembles a Document Intelligence AnalyzeResult into per-page markdown.
     //
-    // ExtractPdfStructureAsync requests OutputContentFormat.Markdown, so analysis.Content
+    // AnalyzeDocumentAsync requests OutputContentFormat.Markdown, so analysis.Content
     // already arrives as one markdown-flavored string for the whole document: ATX headings
     // ("#" through "######", plus a setext "===" underline for the document title), HTML
     // tables with real rowspan/colspan for merged cells, inline "☒"/"☐" selection marks in
