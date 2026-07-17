@@ -349,15 +349,20 @@ namespace ProtocolsIndexer.Services
         // to guard against.
         // Steps per page:
         // 1. Slice content by Spans, strip DI's noise comments (PageHeader/Footer/Number/
-        //    FigureContent - literal text DI repeats on every page they apply to).
+        //    FigureContent - literal text DI repeats on every page they apply to), and
+        //    normalize a setext title ("Title" + "===" underline) to ATX ("# Title") -
+        //    cosmetic only, matches every other heading DI already renders as ATX.
         // 2. Warn if that leaves the page empty - shouldn't silently reach the index.
         // 3. Warn (don't repair) if <table>/</table> tags are unbalanced - a table split
         //    across pages will be caught by the chunk-builder's Sections-based boundaries
         //    later, so this is a "how often does it happen" signal, not a fix.
-        // Not ported from the deleted PDFMarkdownExtractor: heading carry-forward, setext
-        // normalization (superseded by DI's own structural Headings/Sections), or
-        // page-level table repair (see step 3). Bookmark breadcrumbs live in
-        // PDFSectionBreadCrumbBuilder, for a future per-chunk (not per-page) use.
+        // Both cleanups only ever run on PageContent, never on RawContent: they change
+        // string length (setext especially), which would shift every offset after them if
+        // applied to the offset-addressable source. See PdfPageRecord.PageContent.
+        // Not ported from the deleted PDFMarkdownExtractor: heading carry-forward
+        // (superseded by DI's own structural Headings/Sections) or page-level table
+        // repair (see step 3). Bookmark breadcrumbs live in PDFSectionBreadCrumbBuilder,
+        // for a future per-chunk (not per-page) use.
         private (IReadOnlyList<PdfPageRecord> Pages, IReadOnlyList<AnalysisWarning> Warnings) GetPages(
             AnalyzeResult result, string blobName, string title)
         {
@@ -366,7 +371,10 @@ namespace ProtocolsIndexer.Services
 
             foreach (var p in result.Pages)
             {
-                var content = NoiseCommentLineRegex.Replace(SliceBySpans(result.Content, p.Spans), "").Trim('\r', '\n');
+                var content = SliceBySpans(result.Content, p.Spans);
+                content = NoiseCommentLineRegex.Replace(content, "");
+                content = SetextTitleRegex.Replace(content, "# ${title}");
+                content = content.Trim('\r', '\n');
 
                 if (content.Length == 0)
                     _logger.LogWarning(
