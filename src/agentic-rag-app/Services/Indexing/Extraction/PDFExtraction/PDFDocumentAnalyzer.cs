@@ -473,11 +473,11 @@ namespace ProtocolsIndexer.Services
         // endpoint), and Elements - DI's own JSON-pointer refs into the paragraphs that
         // discuss/describe this figure, broader than just its Caption. All free as part of
         // prebuilt-layout - no add-on feature required.
-        public IReadOnlyList<FigureInfo> GetFigures(AnalyzeResult result) =>
+        private IReadOnlyList<FigureInfo> GetFigures(AnalyzeResult result) =>
             result.Figures
                 .Select(f => new FigureInfo(
                     f.Caption?.Content,
-                    f.Spans is { Count: > 0 } fs ? fs[0].Offset : 0,
+                    f.Spans is { Count: > 0 } fs ? fs[0].Offset : null,
                     f.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
                     f.Id,
                     f.Elements ?? []))
