@@ -202,8 +202,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     // 4c. Table structure issues read directly off DI's own table data (PdfDocumentStructure.Tables) -
     // replaces a previous heuristic that pattern-matched GFM pipe-table syntax ("| a | b |")
     // in the rendered content. DI's markdown output actually renders tables as HTML
-    // <table> elements (see PDFMarkdownExtractor), so that heuristic never matched real
-    // output and was silently a no-op.
+    // <table> elements, so that heuristic never matched real output and was silently a no-op.
     private static List<ValidationIssue> TableStructureQualityCheck(
         IReadOnlyDictionary<string, PdfDocumentStructure>? structures)
     {
