@@ -43,6 +43,33 @@ namespace ProtocolsIndexer.Models
 
     public sealed record LineInfo(string Content, int Offset, int PageNumber, IReadOnlyList<PolygonPoint> Polygon);
 
+    // One DI section's extent, captured as every Span rather than a single anchor Offset
+    // (the pattern Heading/TableInfo/FigureInfo use): a section only means something as a
+    // start-to-end range, so slicing its content the way GetPages slices per-page content
+    // needs every span, not just the first one.
+    public sealed record SectionSpan(int Offset, int Length);
+
+    // A DI-detected section - the closest thing prebuilt-layout offers to real semantic
+    // chunk boundaries, as opposed to the page-only boundaries GetPages relies on today.
+    // Elements are DI's own JSON-pointer refs (e.g. "/paragraphs/15", "/tables/2",
+    // "/sections/3" for a nested subsection) into whichever paragraphs/tables/figures/
+    // subsections this section contains. Resolving those refs into actual content/building
+    // a section tree is left to a future chunk-builder, not done at extraction time.
+    public sealed record SectionInfo(IReadOnlyList<SectionSpan> Spans, IReadOnlyList<string> Elements);
+
+    // Average OCR word-confidence for one page - a data-quality signal only, never a
+    // chunk-boundary signal (that's what SectionInfo is for). Kept as its own record
+    // rather than folded into PageDimensions: PageDimensions is DI's physical-geometry
+    // measurement of a page, this is DI's confidence in what it read off that page - two
+    // different concerns that happen to both be "one value per page".
+    public sealed record PageQuality(int PageNumber, double AverageWordConfidence);
+
+    // One non-fatal warning DI attached to the whole-document analysis (e.g. a page that
+    // partially failed OCR) - distinct from the zero-pages case DIAnalyzeDocumentAsync
+    // already treats as an outright failure. Wraps Azure's DocumentIntelligenceWarning so
+    // callers of this project's models don't need a reference to the Azure SDK type.
+    public sealed record AnalysisWarning(string? Code, string? Message, string? Target);
+
     // Raw structural data extracted from one PDF - not the final chunk metadata.
     // - At extraction time, chunk boundaries don't exist yet, so this record does NOT
     //   assemble chunks itself.
