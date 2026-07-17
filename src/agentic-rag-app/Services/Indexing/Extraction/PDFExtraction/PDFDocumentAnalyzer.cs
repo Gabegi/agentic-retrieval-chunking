@@ -296,13 +296,18 @@ namespace ProtocolsIndexer.Services
                 .ToList();
 
         // Returns every figure (image/diagram) DI detected, with its caption text if it has
-        // one. Free as part of prebuilt-layout - no add-on feature required.
+        // one, its Id (needed only to later fetch the cropped image via the figures output
+        // endpoint), and Elements - DI's own JSON-pointer refs into the paragraphs that
+        // discuss/describe this figure, broader than just its Caption. All free as part of
+        // prebuilt-layout - no add-on feature required.
         public IReadOnlyList<FigureInfo> GetFigures(AnalyzeResult result) =>
             result.Figures
                 .Select(f => new FigureInfo(
                     f.Caption?.Content,
                     f.Spans is { Count: > 0 } fs ? fs[0].Offset : 0,
-                    f.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
+                    f.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
+                    f.Id,
+                    f.Elements ?? []))
                 .ToList();
 
         // Returns every span of handwritten text DI detected, with DI's own confidence
