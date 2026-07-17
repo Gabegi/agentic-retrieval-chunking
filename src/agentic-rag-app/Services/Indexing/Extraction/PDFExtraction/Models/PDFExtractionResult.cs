@@ -7,6 +7,11 @@ namespace ProtocolsIndexer.Models;
 // exception) — the orchestrator folds this into the same ExtractionResult<T>.Errors
 // bucket CSV's row-level parse errors land in.
 public record PDFExtractionResult(
+    // True on success, false on failure - every field below except BlobName/FileSizeBytes/
+    // Error is null when Ok is false. Enforced (not just conventional) by the constructor
+    // guard below: Ok and Error can't diverge, so callers of either f.Ok or
+    // f.Error != null are provably checking the same thing.
+    bool   Ok,
     string BlobName,
 
     // Step 1: PdfDocumentValidator - free facts, always known once the file has been read
@@ -30,6 +35,20 @@ public record PDFExtractionResult(
 
     ExtractionError? Error)
 {
+    // Enforces the Ok/Error invariant at construction rather than leaving it to
+    // construction-site discipline - every call site happened to keep them in lockstep,
+    // but nothing stopped a future one from constructing Ok=true/Error!=null (validator
+    // would then skip real pages, since Aggregate branches on Error) or Ok=false/Error=null
+    // (would NRE on Pages! downstream, since Ok=false callers assume Pages is absent).
+    public PDFExtractionResult
+    {
+        if (Ok != (Error is null))
+            throw new ArgumentException(
+                $"PDFExtractionResult for '{BlobName}': Ok={Ok} but Error={(Error is null ? "null" : "set")} - they must agree.");
+        if (Ok && Pages is null)
+            throw new ArgumentException($"PDFExtractionResult for '{BlobName}': Ok=true but Pages is null.");
+    }
+
     // Per-page failures/soft-quality signals that don't fail the whole file (e.g. one
     // unreadable page, a likely-scanned page). Folded into the aggregate ExtractionResult
     // by PdfPipelineValidator, same bucket a file-level Error would land in.

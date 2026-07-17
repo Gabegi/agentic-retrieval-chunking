@@ -48,7 +48,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         issues.AddRange(TextQualityCheck(cleanResult));
 
         // 4b. PDF-only: tables collapsed into repeated-phrase prose during extraction.
-        issues.AddRange(TableFlatteningCheck(cleanResult));
+        issues.AddRange(TableFlatteningCheck(cleanResult, structures));
 
         // 4c. Table structure issues, from DI's own table data - not a text-pattern guess.
         issues.AddRange(TableStructureQualityCheck(structures));
@@ -269,13 +269,27 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     // 4b. PDF-only: detects tables that were collapsed into unstructured prose during
     // extraction. Signal: a 3-word phrase that repeats within a single page — a strong
     // indicator that structured row data was run together with no delimiters left.
-    // Ported from the comparison spike's TableFlatteningChecker.
-    private static List<ValidationIssue> TableFlatteningCheck(PdfCleanResult cleanResult)
+    // Ported from the comparison spike's TableFlatteningChecker. Skips any page where DI
+    // already detected at least one table (Structure.Tables[].PageNumber): this check's
+    // whole purpose is catching tables DI FAILED to detect, so a page where DI did detect
+    // one is definitionally out of scope - running it there just false-positives on
+    // legitimate repeated cell content (e.g. a "Yes/No" column), which tag-stripping alone
+    // wouldn't fix since the repetition is in the cell text, not the markup. Caveat: a page
+    // with one detected table and one separately-missed table won't be flagged for the
+    // missed one - accepted, since the per-document signal ("this doc's tables are being
+    // flattened") still fires from whichever other pages it happened on.
+    private static List<ValidationIssue> TableFlatteningCheck(
+        PdfCleanResult cleanResult, IReadOnlyDictionary<string, PdfDocumentStructure>? structures)
     {
         var issues = new List<ValidationIssue>();
 
         foreach (var record in cleanResult.Records)
         {
+            var hasDetectedTable = structures != null
+                && structures.TryGetValue(record.BlobName, out var structure)
+                && structure.Tables.Any(t => t.PageNumber == record.PageIndex);
+            if (hasDetectedTable) continue;
+
             var repeated = FindRepeatedTrigrams(record.PageContent);
             if (repeated.Count == 0) continue;
 
@@ -287,17 +301,9 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return issues;
     }
 
-    // Strips markup before tokenizing. Without this, a healthy DI table - rendered as real
-    // <table><tr><td>...</td></tr></table> HTML (see 4c's comment) - collapses to repeated
-    // "td"/"tr" tokens once punctuation is stripped, and this heuristic flags the table
-    // it's the LEAST likely to actually be flattened. A genuinely flattened table has no
-    // tags left to strip, so this is a no-op for the case the check exists to catch.
-    private static readonly Regex HtmlTag = new(@"<[^>]+>", RegexOptions.Compiled);
-
     private static List<string> FindRepeatedTrigrams(string text)
     {
-        var withoutTags = HtmlTag.Replace(text, " ");
-        var words = Regex.Replace(withoutTags.ToLowerInvariant(), @"[^\w\s]", " ")
+        var words = Regex.Replace(text.ToLowerInvariant(), @"[^\w\s]", " ")
             .Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length < 3) return [];
 
