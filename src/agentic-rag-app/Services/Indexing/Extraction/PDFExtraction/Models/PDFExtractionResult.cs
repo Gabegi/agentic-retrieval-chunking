@@ -7,12 +7,6 @@ namespace ProtocolsIndexer.Models;
 // exception) — the orchestrator folds this into the same ExtractionResult<T>.Errors
 // bucket CSV's row-level parse errors land in.
 public record PDFExtractionResult(
-    // True on success, false on failure - every field below except BlobName/FileSizeBytes/
-    // Error is null when Ok is false. Technically derivable from Error being null/non-null
-    // (every construction site keeps the two in lockstep), but kept explicit so callers can
-    // write `if (!result.Ok)` rather than `if (result.Error != null)`, matching the same
-    // Ok/Error convention AnalyzeOutcome and PDFStructureExtractorResult already use.
-    bool   Ok,
     string BlobName,
 
     // Step 1: PdfDocumentValidator - free facts, always known once the file has been read

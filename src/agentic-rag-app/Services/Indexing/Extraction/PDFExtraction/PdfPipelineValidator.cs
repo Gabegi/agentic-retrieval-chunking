@@ -287,9 +287,17 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return issues;
     }
 
+    // Strips markup before tokenizing. Without this, a healthy DI table - rendered as real
+    // <table><tr><td>...</td></tr></table> HTML (see 4c's comment) - collapses to repeated
+    // "td"/"tr" tokens once punctuation is stripped, and this heuristic flags the table
+    // it's the LEAST likely to actually be flattened. A genuinely flattened table has no
+    // tags left to strip, so this is a no-op for the case the check exists to catch.
+    private static readonly Regex HtmlTag = new(@"<[^>]+>", RegexOptions.Compiled);
+
     private static List<string> FindRepeatedTrigrams(string text)
     {
-        var words = Regex.Replace(text.ToLowerInvariant(), @"[^\w\s]", " ")
+        var withoutTags = HtmlTag.Replace(text, " ");
+        var words = Regex.Replace(withoutTags.ToLowerInvariant(), @"[^\w\s]", " ")
             .Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length < 3) return [];
 
