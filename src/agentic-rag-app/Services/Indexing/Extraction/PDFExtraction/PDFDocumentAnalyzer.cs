@@ -11,8 +11,8 @@ namespace ProtocolsIndexer.Services
     //   and verifying the response is actually markdown before trusting any offset in it.
     // - Assembles the DI response into markdown-formatted pages.
     // - Extracts every DI structural feature (headings, boilerplate, tables, page
-    //   dimensions, selection marks, figures, sections, page quality, handwritten spans,
-    //   lines) into PdfDocumentStructure, maximizing what this extraction step captures.
+    //   dimensions, selection marks, figures, sections, page quality, lines) into
+    //   PdfDocumentStructure, maximizing what this extraction step captures.
     // - Surfaces non-fatal analysis warnings DI attached to the document.
     public sealed class PDFDocumentAnalyzer
     {
@@ -76,7 +76,6 @@ namespace ProtocolsIndexer.Services
                 GetPageDimensions(analysis),
                 GetSelectionMarks(analysis),
                 GetFigures(analysis),
-                GetHandwrittenSpans(analysis),
                 GetLines(analysis),
                 GetSections(analysis),
                 GetPageQuality(analysis)),
@@ -308,20 +307,6 @@ namespace ProtocolsIndexer.Services
                     f.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
                     f.Id,
                     f.Elements ?? []))
-                .ToList();
-
-        // Returns every span of handwritten text DI detected, with DI's own confidence
-        // score attached rather than pre-filtered by a hardcoded threshold - callers decide
-        // what confidence is "good enough" for their use case.
-        // - "Styles" entries only point at spans within result.Content; they don't carry
-        //   the text itself, so the actual string has to be extracted with Substring.
-        public IReadOnlyList<HandwrittenSpan> GetHandwrittenSpans(AnalyzeResult result) =>
-            result.Styles
-                .Where(s => s.IsHandwritten == true)
-                .SelectMany(s => s.Spans.Select(span => new HandwrittenSpan(
-                    result.Content.Substring(span.Offset, span.Length),
-                    span.Offset,
-                    s.Confidence)))
                 .ToList();
 
         // Returns every OCR-detected line of text on every page, with its bounding polygon -
