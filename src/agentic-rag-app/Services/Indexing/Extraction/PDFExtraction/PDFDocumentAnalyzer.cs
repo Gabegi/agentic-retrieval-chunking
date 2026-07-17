@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,10 @@ namespace ProtocolsIndexer.Services
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(13), TimeSpan.FromSeconds(34)
         };
 
+        // Ordinary (non-throttled) interval between status-poll GETs, once the analyze job
+        // is running - unrelated to BackoffDelays, which only applies after a 429.
+        private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(2);
+
         private readonly DocumentIntelligenceClient _diClient;
         private readonly ILogger _logger;
 
@@ -47,7 +52,7 @@ namespace ProtocolsIndexer.Services
         // 2. If that call fails, return immediately with Ok=false and a typed ExtractionError.
         // 3. Otherwise, build markdown pages and extract every structural feature DI offers
         //    for free (headings, boilerplate, tables, page dimensions, selection marks,
-        //    figures, handwritten spans, lines) from the same result.
+        //    figures, sections, page quality, lines) from the same result.
         public async Task<PDFStructureExtractorResult> AnalyzeDocumentAsync(
             byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
@@ -56,19 +61,15 @@ namespace ProtocolsIndexer.Services
             if (!TryValidateAnalyzeOutcome(analyzeResults, blobName, out var analysis, out var error))
                 return new PDFStructureExtractorResult(false, null, null, null, null, error);
 
-            // Title: prefers the PDF's own Info-dictionary Title (nativeMetadata.Title) when
-            // the file actually has one set - real PDF metadata, not a guess. Falls back to
-            // a blob-name-derived title otherwise.
-            var title = !string.IsNullOrWhiteSpace(nativeMetadata.Title)
-                ? nativeMetadata.Title
-                : blobName.Split('/')[0]
-                    .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
-                    .Replace("-", " ");
+            // Reused for EstimatedCostUsd below instead of analysis.Pages!.Count - avoids a
+            // null-forgiving operator on the SDK's nullable Pages property by reusing an
+            // already-materialized, already non-null list with the same count.
+            var pages = GetPages(analysis, blobName, GetTitle(nativeMetadata, blobName));
 
             return new PDFStructureExtractorResult(
                 true,
                 analysis.Content,
-                GetPages(analysis, blobName, title),
+                pages,
                 new PdfDocumentStructure(
                 GetHeadings(analysis),
                 GetBoilerplate(analysis),
@@ -79,7 +80,7 @@ namespace ProtocolsIndexer.Services
                 GetLines(analysis),
                 GetSections(analysis),
                 GetPageQuality(analysis)),
-                analysis.Pages!.Count * CostPerPage, null)
+                pages.Count * CostPerPage, null)
             {
                 // DI's own top-level warnings, plus whatever the analyze call itself flagged
                 // (e.g. non-BMP characters) - merged into one list so callers only ever have
@@ -214,7 +215,24 @@ namespace ProtocolsIndexer.Services
             if (!outcome.Ok)
             {
                 result = null;
-                error  = outcome.Error;
+
+                if (outcome.Error != null)
+                {
+                    error = outcome.Error;
+                    return false;
+                }
+
+                // Same "don't trust the invariant silently" reasoning as the Result=null
+                // case below: Ok=false is supposed to always come with a non-null Error.
+                _logger.LogError(
+                    "'{Blob}': Document Intelligence analysis reported Ok=false but Error was null - this indicates a bug in DIAnalyzeDocumentAsync/ValidateAnalyzeResult.",
+                    blobName);
+                error = new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = "Document Intelligence analysis failed with no error details.",
+                    Reason = PdfOpenFailureReason.Unknown,
+                };
                 return false;
             }
 
@@ -283,6 +301,16 @@ namespace ProtocolsIndexer.Services
                 $"Content contains {nonBmpCount} non-BMP character(s) (UTF-16 surrogate pairs).",
                 null)];
         }
+
+        // Prefers the PDF's own Info-dictionary Title (nativeMetadata.Title) when the file
+        // actually has one set - real PDF metadata, not a guess. Falls back to a
+        // blob-name-derived title otherwise.
+        private static string GetTitle(DocMetadata nativeMetadata, string blobName) =>
+            !string.IsNullOrWhiteSpace(nativeMetadata.Title)
+                ? nativeMetadata.Title
+                : blobName.Split('/')[0]
+                    .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
+                    .Replace("-", " ");
 
         // Returns one PdfPageRecord per PDF page, sliced directly from analysis.Content
         // using each DocumentPage's own Spans - DI's structural page model - rather than
