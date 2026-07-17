@@ -348,5 +348,42 @@ namespace ProtocolsIndexer.Services
                 points.Add(new PolygonPoint(polygon[i], polygon[i + 1]));
             return points;
         }
+
+        // Returns every DI-detected section - the closest thing prebuilt-layout offers to
+        // real semantic chunk boundaries, as opposed to the page-only boundaries GetPages
+        // relies on today.
+        // - Every Span is captured (not anchor-only like GetHeadings/GetTables/GetFigures):
+        //   a section only means something as a start-to-end range, so slicing its content
+        //   the way GetPages slices per-page content needs every span, not just the first.
+        // - Elements are left as DI's raw JSON-pointer strings; resolving them into actual
+        //   paragraphs/tables/figures/subsections is a future chunk-builder's job, not
+        //   done here.
+        public IReadOnlyList<SectionInfo> GetSections(AnalyzeResult result) =>
+            result.Sections
+                .Select(s => new SectionInfo(
+                    s.Spans.Select(sp => new SectionSpan(sp.Offset, sp.Length)).ToList(),
+                    s.Elements.ToList()))
+                .ToList();
+
+        // Returns one average word-confidence score per page - a data-quality signal only
+        // ("flag this page for review"), never a chunk-boundary signal; boundaries come from
+        // GetSections. Pages with zero detected words (e.g. a blank page) are omitted rather
+        // than reported as 0.0, since 0 confidence would misleadingly suggest DI is unsure
+        // about content that simply isn't there.
+        public IReadOnlyList<PageQuality> GetPageQuality(AnalyzeResult result) =>
+            result.Pages
+                .Where(p => p.Words.Count > 0)
+                .Select(p => new PageQuality(p.PageNumber, p.Words.Average(w => (double)w.Confidence)))
+                .ToList();
+
+        // Returns every non-fatal warning DI attached to the whole-document analysis (e.g.
+        // a page that partially failed OCR) - distinct from the zero-pages case
+        // DIAnalyzeDocumentAsync already treats as an outright failure. Wraps Azure's
+        // DocumentIntelligenceWarning in this project's own record so callers don't need a
+        // reference to the Azure SDK type.
+        public IReadOnlyList<AnalysisWarning> GetWarnings(AnalyzeResult result) =>
+            result.Warnings
+                .Select(w => new AnalysisWarning(w.Code, w.Message, w.Target))
+                .ToList();
     }
 }
