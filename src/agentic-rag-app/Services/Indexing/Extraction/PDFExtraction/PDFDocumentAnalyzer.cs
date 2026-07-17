@@ -343,34 +343,72 @@ namespace ProtocolsIndexer.Services
                 ? nativeMetadata.Title
                 : Path.GetFileNameWithoutExtension(blobName).Replace("-", " ");
 
-        // One PdfPageRecord per page, sliced from analysis.Content using each page's own
-        // Spans (DI's structural page model) - not by splitting on "<!-- PageBreak -->".
-        // Page boundaries come from DI's own per-page data, so no fragment-count mismatch
+        // One PdfPageRecord per page, sliced from analysis.Content by each page's own
+        // Spans (DI's structural page model), not by splitting on "<!-- PageBreak -->" -
+        // page boundaries come from DI's own per-page data, so no fragment-count mismatch
         // to guard against.
-        // - Logs a warning for a page with no Spans/empty content - an empty page
-        //   shouldn't silently disappear into the index unnoticed.
-        // - Does NOT carry over what PDFMarkdownExtractor.BuildMarkdownPages did: bookmark
-        //   breadcrumbs, cross-page heading carry-forward, noise-comment stripping,
-        //   setext-title normalization, or repairing a <table> split across pages.
-        private IReadOnlyList<PdfPageRecord> GetPages(AnalyzeResult result, string blobName, string title) =>
-            result.Pages
-                .Select(p =>
-                {
-                    var content = SliceBySpans(result.Content, p.Spans);
-                    if (content.Length == 0)
-                        _logger.LogWarning(
-                            "'{Blob}' page {Page} has no content (no Spans) - an empty page could reach the index unnoticed.",
-                            blobName, p.PageNumber);
+        // Steps per page:
+        // 1. Slice content by Spans, strip DI's noise comments (PageHeader/Footer/Number/
+        //    FigureContent - literal text DI repeats on every page they apply to).
+        // 2. Warn if that leaves the page empty - shouldn't silently reach the index.
+        // 3. Warn (don't repair) if <table>/</table> tags are unbalanced - a table split
+        //    across pages will be caught by the chunk-builder's Sections-based boundaries
+        //    later, so this is a "how often does it happen" signal, not a fix.
+        // Not ported from the deleted PDFMarkdownExtractor: heading carry-forward, setext
+        // normalization (superseded by DI's own structural Headings/Sections), or
+        // page-level table repair (see step 3). Bookmark breadcrumbs live in
+        // SectionBreadcrumbBuilder, for a future per-chunk (not per-page) use.
+        private (IReadOnlyList<PdfPageRecord> Pages, IReadOnlyList<AnalysisWarning> Warnings) GetPages(
+            AnalyzeResult result, string blobName, string title)
+        {
+            var pages    = new List<PdfPageRecord>();
+            var warnings = new List<AnalysisWarning>();
 
-                    return new PdfPageRecord
-                    {
-                        BlobName    = blobName,
-                        PageIndex   = p.PageNumber,
-                        PageContent = content,
-                        Title       = title,
-                    };
-                })
-                .ToList();
+            foreach (var p in result.Pages)
+            {
+                var content = NoiseCommentLineRegex.Replace(SliceBySpans(result.Content, p.Spans), "").Trim('\r', '\n');
+
+                if (content.Length == 0)
+                    _logger.LogWarning(
+                        "'{Blob}' page {Page} has no content (no Spans) - an empty page could reach the index unnoticed.",
+                        blobName, p.PageNumber);
+
+                var openCount  = TableOpenTagRegex.Matches(content).Count;
+                var closeCount = TableCloseTagRegex.Matches(content).Count;
+                if (openCount != closeCount)
+                {
+                    _logger.LogWarning(
+                        "'{Blob}' page {Page} has unbalanced <table> tags ({Open} open, {Close} close) - likely split across a page boundary.",
+                        blobName, p.PageNumber, openCount, closeCount);
+                    warnings.Add(new AnalysisWarning(
+                        "UnbalancedTableTags",
+                        $"Page {p.PageNumber} has {openCount} <table> open tag(s) but {closeCount} close tag(s) - likely split across a page boundary.",
+                        blobName));
+                }
+
+                pages.Add(new PdfPageRecord
+                {
+                    BlobName    = blobName,
+                    PageIndex   = p.PageNumber,
+                    PageContent = content,
+                    Title       = title,
+                });
+            }
+
+            return (pages, warnings);
+        }
+
+        // Matches a whole "<!-- PageHeader="..." -->"-style line (also PageFooter/
+        // PageNumber/FigureContent) - anchored to a full line so a document that happens
+        // to contain this literal text in its own prose isn't eaten by accident. The
+        // quoted value uses (?:[^"\\]|\\.)* rather than a lazy ".*?" so an escaped quote
+        // inside it doesn't truncate the match early.
+        private static readonly Regex NoiseCommentLineRegex = new(
+            @"^[ \t]*<!--\s*(?:Page(?:Header|Footer|Number)|FigureContent)\s*=\s*""(?:[^""\\]|\\.)*""\s*-->[ \t]*\r?\n?",
+            RegexOptions.Multiline | RegexOptions.Compiled);
+
+        private static readonly Regex TableOpenTagRegex  = new(@"<table\b",    RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex TableCloseTagRegex = new(@"</table\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static string SliceBySpans(string content, IReadOnlyList<DocumentSpan>? spans)
         {
