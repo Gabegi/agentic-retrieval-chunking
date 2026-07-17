@@ -127,59 +127,91 @@ namespace ProtocolsIndexer.Services
                     Operation<AnalyzeResult> operation = await _diClient.AnalyzeDocumentAsync(
                         WaitUntil.Completed, analyzeOptions, cancellationToken: ct);
 
-                    var result = operation.Value;
-
-                    var formatError = ValidateContentFormat(result, blobName);
-                    if (formatError != null)
-                    {
-                        _logger.LogWarning(
-                            "Document Intelligence returned unexpected content format '{Format}' for '{Blob}'.",
-                            result.ContentFormat, blobName);
-                        return new AnalyzeOutcome(false, null, formatError);
-                    }
-
-                    var callWarnings = CheckNonBmpCharacters(result, blobName);
-
-                    if ((result.Pages?.Count ?? 0) == 0)
-                    {
-                        _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
-                        return new AnalyzeOutcome(false, null, new ExtractionError
-                        {
-                            DocumentId = blobName,
-                            Message = "Document Intelligence analysis returned zero pages.",
-                            Reason = PdfOpenFailureReason.EmptyDocument,
-                        });
-                    }
-
-                    return new AnalyzeOutcome(true, result, null) { Warnings = callWarnings };
+                    return ValidateAnalyzeResult(operation.Value, blobName);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 429 && attempt < BackoffDelays.Length)
                 {
-                    var wait = BackoffDelays[attempt];
-                    _logger.LogWarning("DI throttled '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
-                    await Task.Delay(wait, ct);
+                    await LogThrottleAndBackoff(blobName, attempt, ct);
                 }
                 catch (RequestFailedException ex)
                 {
-                    _logger.LogWarning(ex, "Document Intelligence failed to analyze '{Blob}'.", blobName);
-                    return new AnalyzeOutcome(false, null, new ExtractionError
-                    {
-                        DocumentId = blobName,
-                        Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
-                        Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
-                    });
+                    return ToRequestFailedOutcome(ex, blobName);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _logger.LogWarning(ex, "Unexpected error analyzing '{Blob}' with Document Intelligence.", blobName);
-                    return new AnalyzeOutcome(false, null, new ExtractionError
-                    {
-                        DocumentId = blobName,
-                        Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
-                        Reason = PdfOpenFailureReason.Unknown,
-                    });
+                    return ToUnexpectedErrorOutcome(ex, blobName);
                 }
             }
+        }
+
+        // The one catch clause that can't return an AnalyzeOutcome: throttling means "try
+        // again", not "give up", so this only logs and waits out Microsoft's recommended
+        // backoff schedule, letting the retry loop's own for(;;) continue to the next attempt.
+        private async Task LogThrottleAndBackoff(string blobName, int attempt, CancellationToken ct)
+        {
+            var wait = BackoffDelays[attempt];
+            _logger.LogWarning("DI throttled '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
+            await Task.Delay(wait, ct);
+        }
+
+        // Retries exhausted on a 429, or any other non-429 request failure - either way DI
+        // told us clearly what went wrong via ex.Status, so Throttled/DiServiceError stay
+        // distinguishable for callers deciding what's worth retrying later.
+        private AnalyzeOutcome ToRequestFailedOutcome(RequestFailedException ex, string blobName)
+        {
+            _logger.LogWarning(ex, "Document Intelligence failed to analyze '{Blob}'.", blobName);
+            return new AnalyzeOutcome(false, null, new ExtractionError
+            {
+                DocumentId = blobName,
+                Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
+                Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
+            });
+        }
+
+        // Anything else the SDK or runtime threw while analyzing (SDK bug, deserialization
+        // failure, etc.) - not confidently attributable to a specific DI-side cause.
+        private AnalyzeOutcome ToUnexpectedErrorOutcome(Exception ex, string blobName)
+        {
+            _logger.LogWarning(ex, "Unexpected error analyzing '{Blob}' with Document Intelligence.", blobName);
+            return new AnalyzeOutcome(false, null, new ExtractionError
+            {
+                DocumentId = blobName,
+                Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
+                Reason = PdfOpenFailureReason.Unknown,
+            });
+        }
+
+        // Single place that decides whether a raw DI response is usable, and collects
+        // every non-fatal thing worth flagging about it along the way - format check,
+        // non-BMP character check, zero-pages check, in that order (cheapest/most
+        // fundamental first). Kept separate from DIAnalyzeDocumentAsync's retry loop so
+        // that loop only has to care about "call succeeded, now validate the result",
+        // not each individual validation rule.
+        private AnalyzeOutcome ValidateAnalyzeResult(AnalyzeResult result, string blobName)
+        {
+            var formatError = ValidateContentFormat(result, blobName);
+            if (formatError != null)
+            {
+                _logger.LogWarning(
+                    "Document Intelligence returned unexpected content format '{Format}' for '{Blob}'.",
+                    result.ContentFormat, blobName);
+                return new AnalyzeOutcome(false, null, formatError);
+            }
+
+            var warnings = CheckNonBmpCharacters(result, blobName);
+
+            if ((result.Pages?.Count ?? 0) == 0)
+            {
+                _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
+                return new AnalyzeOutcome(false, null, new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = "Document Intelligence analysis returned zero pages.",
+                    Reason = PdfOpenFailureReason.EmptyDocument,
+                });
+            }
+
+            return new AnalyzeOutcome(true, result, null) { Warnings = warnings };
         }
 
         // Confirms DI actually returned markdown - the trust boundary every Offset field in
