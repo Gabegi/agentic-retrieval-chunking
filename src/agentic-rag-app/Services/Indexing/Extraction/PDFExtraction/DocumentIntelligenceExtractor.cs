@@ -11,7 +11,7 @@ namespace ProtocolsIndexer.Services;
 // opens and validates it, then PdfNativeMetadataExtractor.ExtractPdfNativeMetadata takes
 // over that lifetime - it reads native metadata/bookmarks off the PdfDocument and disposes it
 // before returning, so nothing here needs its own `using` block. The resulting
-// DocMetadata is handed to PDFStructureExtractor.ExtractPdfStructureAsync, which does
+// DocMetadata is handed to PDFDocumentAnalyzer.AnalyzeDocumentAsync, which does
 // the paid call, markdown page assembly, and structural extraction from there.
 // This class is the assembler: it combines what each of the three steps produced into
 // one PDFExtractionResult - the complete record of everything the pipeline learned about
@@ -21,9 +21,9 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
     public string Name => "DocumentIntelligence";
 
     private readonly ILogger<DocumentIntelligenceExtractor> _logger;
-    private readonly PDFStructureExtractor                   _structureExtractor;
+    private readonly PDFDocumentAnalyzer                      _structureExtractor;
 
-    public DocumentIntelligenceExtractor(PDFStructureExtractor structureExtractor, ILogger<DocumentIntelligenceExtractor>? logger = null)
+    public DocumentIntelligenceExtractor(PDFDocumentAnalyzer structureExtractor, ILogger<DocumentIntelligenceExtractor>? logger = null)
     {
         _logger             = logger ?? NullLogger<DocumentIntelligenceExtractor>.Instance;
         _structureExtractor = structureExtractor;
