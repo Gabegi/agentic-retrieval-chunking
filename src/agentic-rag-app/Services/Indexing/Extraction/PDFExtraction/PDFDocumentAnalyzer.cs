@@ -135,6 +135,8 @@ namespace ProtocolsIndexer.Services
                         return new AnalyzeOutcome(false, null, formatError);
                     }
 
+                    LogNonBmpCharacters(result, blobName);
+
                     if ((result.Pages?.Count ?? 0) == 0)
                     {
                         _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
