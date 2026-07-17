@@ -484,9 +484,12 @@ namespace ProtocolsIndexer.Services
                 .ToList();
 
         // Returns every OCR-detected line of text on every page, with its bounding polygon -
-        // the most granular positional data DI offers for free. Potentially a lot of data
-        // (every line, every page); nothing persists this permanently today (dev-only
-        // reports only), so that's a future storage-cost concern, not a correctness one.
+        // the most granular positional data DI offers for free. This is what a future
+        // highlight-on-source feature would join against (see LineInfo/PageDimensions):
+        // a chunk's span range selects its lines by Offset, their Polygons union into the
+        // highlight region. By far the bulkiest structure captured here (every line, every
+        // page); nothing persists this permanently today (dev-only reports only) - that's
+        // the right call until source-grounding actually ships, not a correctness concern.
         private IReadOnlyList<LineInfo> GetLines(AnalyzeResult result) =>
             result.Pages
                 .SelectMany(p => p.Lines.Select(line => new LineInfo(
