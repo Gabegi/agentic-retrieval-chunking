@@ -22,7 +22,10 @@ public class PdfCleaner : IPdfCleaner
     // checked LAST - otherwise it eats the first two characters of those longer patterns
     // before their own (more specific) match ever gets a chance to fire, leaving a stray
     // fallback character plus an unrepaired remainder instead of the real fix.
-    private static readonly (string Pattern, string Fix)[] KnownMojibakePatterns =
+    // internal (not private): PdfCleanerTests asserts the array's own ordering invariant
+    // (no earlier pattern is a prefix of a later one) directly against this table, rather
+    // than re-deriving expected mojibake strings by hand in test code.
+    internal static readonly (string Pattern, string Fix)[] KnownMojibakePatterns =
     [
         ("â€™", "'"), ("â€œ", "\""), ("â€“", "–"), ("â€”", "—"), ("â€", "\""),
         ("Ã«", "ë"), ("Ã©", "é"), ("Ã¯", "ï"), ("Ã¼", "ü"),

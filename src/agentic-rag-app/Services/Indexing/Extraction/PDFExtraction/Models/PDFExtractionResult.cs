@@ -40,27 +40,31 @@ public record PDFExtractionResult
 
     public ExtractionError? Error { get; }
 
+    // Parameter names match the property names exactly (kept capitalized, unlike normal
+    // constructor convention) so every existing call site using named arguments
+    // (Ok: ..., BlobName: ..., etc.) keeps compiling unchanged - this replaces positional
+    // record syntax, not the calling convention callers already use.
     public PDFExtractionResult(
-        bool ok, string blobName, long fileSizeBytes, double? pdfSpecVersion,
-        DocMetadata? nativeMetadata, string? rawContent, IReadOnlyList<PdfPageRecord>? pages,
-        PdfDocumentStructure? structure, decimal? estimatedCostUsd, ExtractionError? error)
+        bool Ok, string BlobName, long FileSizeBytes, double? PdfSpecVersion,
+        DocMetadata? NativeMetadata, string? RawContent, IReadOnlyList<PdfPageRecord>? Pages,
+        PdfDocumentStructure? Structure, decimal? EstimatedCostUsd, ExtractionError? Error)
     {
-        if (ok != (error is null))
+        if (Ok != (Error is null))
             throw new ArgumentException(
-                $"PDFExtractionResult for '{blobName}': Ok={ok} but Error={(error is null ? "null" : "set")} - they must agree.");
-        if (ok && pages is null)
-            throw new ArgumentException($"PDFExtractionResult for '{blobName}': Ok=true but Pages is null.");
+                $"PDFExtractionResult for '{BlobName}': Ok={Ok} but Error={(Error is null ? "null" : "set")} - they must agree.");
+        if (Ok && Pages is null)
+            throw new ArgumentException($"PDFExtractionResult for '{BlobName}': Ok=true but Pages is null.");
 
-        Ok               = ok;
-        BlobName         = blobName;
-        FileSizeBytes    = fileSizeBytes;
-        PdfSpecVersion   = pdfSpecVersion;
-        NativeMetadata   = nativeMetadata;
-        RawContent       = rawContent;
-        Pages            = pages;
-        Structure        = structure;
-        EstimatedCostUsd = estimatedCostUsd;
-        Error            = error;
+        this.Ok               = Ok;
+        this.BlobName         = BlobName;
+        this.FileSizeBytes    = FileSizeBytes;
+        this.PdfSpecVersion   = PdfSpecVersion;
+        this.NativeMetadata   = NativeMetadata;
+        this.RawContent       = RawContent;
+        this.Pages            = Pages;
+        this.Structure        = Structure;
+        this.EstimatedCostUsd = EstimatedCostUsd;
+        this.Error            = Error;
     }
 
     // Per-page failures/soft-quality signals that don't fail the whole file (e.g. one
