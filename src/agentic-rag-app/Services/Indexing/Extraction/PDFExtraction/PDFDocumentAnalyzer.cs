@@ -138,7 +138,7 @@ namespace ProtocolsIndexer.Services
                         return new AnalyzeOutcome(false, null, formatError);
                     }
 
-                    LogNonBmpCharacters(result, blobName);
+                    var callWarnings = CheckNonBmpCharacters(result, blobName);
 
                     if ((result.Pages?.Count ?? 0) == 0)
                     {
@@ -151,7 +151,7 @@ namespace ProtocolsIndexer.Services
                         });
                     }
 
-                    return new AnalyzeOutcome(true, result, null);
+                    return new AnalyzeOutcome(true, result, null) { Warnings = callWarnings };
                 }
                 catch (RequestFailedException ex) when (ex.Status == 429 && attempt < BackoffDelays.Length)
                 {
@@ -202,21 +202,29 @@ namespace ProtocolsIndexer.Services
             };
         }
 
-        // Diagnostic-only, logs a warning: counts characters in the returned content that
-        // need a UTF-16 surrogate pair (i.e. codepoints above the Basic Multilingual Plane -
-        // emoji, some math/technical symbols - not ordinary Dutch diacritics, which all fit
-        // in one UTF-16 unit same as plain ASCII). Every Offset field in this file assumes
-        // DI's offsets are UTF-16 code-unit offsets, exactly what string.Substring expects;
-        // a surrogate pair alone doesn't prove that assumption is broken for this document,
+        // Diagnostic-only: counts characters in the returned content that need a UTF-16
+        // surrogate pair (i.e. codepoints above the Basic Multilingual Plane - emoji, some
+        // math/technical symbols - not ordinary Dutch diacritics, which all fit in one
+        // UTF-16 unit same as plain ASCII). Every Offset field in this file assumes DI's
+        // offsets are UTF-16 code-unit offsets, exactly what string.Substring expects; a
+        // surrogate pair alone doesn't prove that assumption is broken for this document,
         // it's just the signal worth a closer look if garbled content ever shows up
-        // downstream. Doesn't fail extraction - logging only, nothing here is acted on.
-        private void LogNonBmpCharacters(AnalyzeResult result, string blobName)
+        // downstream. Doesn't fail extraction - logged immediately for real-time
+        // visibility, and returned as an AnalysisWarning so it also reaches the same
+        // blob-stored validation report every other warning does.
+        private IReadOnlyList<AnalysisWarning> CheckNonBmpCharacters(AnalyzeResult result, string blobName)
         {
             var nonBmpCount = result.Content.Length - result.Content.EnumerateRunes().Count();
-            if (nonBmpCount > 0)
-                _logger.LogWarning(
-                    "'{Blob}' contains {Count} non-BMP character(s) (UTF-16 surrogate pairs) in its analyzed content.",
-                    blobName, nonBmpCount);
+            if (nonBmpCount <= 0) return [];
+
+            _logger.LogWarning(
+                "'{Blob}' contains {Count} non-BMP character(s) (UTF-16 surrogate pairs) in its analyzed content.",
+                blobName, nonBmpCount);
+
+            return [new AnalysisWarning(
+                "NonBmpCharacters",
+                $"Content contains {nonBmpCount} non-BMP character(s) (UTF-16 surrogate pairs).",
+                null)];
         }
 
         // Returns one PdfPageRecord per PDF page, sliced directly from analysis.Content
