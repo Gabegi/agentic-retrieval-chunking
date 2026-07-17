@@ -12,7 +12,7 @@ namespace ProtocolsIndexer.Services;
 // opens and validates it, then PdfNativeMetadataExtractor.ExtractPdfNativeMetadata takes
 // over that lifetime - it reads native metadata/bookmarks off the PdfDocument and disposes it
 // before returning, so nothing here needs its own `using` block. The resulting
-// DocMetadata is handed to PDFDocumentAnalyzer.AnalyzeDocumentAsync, which does
+// DocMetadata is handed to PdfDocumentAnalyzer.AnalyzeDocumentAsync, which does
 // the paid call, markdown page assembly, and structural extraction from there.
 // This class is the assembler: it combines what each of the three steps produced into
 // one PDFExtractionResult - the complete record of everything the pipeline learned about
@@ -40,7 +40,10 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             return new PDFExtractionResult(false, blobName, fileSizeBytes, null, null, null, null, null, null, validationError);
 
         // Captured before Step 2 disposes pdf - PdfPig's own PDF spec version (e.g. 1.7),
-        // otherwise only ever logged and then lost.
+        // otherwise only ever logged and then lost. Technically outside any try/finally
+        // (Step 2's `using (pdf)` doesn't start until the next line), so a throw here would
+        // leak pdf - accepted, since Version is a stored-value property read, not a
+        // realistic throw site.
         var pdfSpecVersion = (double?)pdf.Version;
 
         // Step 2: ParseNativeMetadata takes ownership of pdf's lifetime (disposes it internally)
@@ -49,7 +52,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         var nativeMetadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(pdf, blobName, _logger);
 
         // Step 3: submit to Document Intelligence's prebuilt-layout model and assemble
-        // pages/structural data — lives in PDFDocumentAnalyzer.
+        // pages/structural data — lives in PdfDocumentAnalyzer.
         var structureResult = await _structureExtractor.AnalyzeDocumentAsync(pdfBytes, blobName, nativeMetadata, ct);
         if (!structureResult.Ok)
             return new PDFExtractionResult(false, blobName, fileSizeBytes, pdfSpecVersion, nativeMetadata, null, null, null, null, structureResult.Error);
@@ -66,7 +69,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             EstimatedCostUsd: structureResult.EstimatedCostUsd,
             Error:            null)
         {
-            // Without this, every AnalysisWarning PDFDocumentAnalyzer produces (DI's own
+            // Without this, every AnalysisWarning PdfDocumentAnalyzer produces (DI's own
             // top-level warnings, the non-BMP character check) would reach this far and
             // then be silently dropped instead of flowing into the same
             // PdfPipelineValidator -> PdfValidationReport.Issues path every other
@@ -74,7 +77,7 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             Warnings = structureResult.Warnings.Select(w => ToExtractionWarning(w, blobName)).ToList(),
 
             // Bookmarks are PdfPig-derived (NativeMetadata), not DI-derived, so this is
-            // computed here rather than inside PDFDocumentAnalyzer/PdfDocumentStructure,
+            // computed here rather than inside PdfDocumentAnalyzer/PdfDocumentStructure,
             // which is scoped to what DI itself produces.
             SectionBreadcrumbs = PdfSectionBreadCrumbBuilder.BuildSectionBreadcrumbs(nativeMetadata.Bookmarks, nativeMetadata.PageCount),
         };

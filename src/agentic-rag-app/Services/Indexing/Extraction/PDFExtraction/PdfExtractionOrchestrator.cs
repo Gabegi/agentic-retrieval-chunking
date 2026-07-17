@@ -38,8 +38,14 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     private const string ReportFolder = "indexing/pdf-extraction";
 
     // See CsvExtractionOrchestrator.MaxLoggedIssues — same rationale (log volume/cost cap,
-    // separate from the Take(100) on the *returned* issues list for Durable's row-size limit).
+    // separate from MaxReturnedIssues below, which caps the *returned* issues list for
+    // Durable's row-size limit).
     private const int MaxLoggedIssues = 100;
+
+    // Cap on ExtractionOutput.Issues to stay safely under Durable Table Storage's 64KB
+    // row-size limit — a different constraint from MaxLoggedIssues above, which just caps
+    // log volume/cost. Coincidentally the same number today; not the same knob.
+    private const int MaxReturnedIssues = 100;
 
     private sealed record RunState(int CleanedRecords);
 
@@ -114,7 +120,23 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         {
             if (!item.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
 
-            lastModified[item.Name] = item.Properties.LastModified ?? DateTimeOffset.UtcNow;
+            // DateTimeOffset.UtcNow as a fallback would self-perpetuate: a null-LastModified
+            // blob would get a fresh "modified" date every single run, which always reads as
+            // newer than whatever got stored as its indexed date last time, so
+            // ExtractionService's diff would treat it as "updated" and reprocess it forever.
+            // DateTimeOffset.MinValue is stable across runs instead - once indexed, it never
+            // again looks newer than its own indexed date, so it stops churning.
+            if (item.Properties.LastModified is { } modified)
+            {
+                lastModified[item.Name] = modified;
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "'{Blob}' has no LastModified from blob storage — treating as never-modified so it isn't reprocessed every run.",
+                    item.Name);
+                lastModified[item.Name] = DateTimeOffset.MinValue;
+            }
 
             using var ms = new MemoryStream();
             await _container.GetBlobClient(item.Name).DownloadToAsync(ms, ct);
@@ -125,8 +147,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             // independent of blob name, so a byte-identical re-upload is detectable before
             // paying for extraction again. Not yet compared against anything (no store of
             // previously-seen hashes exists) - logged for now so the value is at least
-            // visible while that dedup check gets built.
-            _logger.LogDebug("'{Blob}' content hash: {Hash}", item.Name, ComputeContentHash(pdfBytes));
+            // visible while that dedup check gets built. Gated on IsEnabled so SHA-256 isn't
+            // computed on every blob, every run, when Debug logging is off (the normal case).
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug("'{Blob}' content hash: {Hash}", item.Name, ComputeContentHash(pdfBytes));
 
             try
             {
@@ -191,7 +215,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             .ToList();
 
         var issues = report.Issues
-            .Take(100)  // cap to stay safely under Durable Table Storage 64KB limit
+            .Take(MaxReturnedIssues)
             .Select(i => new ValidationIssueEntry(i.Stage, i.Severity, i.DocumentId, i.Message))
             .ToList();
 
