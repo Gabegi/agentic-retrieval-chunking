@@ -80,13 +80,15 @@ namespace ProtocolsIndexer.Models
     //   not duplicated in here.
     public sealed record PdfDocumentStructure(
         IReadOnlyList<Heading> Headings,               // title / sectionHeading roles only
-        IReadOnlyList<Heading> Boilerplate,             // pageHeader / pageFooter / footnote roles
+        IReadOnlyList<Heading> Boilerplate,             // pageHeader / pageFooter / footnote / pageNumber roles
         IReadOnlyList<TableInfo> Tables,
         IReadOnlyList<PageDimensions> PageDimensions,
         IReadOnlyList<SelectionMarkInfo> SelectionMarks,
         IReadOnlyList<FigureInfo> Figures,
         IReadOnlyList<HandwrittenSpan> HandwrittenSpans,
-        IReadOnlyList<LineInfo> Lines);
+        IReadOnlyList<LineInfo> Lines,
+        IReadOnlyList<SectionInfo> Sections,
+        IReadOnlyList<PageQuality> PageQuality);
 
     // Result of calling the (paid) Document Intelligence analyze API once:
     // - Ok = true  -> Result contains a successful, non-empty analysis (at least one page -
