@@ -368,14 +368,23 @@ namespace ProtocolsIndexer.Services
         //   bookmark breadcrumbs, cross-page heading carry-forward, noise-comment
         //   stripping (PageHeader/PageFooter/PageNumber/FigureContent), setext-title
         //   normalization, or repairing a <table> that DI split across two pages' Spans.
-        public IReadOnlyList<PdfPageRecord> GetPages(AnalyzeResult result, string blobName, string title) =>
+        private IReadOnlyList<PdfPageRecord> GetPages(AnalyzeResult result, string blobName, string title) =>
             result.Pages
-                .Select(p => new PdfPageRecord
+                .Select(p =>
                 {
-                    BlobName    = blobName,
-                    PageIndex   = p.PageNumber,
-                    PageContent = SliceBySpans(result.Content, p.Spans),
-                    Title       = title,
+                    var content = SliceBySpans(result.Content, p.Spans);
+                    if (content.Length == 0)
+                        _logger.LogWarning(
+                            "'{Blob}' page {Page} has no content (no Spans) - an empty page could reach the index unnoticed.",
+                            blobName, p.PageNumber);
+
+                    return new PdfPageRecord
+                    {
+                        BlobName    = blobName,
+                        PageIndex   = p.PageNumber,
+                        PageContent = content,
+                        Title       = title,
+                    };
                 })
                 .ToList();
 
