@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Text.RegularExpressions;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
@@ -60,9 +61,9 @@ namespace ProtocolsIndexer.Services
             if (!TryValidateAnalyzeOutcome(analyzeResults, blobName, out var analysis, out var error))
                 return new PDFStructureExtractorResult(false, null, null, null, null, error);
 
-            // Reused below for EstimatedCostUsd - same count as analysis.Pages, but
-            // already non-null, so no null-forgiving operator needed.
-            var pages = GetPages(analysis, blobName, GetTitle(nativeMetadata, blobName));
+            // pages.Count reused below for EstimatedCostUsd - same count as analysis.Pages,
+            // but already non-null, so no null-forgiving operator needed.
+            var (pages, pageWarnings) = GetPages(analysis, blobName, GetTitle(nativeMetadata, blobName));
 
             return new PDFStructureExtractorResult(
                 true,
@@ -80,9 +81,9 @@ namespace ProtocolsIndexer.Services
                 GetPageQuality(analysis)),
                 pages.Count * CostPerPage, null)
             {
-                // Merges DI's own warnings with whatever the analyze call flagged (e.g.
-                // non-BMP characters) into one list, regardless of which stage produced them.
-                Warnings = analyzeResults.Warnings.Concat(GetWarnings(analysis)).ToList(),
+                // Merges warnings from every stage (DI's own, non-BMP check, per-page
+                // table-balance check) into one list, regardless of which stage found them.
+                Warnings = analyzeResults.Warnings.Concat(GetWarnings(analysis)).Concat(pageWarnings).ToList(),
             };
         }
 
@@ -115,9 +116,9 @@ namespace ProtocolsIndexer.Services
         {
             _logger.LogInformation("Submitting '{Blob}' to Document Intelligence.", blobName);
 
-            // Markdown output (vs. DI's default plain text) is what lets
-            // PDFMarkdownExtractor split on DI's own page/table/heading structure instead
-            // of re-deriving it from paragraph roles and span offsets.
+            // Markdown output (vs. DI's default plain text): renders tables as HTML
+            // <table> elements with real rowspan/colspan (GetTables relies on this) and
+            // keeps RawContent in the format downstream chunking is meant to consume.
             var analyzeOptions = new AnalyzeDocumentOptions("prebuilt-layout", BinaryData.FromBytes(pdfBytes))
             {
                 OutputContentFormat = DocumentContentFormat.Markdown,
