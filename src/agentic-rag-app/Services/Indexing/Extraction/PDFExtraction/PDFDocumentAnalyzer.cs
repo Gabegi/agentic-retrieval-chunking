@@ -12,7 +12,7 @@ namespace ProtocolsIndexer.Services
     // - Extracts every DI structural feature (headings, boilerplate, tables, page
     //   dimensions, selection marks, figures, handwritten spans, lines) into
     //   PdfDocumentStructure, maximizing what this extraction step captures.
-    public sealed class PDFStructureExtractor
+    public sealed class PDFDocumentAnalyzer
     {
         // Cost per page for Azure's "prebuilt-layout" model:
         // - Priced at $10 per 1,000 pages, i.e. $0.01/page, as of when this was written.
@@ -27,7 +27,7 @@ namespace ProtocolsIndexer.Services
         private readonly DocumentIntelligenceClient _diClient;
         private readonly ILogger _logger;
 
-        public PDFStructureExtractor(DocumentIntelligenceClient diClient, ILogger<PDFStructureExtractor> logger)
+        public PDFDocumentAnalyzer(DocumentIntelligenceClient diClient, ILogger<PDFDocumentAnalyzer> logger)
         {
             _diClient = diClient;
             _logger = logger;
