@@ -23,6 +23,10 @@ namespace ProtocolsIndexer.Models
     //   It can't be used for ordering, because two on the same page look identical by page number.
     public sealed record Heading(string Content, string Role, int? Offset, int PageNumber);
 
+    // Paired with LineInfo for a future highlight-on-source feature (out of the embedding
+    // path, in the RAG system): DI's polygons are in page units (inches, for PDFs), so
+    // rendering an overlay box means normalizing LineInfo.Polygon against this page's
+    // Width/Height first - a raw polygon alone isn't renderable without it.
     public sealed record PageDimensions(int PageNumber, double? Width, double? Height, string Unit);
 
     // RowSpan/ColumnSpan are null for a regular single-cell entry and only set on a cell
