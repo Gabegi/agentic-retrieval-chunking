@@ -10,10 +10,10 @@ public class PdfPipelineValidatorTests
     private static PdfCleaner           BuildCleaner()   => new();
     private static PdfPipelineValidator BuildValidator() => new();
 
-    private static PdfPageRecord Page(string blobName, string content, string title = "Title") => new()
+    private static PdfPageRecord Page(string blobName, string content, int pageIndex = 0, string title = "Title") => new()
     {
         BlobName    = blobName,
-        PageIndex   = 0,
+        PageIndex   = pageIndex,
         PageContent = content,
         Title       = title,
     };
@@ -25,35 +25,42 @@ public class PdfPipelineValidatorTests
         PageDimensions: [],
         SelectionMarks: [],
         Figures: [],
-        HandwrittenSpans: [],
-        Lines: []);
+        Lines: [],
+        Sections: [],
+        PageQuality: []);
 
-    // Builds a clean, all-good pipeline: one page, cleaned, no errors anywhere - the
-    // baseline every test below perturbs one piece of.
-    private static (ExtractionResult<PdfPageRecord> Pages, PdfCleanResult Clean) HappyPath()
-    {
-        var fileExtraction = new PDFExtractionResult(
+    // One file's worth of PDFExtractionResult, carrying whatever pages/structure the
+    // test needs - the validator flattens this (and any other files) internally now,
+    // so this is the only fixture shape tests build.
+    private static PDFExtractionResult FileResult(
+        string blobName, IReadOnlyList<PdfPageRecord> pages, PdfDocumentStructure? structure = null) => new(
             Ok:               true,
-            BlobName:         "doc1.pdf",
+            BlobName:         blobName,
             FileSizeBytes:    1024,
             PdfSpecVersion:   1.7,
             NativeMetadata:   null,
-            RawContent:       "## Heading\nSome markdown content",
-            Pages:            [new PdfPageRecord { BlobName = "doc1.pdf", PageIndex = 0, PageContent = "## Heading\nSome markdown content", Title = "Title" }],
-            Structure:        null,
-            EstimatedCostUsd: 0.01m,
+            RawContent:       null,
+            Pages:            pages,
+            Structure:        structure,
+            EstimatedCostUsd: null,
             Error:            null);
-        var pages = PdfExtractionAggregation.Aggregate([fileExtraction]);
-        var clean = BuildCleaner().Clean(pages.Records);
-        return (pages, clean);
+
+    // Builds a clean, all-good pipeline: one page, cleaned, no errors anywhere - the
+    // baseline every test below perturbs one piece of.
+    private static (IReadOnlyList<PDFExtractionResult> FileResults, PdfCleanResult Clean) HappyPath()
+    {
+        var page        = Page("doc1.pdf", "## Heading\nSome markdown content");
+        var fileResults = new[] { FileResult("doc1.pdf", [page]) };
+        var clean       = BuildCleaner().Clean([page]);
+        return (fileResults, clean);
     }
 
     [TestMethod]
     public void HappyPath_Passes()
     {
-        var (pages, clean) = HappyPath();
+        var (fileResults, clean) = HappyPath();
 
-        var report = BuildValidator().Validate(pages, clean);
+        var report = BuildValidator().Validate(fileResults, clean);
 
         Assert.IsTrue(report.Passed);
         Assert.AreEqual(0, report.ReconciliationProblems.Count);
@@ -62,10 +69,9 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void NoInputAtAll_FailsRatherThanPassingVacuously()
     {
-        var pages = new ExtractionResult<PdfPageRecord>();
-        var clean = BuildCleaner().Clean(pages.Records);
+        var clean = BuildCleaner().Clean([]);
 
-        var report = BuildValidator().Validate(pages, clean);
+        var report = BuildValidator().Validate([], clean);
 
         // totalAttempted == 0 forces errorRate to 100, so an empty run never passes silently.
         Assert.IsFalse(report.Passed);
@@ -74,10 +80,10 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void ContentWithoutHeadings_NeedsFallbackChunking()
     {
-        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Plain text, no headings at all.")]);
-        var pages = new ExtractionResult<PdfPageRecord>();
+        var page  = Page("doc1.pdf", "Plain text, no headings at all.");
+        var clean = BuildCleaner().Clean([page]);
 
-        var report = BuildValidator().Validate(pages, clean);
+        var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
         CollectionAssert.Contains(report.DocumentsNeedingFallbackChunking.ToList(), "doc1.pdf");
     }
@@ -85,10 +91,10 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void ContentWithMarkdownHeading_DoesNotNeedFallbackChunking()
     {
-        var clean = BuildCleaner().Clean([Page("doc1.pdf", "## Heading\nSome content under it.")]);
-        var pages = new ExtractionResult<PdfPageRecord>();
+        var page  = Page("doc1.pdf", "## Heading\nSome content under it.");
+        var clean = BuildCleaner().Clean([page]);
 
-        var report = BuildValidator().Validate(pages, clean);
+        var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
         CollectionAssert.DoesNotContain(report.DocumentsNeedingFallbackChunking.ToList(), "doc1.pdf");
     }
@@ -96,10 +102,10 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void ReplacementCharacterInContent_IsTextQualityError()
     {
-        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Corrupted � text")]);
-        var pages = new ExtractionResult<PdfPageRecord>();
+        var page  = Page("doc1.pdf", "Corrupted � text");
+        var clean = BuildCleaner().Clean([page]);
 
-        var report = BuildValidator().Validate(pages, clean);
+        var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
         Assert.IsTrue(report.Issues.Any(i => i.Stage == "TextQuality" && i.Severity == "Error"));
         Assert.IsFalse(report.Passed);
@@ -111,10 +117,10 @@ public class PdfPipelineValidatorTests
         // Simulates a table collapsed into run-on prose: the same 3-word phrase repeats
         // across what used to be distinct rows.
         var content = string.Join(" ", Enumerable.Repeat("Naam Bond Waarde", 5));
-        var clean   = BuildCleaner().Clean([Page("doc1.pdf", content)]);
-        var pages   = new ExtractionResult<PdfPageRecord>();
+        var page    = Page("doc1.pdf", content);
+        var clean   = BuildCleaner().Clean([page]);
 
-        var report = BuildValidator().Validate(pages, clean);
+        var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
         Assert.IsTrue(report.Issues.Any(i => i.Stage == "TableFlattening"));
     }
@@ -122,10 +128,10 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void MagnitudeShiftBeyondThreshold_FailsButPassedExcludingMagnitudeIsTrue()
     {
-        var (pages, clean) = HappyPath(); // 1 cleaned record
+        var (fileResults, clean) = HappyPath(); // 1 cleaned record
 
         // Previous run had 100 - a drop to 1 is a -99% shift, way past the 20% threshold.
-        var report = BuildValidator().Validate(pages, clean, previousRunCleanedCount: 100);
+        var report = BuildValidator().Validate(fileResults, clean, previousRunCleanedCount: 100);
 
         Assert.IsFalse(report.Passed);
         Assert.IsTrue(report.PassedExcludingMagnitude);
@@ -135,9 +141,9 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void MagnitudeShiftWithinThreshold_Passes()
     {
-        var (pages, clean) = HappyPath(); // 1 cleaned record
+        var (fileResults, clean) = HappyPath(); // 1 cleaned record
 
-        var report = BuildValidator().Validate(pages, clean, previousRunCleanedCount: 1);
+        var report = BuildValidator().Validate(fileResults, clean, previousRunCleanedCount: 1);
 
         Assert.IsTrue(report.Passed);
         Assert.AreEqual(0, report.MagnitudeWarnings.Count);
@@ -146,9 +152,9 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void NoPreviousRunCount_SkipsMagnitudeCheck()
     {
-        var (pages, clean) = HappyPath();
+        var (fileResults, clean) = HappyPath();
 
-        var report = BuildValidator().Validate(pages, clean, previousRunCleanedCount: null);
+        var report = BuildValidator().Validate(fileResults, clean, previousRunCleanedCount: null);
 
         Assert.AreEqual(0, report.MagnitudeWarnings.Count);
     }
@@ -156,10 +162,9 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void ZeroCleanedRecords_FailsEvenWithNoOtherErrors()
     {
-        var pages = new ExtractionResult<PdfPageRecord>();
         var clean = new PdfCleanResult();
 
-        var report = BuildValidator().Validate(pages, clean);
+        var report = BuildValidator().Validate([], clean);
 
         Assert.IsFalse(report.Passed);
         Assert.IsTrue(report.ReconciliationProblems.Any(p => p.Contains("Zero cleaned records")));
@@ -168,16 +173,13 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void DetectedTableCount_SumsRealTableDataAcrossFiles()
     {
-        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Some content")]);
-        var pages = new ExtractionResult<PdfPageRecord>();
-        var structures = new Dictionary<string, PdfDocumentStructure>
-        {
-            ["doc1.pdf"] = Structure(
-                new TableInfo(2, 3, [new TableCellInfo(0, 0, "content", "a")], Offset: 0, PageNumber: 1),
-                new TableInfo(1, 1, [new TableCellInfo(0, 0, "content", "b")], Offset: 10, PageNumber: 1)),
-        };
+        var page  = Page("doc1.pdf", "Some content");
+        var clean = BuildCleaner().Clean([page]);
+        var structure = Structure(
+            new TableInfo(2, 3, [new TableCellInfo(0, 0, "content", "a", null, null)], Offset: 0, PageNumber: 1),
+            new TableInfo(1, 1, [new TableCellInfo(0, 0, "content", "b", null, null)], Offset: 10, PageNumber: 1));
 
-        var report = BuildValidator().Validate(pages, clean, structures: structures);
+        var report = BuildValidator().Validate([FileResult("doc1.pdf", [page], structure)], clean);
 
         Assert.AreEqual(2, report.DetectedTableCount);
     }
@@ -185,14 +187,11 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void MalformedTable_ZeroRowsOrColumns_IsFlaggedAsWarning()
     {
-        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Some content")]);
-        var pages = new ExtractionResult<PdfPageRecord>();
-        var structures = new Dictionary<string, PdfDocumentStructure>
-        {
-            ["doc1.pdf"] = Structure(new TableInfo(0, 0, [], Offset: 0, PageNumber: 1)),
-        };
+        var page  = Page("doc1.pdf", "Some content");
+        var clean = BuildCleaner().Clean([page]);
+        var structure = Structure(new TableInfo(0, 0, [], Offset: 0, PageNumber: 1));
 
-        var report = BuildValidator().Validate(pages, clean, structures: structures);
+        var report = BuildValidator().Validate([FileResult("doc1.pdf", [page], structure)], clean);
 
         Assert.IsTrue(report.Issues.Any(i =>
             i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("malformed")));
@@ -201,14 +200,11 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void TableWithNoCellData_IsFlaggedAsWarning()
     {
-        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Some content")]);
-        var pages = new ExtractionResult<PdfPageRecord>();
-        var structures = new Dictionary<string, PdfDocumentStructure>
-        {
-            ["doc1.pdf"] = Structure(new TableInfo(2, 2, [], Offset: 0, PageNumber: 1)),
-        };
+        var page  = Page("doc1.pdf", "Some content");
+        var clean = BuildCleaner().Clean([page]);
+        var structure = Structure(new TableInfo(2, 2, [], Offset: 0, PageNumber: 1));
 
-        var report = BuildValidator().Validate(pages, clean, structures: structures);
+        var report = BuildValidator().Validate([FileResult("doc1.pdf", [page], structure)], clean);
 
         Assert.IsTrue(report.Issues.Any(i =>
             i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("no cell data")));
@@ -217,12 +213,37 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void NoStructuresProvided_DetectedTableCountIsZeroAndNoQualityIssues()
     {
-        var clean = BuildCleaner().Clean([Page("doc1.pdf", "Some content")]);
-        var pages = new ExtractionResult<PdfPageRecord>();
+        var page  = Page("doc1.pdf", "Some content");
+        var clean = BuildCleaner().Clean([page]);
 
-        var report = BuildValidator().Validate(pages, clean);
+        var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
         Assert.AreEqual(0, report.DetectedTableCount);
         Assert.IsFalse(report.Issues.Any(i => i.Stage == "TextQuality"));
+    }
+
+    [TestMethod]
+    public void DuplicatePageFromExtractor_FailsViaReconciliation_NotErrorRate()
+    {
+        // Two distinct pages plus one deliberate duplicate of page 0 - modeling the
+        // extractor reporting the same (BlobName, PageIndex) twice, since PdfCleaner no
+        // longer dedupes at all. Neither page trips any Issue-level check, so the
+        // error-rate gate alone would pass this run; only the reconciliation check
+        // (unconditional, no rate threshold) should fail it - proving the
+        // previously-dormant duplicate-key check actually activates now that PdfCleaner
+        // isn't silently absorbing the duplicate before validation ever sees it.
+        var page0    = Page("doc1.pdf", "## Heading\nPage zero content.",       pageIndex: 0);
+        var page0Dup = Page("doc1.pdf", "## Heading\nPage zero content again.", pageIndex: 0);
+        var page1    = Page("doc1.pdf", "## Heading\nPage one content.",        pageIndex: 1);
+
+        var allPages    = new[] { page0, page0Dup, page1 };
+        var fileResults = new[] { FileResult("doc1.pdf", allPages) };
+        var clean        = BuildCleaner().Clean(allPages);
+
+        var report = BuildValidator().Validate(fileResults, clean);
+
+        Assert.AreEqual(0, report.Issues.Count(i => i.Severity == "Error")); // error-rate alone would pass
+        Assert.IsTrue(report.ReconciliationProblems.Count > 0);
+        Assert.IsFalse(report.Passed);
     }
 }
