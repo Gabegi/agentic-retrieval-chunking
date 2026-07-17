@@ -29,9 +29,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         IReadOnlyList<PdfExtractionDiagnostics>?   diagnostics = null)
     {
         var pagesExtraction = Aggregate(fileResults);
-        var structures = fileResults
-            .Where(f => f.Structure != null)
-            .ToDictionary(f => f.BlobName, f => f.Structure!, StringComparer.OrdinalIgnoreCase);
+        var (structures, structureCollisions) = BuildStructureLookup(fileResults);
 
         var redFlags = new List<string>();
 
@@ -40,6 +38,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
         // 2. Check whether extraction page numbers reconcile through clean.
         var reconciliation = CheckExtractVsCleanCount(pagesExtraction, cleanResult);
+        reconciliation.AddRange(structureCollisions);
 
         // 3. Magnitude shift vs a previous run, if supplied.
         var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
