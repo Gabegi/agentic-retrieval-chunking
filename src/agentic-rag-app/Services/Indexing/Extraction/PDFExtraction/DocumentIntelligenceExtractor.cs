@@ -69,8 +69,8 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             // Without this, every AnalysisWarning PDFDocumentAnalyzer produces (DI's own
             // top-level warnings, the non-BMP character check) would reach this far and
             // then be silently dropped instead of flowing into the same
-            // PdfExtractionAggregation -> PdfPipelineValidator -> PdfValidationReport.Issues
-            // path every other extraction warning already uses.
+            // PdfPipelineValidator -> PdfValidationReport.Issues path every other
+            // extraction warning already uses.
             Warnings = structureResult.Warnings.Select(w => ToExtractionWarning(w, blobName)).ToList(),
 
             // Bookmarks are PdfPig-derived (NativeMetadata), not DI-derived, so this is

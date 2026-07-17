@@ -26,6 +26,10 @@ public record PDFExtractionResult(
 
     // Step 3: PDFDocumentAnalyzer - the paid Document Intelligence call.
     string?                       RawContent,       // analysis.Content, unsplit, before per-page assembly
+    // Raw extractor output - mojibake, blank-line noise, etc. not yet repaired. Never
+    // consume this for content; go through PdfCleanResult (PdfPipelineValidator.Aggregate
+    // -> PdfCleaner.Clean) instead, so the extract-vs-clean reconciliation check stays a
+    // real comparison of two independent states, not the same data read twice.
     IReadOnlyList<PdfPageRecord>? Pages,
     PdfDocumentStructure?         Structure,
     decimal?                      EstimatedCostUsd,
@@ -34,7 +38,7 @@ public record PDFExtractionResult(
 {
     // Per-page failures/soft-quality signals that don't fail the whole file (e.g. one
     // unreadable page, a likely-scanned page). Folded into the aggregate ExtractionResult
-    // by PdfExtractionAggregation, same bucket a file-level Error would land in.
+    // by PdfPipelineValidator, same bucket a file-level Error would land in.
     public IReadOnlyList<ExtractionError>   PageErrors  { get; init; } = [];
     public IReadOnlyList<ExtractionWarning> Warnings    { get; init; } = [];
 
