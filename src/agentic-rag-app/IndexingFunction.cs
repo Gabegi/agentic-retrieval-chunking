@@ -158,13 +158,16 @@ public class IndexingFunction
         try
         {
             var chunks = await ReadBlobAsync<List<ProtocolDocument>>(req.ChunksBlob, context.CancellationToken);
+            LogProcessMemory("chunks loaded", chunks.Count);
 
             var sw              = System.Diagnostics.Stopwatch.StartNew();
             var embeddingResult = await _embeddingService.EmbedDocumentsAsync(chunks, context.CancellationToken);
             sw.Stop();
+            LogProcessMemory("embedding complete", chunks.Count);
 
             var uploadResult = await _uploadService.UploadDocumentsAsync(
                 embeddingResult.Documents, req.StaleDocumentIds, context.CancellationToken);
+            LogProcessMemory("upload complete", chunks.Count);
 
             await DeleteBlobAsync(req.ChunksBlob, context.CancellationToken);
 
@@ -237,13 +240,13 @@ public class IndexingFunction
             ValidationErrors:        ext?.ValidationErrors        ?? 0,
             ValidationWarnings:      ext?.ValidationWarnings      ?? 0,
             ReconciliationProblems:  ext?.ReconciliationProblems  ?? 0,
-            StaleDocCount:           ext?.StaleDocCount           ?? 0,
+            StaleDocCount:           ext?.StaleDocCount,
             MojibakeRepairedPages:   ext?.MojibakeRepairedPages   ?? 0,
             DetectedTableCount:      ext?.DetectedTableCount      ?? 0,
             DocsWithoutHeadings:     ext?.DocsWithoutHeadings     ?? 0,
             MissingTitleCount:       ext?.MissingTitleCount       ?? 0,
-            MissingVersionCount:     ext?.MissingVersionCount     ?? 0,
-            MissingDepartmentCount:  ext?.MissingDepartmentCount  ?? 0,
+            MissingVersionCount:     ext?.MissingVersionCount,
+            MissingDepartmentCount:  ext?.MissingDepartmentCount,
             ChunksProduced:          chunk?.ChunksProduced        ?? 0,
             DocsWithZeroChunks:      chunk?.DocsWithZeroChunks    ?? 0,
             DuplicateChunks:         chunk?.DuplicateChunks       ?? 0,
@@ -285,6 +288,16 @@ public class IndexingFunction
 
     private Task DeleteBlobAsync(string blobPath, CancellationToken ct) =>
         _pipelineContainer.GetBlobClient(blobPath).DeleteIfExistsAsync(cancellationToken: ct);
+
+    // WorkingSet is the whole process's OS-level footprint (managed heap + native +
+    // embedding vector arrays) - what actually counts against the EP1 plan's 3.5GB
+    // ceiling. GC.GetTotalMemory is logged alongside it only to show how much of that
+    // is the managed heap specifically, e.g. to tell "vectors held in memory" apart
+    // from "native/runtime overhead" if the working set number looks high.
+    private void LogProcessMemory(string stage, int chunkCount) =>
+        _logger.LogInformation(
+            "Memory @ {Stage} — {Chunks} chunks, working set {WorkingSetMb} MB, managed heap {HeapMb} MB",
+            stage, chunkCount, Environment.WorkingSet / 1024 / 1024, GC.GetTotalMemory(false) / 1024 / 1024);
 }
 
 public record IndexRequest(bool ForceReindex, bool OverrideMagnitudeCheck = false);

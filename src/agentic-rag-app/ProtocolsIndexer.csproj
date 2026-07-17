@@ -36,11 +36,10 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Retired PdfPig/joiner-based PDF pipeline, superseded by Document Intelligence +
-         PDFStructureExtractor. Kept on disk under old/ instead of deleted, but excluded
+         PdfDocumentAnalyzer. Kept on disk under old/ instead of deleted, but excluded
          from compilation since it targets interface shapes (IPdfJoiner, the pre-PDFExtractionResult
-         IPdfExtractor contract) that no longer exist. old/PdfCleaner.cs and
-         old/PdfExtractionAggregation.cs are NOT excluded here — those were ported forward
-         and are still actively wired into PdfExtractionOrchestrator. -->
+         IPdfExtractor contract) that no longer exist. old/PdfCleaner.cs is NOT excluded here —
+         it was ported forward and is still actively wired into PdfExtractionOrchestrator. -->
     <Compile Remove="Services\Indexing\Extraction\PDFExtraction\old\Comparison\**\*.cs" />
     <Compile Remove="Services\Indexing\Extraction\PDFExtraction\old\Interfaces\**\*.cs" />
     <Compile Remove="Services\Indexing\Extraction\PDFExtraction\old\Models\**\*.cs" />

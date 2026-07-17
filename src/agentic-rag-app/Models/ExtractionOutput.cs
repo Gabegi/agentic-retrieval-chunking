@@ -5,13 +5,13 @@ public record ExtractionOutput(
     int                                ValidationErrors,
     int                                ValidationWarnings,
     int                                ReconciliationProblems,
-    int                                StaleDocCount,
+    int?                               StaleDocCount,          // null = source has no equivalent concept, not "verified zero"
     int                                MojibakeRepairedPages,
     int                                DetectedTableCount,
     int                                DocsWithoutHeadings,
     int                                MissingTitleCount,
-    int                                MissingVersionCount,
-    int                                MissingDepartmentCount,
+    int?                               MissingVersionCount,    // null = source has no equivalent concept, not "verified zero"
+    int?                               MissingDepartmentCount, // null = source has no equivalent concept, not "verified zero"
     IReadOnlyList<ValidationIssueEntry> Issues,
     IReadOnlyList<string>              RedFlags,
     IReadOnlyList<SpotCheckEntry>      SpotCheckSample

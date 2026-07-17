@@ -43,8 +43,9 @@ public record IndexRunReport(
     int ReconciliationProblems,
 
     // Quality signal: StaleDocCount > 0 means live guidance past its review date is in the index.
-    // Retrieval will surface it as if it were current — flag to content owners.
-    int StaleDocCount,
+    // Retrieval will surface it as if it were current — flag to content owners. Null (not 0)
+    // means the source has no equivalent attention-flag concept (e.g. PDF).
+    int? StaleDocCount,
 
     // Quality signal: pages where known mojibake patterns were auto-repaired. Non-zero is
     // expected on Dutch text with accented characters — watch for a run-over-run jump, not
@@ -64,8 +65,10 @@ public record IndexRunReport(
     // Quality signal: MissingTitle is the most damaging. The title is prepended to every chunk
     // and is the primary BM25 signal in retrieval. Zero is ideal; investigate any non-zero count.
     int MissingTitleCount,
-    int MissingVersionCount,
-    int MissingDepartmentCount,
+    // Null (not 0) means the source has no equivalent concept (e.g. no Version/department
+    // data for PDFs) — distinct from "verified zero missing."
+    int? MissingVersionCount,
+    int? MissingDepartmentCount,
 
     // ── Chunking ─────────────────────────────────────────────────────────────
 

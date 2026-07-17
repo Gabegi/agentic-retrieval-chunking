@@ -1,3 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Text.RegularExpressions;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
@@ -5,68 +8,67 @@ using ProtocolsIndexer.Models;
 
 namespace ProtocolsIndexer.Services
 {
-    // Handles everything Document Intelligence (DI) needs to do with one PDF, except for
-    // preflight checks and PdfPig-native reads. Specifically, this class:
-    // - Makes the one paid "analyze" call to DI, retrying automatically if throttled (429).
-    // - Assembles the DI response into markdown-formatted pages.
+    // Handles everything Document Intelligence (DI) needs for one PDF, except preflight
+    // checks and PdfPig-native reads:
+    // - Makes the one paid analyze call, polling for completion itself and retrying only
+    //   the status poll on 429 - never resubmitting the paid request.
+    // - Validates the response (markdown format, non-empty) before trusting any offset in it.
     // - Extracts every DI structural feature (headings, boilerplate, tables, page
-    //   dimensions, selection marks, figures, handwritten spans, lines) into
-    //   PdfDocumentStructure, maximizing what this extraction step captures.
-    public sealed class PDFDocumentAnalyzer
+    //   dimensions, selection marks, figures, sections, page quality, lines) into
+    //   PdfDocumentStructure.
+    // - Surfaces DI's own warnings plus whatever this class flags along the way.
+    public sealed class PdfDocumentAnalyzer
     {
-        // Cost per page for Azure's "prebuilt-layout" model:
-        // - Priced at $10 per 1,000 pages, i.e. $0.01/page, as of when this was written.
-        // - Check current Azure pricing before trusting any cost estimate based on this constant.
+        // Azure "prebuilt-layout" pricing: $10 / 1,000 pages = $0.01/page (at time of
+        // writing). Verify current pricing before trusting any cost estimate based on this.
         private const decimal CostPerPage = 0.01m;
 
+        // Backoff schedule after a 429, Microsoft's recommended values.
         private static readonly TimeSpan[] BackoffDelays =
         {
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(13), TimeSpan.FromSeconds(34)
         };
 
+        // Ordinary (non-throttled) interval between status-poll GETs - unrelated to
+        // BackoffDelays, which only applies after a 429.
+        private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(2);
+
         private readonly DocumentIntelligenceClient _diClient;
         private readonly ILogger _logger;
 
-        public PDFDocumentAnalyzer(DocumentIntelligenceClient diClient, ILogger<PDFDocumentAnalyzer> logger)
+        public PdfDocumentAnalyzer(DocumentIntelligenceClient diClient, ILogger<PdfDocumentAnalyzer> logger)
         {
             _diClient = diClient;
             _logger = logger;
         }
 
-        // Main entry point, called once preflight/native-metadata reading has already happened.
-        // Expects the caller (DocumentIntelligenceExtractor) to have already:
+        // Main entry point - called after preflight/native-metadata have already run.
+        // Expects the caller to have already:
         // - Validated the PDF (PdfDocumentValidator.IsPDFValid).
-        // - Read nativeMetadata/bookmarks via PdfNativeMetadataExtractor.ExtractPdfNativeMetadata and
-        //   closed the PdfDocument - this method receives only the resulting data, never
-        //   the PdfDocument object itself.
-        // Steps performed here:
-        // 1. Submit the PDF to Document Intelligence for analysis.
-        // 2. If that call fails, return immediately with Ok=false and a typed ExtractionError.
-        // 3. Otherwise, build markdown pages and extract every structural feature DI offers
-        //    for free (headings, boilerplate, tables, page dimensions, selection marks,
-        //    figures, handwritten spans, lines) from the same result.
+        // - Read nativeMetadata/bookmarks (PdfNativeMetadataExtractor) and closed the
+        //   PdfDocument - this method only ever sees the resulting data, never the
+        //   PdfDocument itself.
+        // Steps:
+        // 1. Submit to DI and validate the response (DIAnalyzeDocumentAsync).
+        // 2. On failure, return Ok=false with a typed ExtractionError.
+        // 3. On success, build pages/title and extract every structural feature into
+        //    PdfDocumentStructure.
         public async Task<PDFStructureExtractorResult> AnalyzeDocumentAsync(
             byte[] pdfBytes, string blobName, DocMetadata nativeMetadata, CancellationToken ct = default)
         {
             var analyzeResults = await DIAnalyzeDocumentAsync(pdfBytes, blobName, ct);
-            if (!analyzeResults.Ok)
-                return new PDFStructureExtractorResult(false, null, null, null, null, analyzeResults.Error);
 
-            var analysis = analyzeResults.Result!; // AnalyzeDocumentAsync guarantees Ok=true only for a non-empty analysis
+            if (!TryValidateAnalyzeOutcome(analyzeResults, blobName, out var analysis, out var error))
+                return new PDFStructureExtractorResult(false, null, null, null, null, error);
 
-            // Title: prefers the PDF's own Info-dictionary Title (nativeMetadata.Title) when
-            // the file actually has one set - real PDF metadata, not a guess. Falls back to
-            // a blob-name-derived title otherwise.
-            var title = !string.IsNullOrWhiteSpace(nativeMetadata.Title)
-                ? nativeMetadata.Title
-                : blobName.Split('/')[0]
-                    .Replace(".pdf", "", StringComparison.OrdinalIgnoreCase)
-                    .Replace("-", " ");
+            // pages.Count reused below for EstimatedCostUsd - same count as analysis.Pages,
+            // but already non-null, so no null-forgiving operator needed.
+            var (pages, pageWarnings) = GetPages(analysis, blobName, GetTitle(nativeMetadata, blobName));
 
             return new PDFStructureExtractorResult(
-                true, 
-                analysis.Content, 
-                GetPages(analysis, blobName, title),
+                true,
+                analysis.Content,
+                pages,
                 new PdfDocumentStructure(
                 GetHeadings(analysis),
                 GetBoilerplate(analysis),
@@ -74,72 +76,100 @@ namespace ProtocolsIndexer.Services
                 GetPageDimensions(analysis),
                 GetSelectionMarks(analysis),
                 GetFigures(analysis),
-                GetHandwrittenSpans(analysis),
-                GetLines(analysis)),
-                analysis.Pages!.Count * CostPerPage, null);
+                GetLines(analysis),
+                GetSections(analysis),
+                GetPageQuality(analysis)),
+                pages.Count * CostPerPage, null)
+            {
+                // Merges warnings from every stage (DI's own, non-BMP check, per-page
+                // table-balance check) into one list, regardless of which stage found them.
+                Warnings = analyzeResults.Warnings.Concat(GetWarnings(analysis)).Concat(pageWarnings).ToList(),
+            };
         }
 
-        // Makes the single paid call to Document Intelligence.
-        // - On a 429 (throttled) response, waits and retries using Microsoft's recommended
-        //   backoff schedule: 2s, then 5s, then 13s, then 34s.
-        // - Why this retry loop is needed: WaitUntil.Completed polls DI internally, and a
-        //   known SDK bug (Azure/azure-sdk-for-net#50904) means that internal polling can
-        //   still hit 429 even if DocumentIntelligenceClientOptions.Retry was configured
-        //   when the client was built. Without this loop, that would surface as an
-        //   unhandled exception.
-        // - Any RequestFailedException, plus any other unexpected exception (SDK bug,
-        //   deserialization failure, etc.), is caught and returned as Ok=false with a
-        //   typed reason, instead of throwing. OperationCanceledException is the one
-        //   deliberate exception to that: it means ct itself fired (e.g. host shutdown),
-        //   not a per-document failure, so it's left to propagate and stop the whole run
-        //   rather than being recorded as this one document failing to extract.
-        // - A zero-page result also comes back as Ok=false: PdfDocumentValidator's preflight
-        //   already rejected zero-page PDFs (via PdfPig), so DI itself returning zero pages
-        //   here means DI-side analysis failed to produce anything usable - not something
-        //   callers should treat as a successful-but-empty analysis (that would otherwise
-        //   surface much later, as an unexplained "no pages, won't be indexed" red flag in
-        //   PdfPipelineValidator). This is why Ok=true guarantees Result.Pages is non-empty.
+        // Submits the PDF to DI exactly once, then polls for completion itself instead of
+        // letting the SDK do it via WaitUntil.Completed:
+        // 1. Submit (WaitUntil.Started) - returns as soon as the POST succeeds; the
+        //    analysis is now running server-side, already paid for.
+        // 2. If submission itself fails, return Ok=false immediately.
+        // 3. Poll operation.UpdateStatusAsync in a loop until HasCompleted:
+        //    - On 429, back off using BackoffDelays and retry the SAME poll - never
+        //      resubmits the paid analysis.
+        //    - Any other failure, or backoff exhausted, returns Ok=false with a typed reason.
+        //    - Otherwise wait PollingInterval and poll again.
+        // 4. Once complete, hand the result to ValidateAnalyzeResult.
+        //
+        // Why WaitUntil.Started matters: a known SDK bug (Azure/azure-sdk-for-net#50904)
+        // means DI's own internal polling (used by WaitUntil.Completed) can still hit 429
+        // even with client-level retry configured. Retrying that by resubmitting from
+        // scratch would pay for a brand-new analysis every time (up to 5x cost under
+        // sustained throttling). Polling manually here means a 429 only ever retries the
+        // free status-poll GET, never the paid POST.
+        //
+        // OperationCanceledException is the one exception that still propagates instead of
+        // becoming a typed error: it means ct fired (e.g. host shutdown), not a
+        // per-document failure. A zero-page result also becomes Ok=false (see
+        // ValidateAnalyzeResult): preflight already rejects zero-page PDFs, so DI
+        // returning zero pages here means the analysis itself failed, not a
+        // successful-but-empty result.
         private async Task<AnalyzeOutcome> DIAnalyzeDocumentAsync(byte[] pdfBytes, string blobName, CancellationToken ct)
         {
-            for (var attempt = 0; ; attempt++)
+            _logger.LogInformation("Submitting '{Blob}' to Document Intelligence.", blobName);
+
+            // Markdown output (vs. DI's default plain text): renders tables as HTML
+            // <table> elements with real rowspan/colspan (GetTables relies on this) and
+            // keeps RawContent in the format downstream chunking is meant to consume.
+            var analyzeOptions = new AnalyzeDocumentOptions("prebuilt-layout", BinaryData.FromBytes(pdfBytes))
+            {
+                OutputContentFormat = DocumentContentFormat.Markdown,
+            };
+
+            Operation<AnalyzeResult> operation;
+            try
+            {
+                operation = await _diClient.AnalyzeDocumentAsync(WaitUntil.Started, analyzeOptions, cancellationToken: ct);
+            }
+            catch (RequestFailedException ex)
+            {
+                _logger.LogWarning(ex, "Document Intelligence rejected the analyze submission for '{Blob}'.", blobName);
+                return new AnalyzeOutcome(false, null, new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
+                    Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
+                });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Unexpected error submitting '{Blob}' to Document Intelligence.", blobName);
+                return new AnalyzeOutcome(false, null, new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
+                    Reason = PdfOpenFailureReason.Unknown,
+                });
+            }
+
+            for (var attempt = 0; !operation.HasCompleted; attempt++)
             {
                 try
                 {
-                    _logger.LogInformation("Submitting '{Blob}' to Document Intelligence (attempt {Attempt}).", blobName, attempt + 1);
-
-                    // Markdown output (vs. DI's default plain text) is what lets
-                    // PDFMarkdownExtractor split on DI's own page/table/heading structure
-                    // instead of re-deriving it from paragraph roles and span offsets.
-                    var analyzeOptions = new AnalyzeDocumentOptions("prebuilt-layout", BinaryData.FromBytes(pdfBytes))
-                    {
-                        OutputContentFormat = DocumentContentFormat.Markdown,
-                    };
-
-                    Operation<AnalyzeResult> operation = await _diClient.AnalyzeDocumentAsync(
-                        WaitUntil.Completed, analyzeOptions, cancellationToken: ct);
-
-                    if ((operation.Value.Pages?.Count ?? 0) == 0)
-                    {
-                        _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
-                        return new AnalyzeOutcome(false, null, new ExtractionError
-                        {
-                            DocumentId = blobName,
-                            Message = "Document Intelligence analysis returned zero pages.",
-                            Reason = PdfOpenFailureReason.EmptyDocument,
-                        });
-                    }
-
-                    return new AnalyzeOutcome(true, operation.Value, null);
+                    await operation.UpdateStatusAsync(ct);
                 }
                 catch (RequestFailedException ex) when (ex.Status == 429 && attempt < BackoffDelays.Length)
                 {
                     var wait = BackoffDelays[attempt];
-                    _logger.LogWarning("DI throttled '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
+                    _logger.LogWarning("DI throttled polling '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
                     await Task.Delay(wait, ct);
+                    continue;
                 }
                 catch (RequestFailedException ex)
                 {
-                    _logger.LogWarning(ex, "Document Intelligence failed to analyze '{Blob}'.", blobName);
+                    if (ex.Status == 429)
+                        _logger.LogWarning(ex, "Document Intelligence throttled '{Blob}' - retries exhausted after {Attempts} attempt(s).", blobName, attempt + 1);
+                    else
+                        _logger.LogWarning(ex, "Document Intelligence failed while polling '{Blob}'.", blobName);
+
                     return new AnalyzeOutcome(false, null, new ExtractionError
                     {
                         DocumentId = blobName,
@@ -149,7 +179,7 @@ namespace ProtocolsIndexer.Services
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _logger.LogWarning(ex, "Unexpected error analyzing '{Blob}' with Document Intelligence.", blobName);
+                    _logger.LogWarning(ex, "Unexpected error polling '{Blob}' with Document Intelligence.", blobName);
                     return new AnalyzeOutcome(false, null, new ExtractionError
                     {
                         DocumentId = blobName,
@@ -157,28 +187,243 @@ namespace ProtocolsIndexer.Services
                         Reason = PdfOpenFailureReason.Unknown,
                     });
                 }
+
+                if (!operation.HasCompleted)
+                    await Task.Delay(PollingInterval, ct);
             }
+
+            return ValidateAnalyzeResult(operation.Value, blobName);
         }
 
-        // Returns one PdfPageRecord per PDF page, sliced directly from analysis.Content
-        // using each DocumentPage's own Spans - DI's structural page model - rather than
-        // splitting the content string on its "<!-- PageBreak -->" text marker. Page
-        // boundaries come from DI's own per-page data, so there's no possibility of a
-        // fragment-count-vs-pageCount mismatch to guard against.
-        // - Does not carry over what PDFMarkdownExtractor.BuildMarkdownPages also did:
-        //   bookmark breadcrumbs, cross-page heading carry-forward, noise-comment
-        //   stripping (PageHeader/PageFooter/PageNumber/FigureContent), setext-title
-        //   normalization, or repairing a <table> that DI split across two pages' Spans.
-        public IReadOnlyList<PdfPageRecord> GetPages(AnalyzeResult result, string blobName, string title) =>
-            result.Pages
-                .Select(p => new PdfPageRecord
+        // Decides whether a raw DI response is usable - checks run cheapest/most
+        // fundamental first, so a bad response fails fast:
+        // 1. Content format must be Markdown, or fail (ValidateContentFormat).
+        // 2. Check for non-BMP characters - diagnostic only, never fails.
+        // 3. Must have at least one page, or fail.
+        // Kept separate from DIAnalyzeDocumentAsync's retry loop, which only needs to know
+        // "call succeeded, now validate" - not each individual rule.
+        private AnalyzeOutcome ValidateAnalyzeResult(AnalyzeResult result, string blobName)
+        {
+            var formatError = ValidateContentFormat(result, blobName);
+            if (formatError != null)
+            {
+                _logger.LogWarning(
+                    "Document Intelligence returned unexpected content format '{Format}' for '{Blob}'.",
+                    result.ContentFormat, blobName);
+                return new AnalyzeOutcome(false, null, formatError);
+            }
+
+            var warnings = CheckNonBmpCharacters(result, blobName);
+
+            if ((result.Pages?.Count ?? 0) == 0)
+            {
+                _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
+                return new AnalyzeOutcome(false, null, new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = "Document Intelligence analysis returned zero pages.",
+                    Reason = PdfOpenFailureReason.EmptyDocument,
+                });
+            }
+
+            return new AnalyzeOutcome(true, result, null) { Warnings = warnings };
+        }
+
+        // Folds two failure signals into the one question callers actually have - "do I
+        // have a usable analysis?" - using the same Try(out, out) + [NotNullWhen] shape as
+        // PdfDocumentValidator.IsPDFValid, so the compiler (not a comment) proves result
+        // is non-null on true and error is non-null on false.
+        // - Ok=false: use outcome.Error (already typed and logged by whichever check
+        //   rejected it). If Error is somehow also null, that's a bug in this class - log
+        //   it and synthesize a fallback error rather than let a null through.
+        // - Ok=true but Result=null: DIAnalyzeDocumentAsync/ValidateAnalyzeResult are
+        //   supposed to guarantee these travel together. Should never trip; if it does,
+        //   log it (LogError, not the LogWarning used elsewhere - this is our own bug, not
+        //   a DI-side failure) and return a typed error instead of a NullReferenceException
+        //   surfacing downstream.
+        private bool TryValidateAnalyzeOutcome(
+            AnalyzeOutcome outcome, string blobName,
+            [NotNullWhen(true)]  out AnalyzeResult?   result,
+            [NotNullWhen(false)] out ExtractionError? error)
+        {
+            if (!outcome.Ok)
+            {
+                result = null;
+
+                if (outcome.Error != null)
+                {
+                    error = outcome.Error;
+                    return false;
+                }
+
+                _logger.LogError(
+                    "'{Blob}': Document Intelligence analysis reported Ok=false but Error was null - this indicates a bug in DIAnalyzeDocumentAsync/ValidateAnalyzeResult.",
+                    blobName);
+                error = new ExtractionError
+                {
+                    DocumentId = blobName,
+                    Message = "Document Intelligence analysis failed with no error details.",
+                    Reason = PdfOpenFailureReason.Unknown,
+                };
+                return false;
+            }
+
+            if (outcome.Result != null)
+            {
+                result = outcome.Result;
+                error  = null;
+                return true;
+            }
+
+            _logger.LogError(
+                "'{Blob}': Document Intelligence analysis reported Ok=true but returned no result - this indicates a bug in DIAnalyzeDocumentAsync/ValidateAnalyzeResult.",
+                blobName);
+
+            result = null;
+            error = new ExtractionError
+            {
+                DocumentId = blobName,
+                Message = "Document Intelligence analysis reported success but returned no result.",
+                Reason = PdfOpenFailureReason.MissingAnalysisResult,
+            };
+            return false;
+        }
+
+        // Guards the trust boundary every Offset in this file depends on: offsets only
+        // index correctly into analysis.Content if it's markdown (see OutputContentFormat
+        // above). If DI ever returned Text instead, every offset would still "work" but
+        // point at the wrong characters - failing loudly here is cheaper than debugging
+        // garbled content several steps downstream later.
+        private static ExtractionError? ValidateContentFormat(AnalyzeResult result, string blobName)
+        {
+            if (result.ContentFormat == DocumentContentFormat.Markdown) return null;
+
+            return new ExtractionError
+            {
+                DocumentId = blobName,
+                Message = $"Document Intelligence returned content format '{result.ContentFormat}', expected Markdown.",
+                Reason = PdfOpenFailureReason.UnexpectedContentFormat,
+            };
+        }
+
+        // Diagnostic only, never fails: flags characters needing a UTF-16 surrogate pair
+        // (codepoints above the Basic Multilingual Plane - emoji, some math symbols; NOT
+        // ordinary Dutch diacritics, which all fit in one UTF-16 unit).
+        // - Why it matters: every Offset in this file assumes UTF-16 code-unit offsets,
+        //   exactly what string.Substring expects. A surrogate pair doesn't prove that's
+        //   broken here - it's just a signal worth a closer look if garbled content ever
+        //   shows up downstream.
+        // - Heuristic, not exact: a lone/unpaired surrogate contributes 0 (EnumerateRunes
+        //   replaces it with a single U+FFFD rune), even though it's arguably more
+        //   interesting than a well-formed pair. Only exact for well-formed strings.
+        // - Logged immediately, and returned as an AnalysisWarning so it also reaches the
+        //   blob-stored validation report.
+        private IReadOnlyList<AnalysisWarning> CheckNonBmpCharacters(AnalyzeResult result, string blobName)
+        {
+            var nonBmpCount = result.Content.Length - result.Content.EnumerateRunes().Count();
+            if (nonBmpCount <= 0) return [];
+
+            _logger.LogWarning(
+                "'{Blob}' contains {Count} non-BMP character(s) (UTF-16 surrogate pairs) in its analyzed content.",
+                blobName, nonBmpCount);
+
+            return [new AnalysisWarning(
+                "NonBmpCharacters",
+                $"Content contains {nonBmpCount} non-BMP character(s) (UTF-16 surrogate pairs).",
+                null)];
+        }
+
+        // Title: nativeMetadata.Title if the PDF actually has one set, else derived from
+        // the blob name.
+        // - Path.GetFileNameWithoutExtension, not blobName.Split('/')[0]: for a nested
+        //   path like "protocols/policy-2024.pdf", Split('/')[0] returns "protocols" (the
+        //   folder), not the filename.
+        private static string GetTitle(DocMetadata nativeMetadata, string blobName) =>
+            !string.IsNullOrWhiteSpace(nativeMetadata.Title)
+                ? nativeMetadata.Title
+                : Path.GetFileNameWithoutExtension(blobName).Replace("-", " ");
+
+        // One PdfPageRecord per page, sliced from analysis.Content by each page's own
+        // Spans (DI's structural page model), not by splitting on "<!-- PageBreak -->" -
+        // page boundaries come from DI's own per-page data, so no fragment-count mismatch
+        // to guard against.
+        // Steps per page:
+        // 1. Slice content by Spans, strip DI's noise comments (PageHeader/Footer/Number/
+        //    FigureContent - literal text DI repeats on every page they apply to), and
+        //    normalize a setext title ("Title" + "===" underline) to ATX ("# Title") -
+        //    cosmetic only, matches every other heading DI already renders as ATX.
+        // 2. Warn if that leaves the page empty - shouldn't silently reach the index.
+        // 3. Warn (don't repair) if <table>/</table> tags are unbalanced - a table split
+        //    across pages will be caught by the chunk-builder's Sections-based boundaries
+        //    later, so this is a "how often does it happen" signal, not a fix.
+        // Both cleanups only ever run on PageContent, never on RawContent: they change
+        // string length (setext especially), which would shift every offset after them if
+        // applied to the offset-addressable source. See PdfPageRecord.PageContent.
+        // Not ported from the deleted PDFMarkdownExtractor: heading carry-forward
+        // (superseded by DI's own structural Headings/Sections) or page-level table
+        // repair (see step 3). Bookmark breadcrumbs live in PDFSectionBreadCrumbBuilder,
+        // for a future per-chunk (not per-page) use.
+        private (IReadOnlyList<PdfPageRecord> Pages, IReadOnlyList<AnalysisWarning> Warnings) GetPages(
+            AnalyzeResult result, string blobName, string title)
+        {
+            var pages    = new List<PdfPageRecord>();
+            var warnings = new List<AnalysisWarning>();
+
+            foreach (var p in result.Pages)
+            {
+                var content = SliceBySpans(result.Content, p.Spans);
+                content = NoiseCommentLineRegex.Replace(content, "");
+                content = SetextTitleRegex.Replace(content, "# ${title}");
+                content = content.Trim('\r', '\n');
+
+                if (content.Length == 0)
+                    _logger.LogWarning(
+                        "'{Blob}' page {Page} has no content (no Spans) - an empty page could reach the index unnoticed.",
+                        blobName, p.PageNumber);
+
+                var openCount  = TableOpenTagRegex.Matches(content).Count;
+                var closeCount = TableCloseTagRegex.Matches(content).Count;
+                if (openCount != closeCount)
+                {
+                    _logger.LogWarning(
+                        "'{Blob}' page {Page} has unbalanced <table> tags ({Open} open, {Close} close) - likely split across a page boundary.",
+                        blobName, p.PageNumber, openCount, closeCount);
+                    warnings.Add(new AnalysisWarning(
+                        "UnbalancedTableTags",
+                        $"Page {p.PageNumber} has {openCount} <table> open tag(s) but {closeCount} close tag(s) - likely split across a page boundary.",
+                        blobName));
+                }
+
+                pages.Add(new PdfPageRecord
                 {
                     BlobName    = blobName,
                     PageIndex   = p.PageNumber,
-                    PageContent = SliceBySpans(result.Content, p.Spans),
+                    PageContent = content,
                     Title       = title,
-                })
-                .ToList();
+                });
+            }
+
+            return (pages, warnings);
+        }
+
+        // Matches a whole "<!-- PageHeader="..." -->"-style line (also PageFooter/
+        // PageNumber/FigureContent) - anchored to a full line so a document that happens
+        // to contain this literal text in its own prose isn't eaten by accident. The
+        // quoted value uses (?:[^"\\]|\\.)* rather than a lazy ".*?" so an escaped quote
+        // inside it doesn't truncate the match early.
+        private static readonly Regex NoiseCommentLineRegex = new(
+            @"^[ \t]*<!--\s*(?:Page(?:Header|Footer|Number)|FigureContent)\s*=\s*""(?:[^""\\]|\\.)*""\s*-->[ \t]*\r?\n?",
+            RegexOptions.Multiline | RegexOptions.Compiled);
+
+        private static readonly Regex TableOpenTagRegex  = new(@"<table\b",    RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex TableCloseTagRegex = new(@"</table\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // DI renders the document Title as setext ("Title" line + "===" underline), not
+        // ATX ("# "), unlike every other heading. Scoped to "=" underlines only - "-"
+        // underlines are ambiguous with a markdown thematic break (<hr>), so those are
+        // deliberately left alone rather than risk mis-normalizing an actual rule.
+        private static readonly Regex SetextTitleRegex = new(
+            @"^(?<title>[^\n]+)\r?\n=+[ \t]*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
         private static string SliceBySpans(string content, IReadOnlyList<DocumentSpan>? spans)
         {
@@ -186,98 +431,96 @@ namespace ProtocolsIndexer.Services
             return string.Concat(spans.OrderBy(s => s.Offset).Select(s => content.Substring(s.Offset, s.Length)));
         }
 
-        // Returns every true heading/title paragraph - i.e. paragraphs DI classified as
-        // "title" or "sectionHeading", not incidental structural roles like page headers/
-        // footers/footnotes (see GetBoilerplate for those).
-        // - Offset and PageNumber are read from Spans/BoundingRegions, because
-        //   DocumentParagraph has no PageNumber property of its own (same approach
-        //   BuildMarkdownPages uses elsewhere).
-        public IReadOnlyList<Heading> GetHeadings(AnalyzeResult result) =>
+        // Paragraphs DI classified as Title/SectionHeading only - real section structure,
+        // not incidental roles like headers/footers (see GetBoilerplate).
+        // - Offset/PageNumber come from Spans/BoundingRegions: DocumentParagraph has no
+        //   PageNumber property of its own.
+        private IReadOnlyList<Heading> GetHeadings(AnalyzeResult result) =>
             result.Paragraphs
                 .Where(p => p.Role == ParagraphRole.Title || p.Role == ParagraphRole.SectionHeading)
                 .Select(ToHeading)
                 .ToList();
 
-        // Returns every paragraph DI classified as repeated-boilerplate structure (page
-        // header, page footer, footnote) rather than a real heading - the same roles
-        // PDFMarkdownExtractor.NoiseCommentLineRegex already strips out of page content as
-        // noise. Kept separate from GetHeadings so "Headings" only ever means real section
-        // structure.
-        public IReadOnlyList<Heading> GetBoilerplate(AnalyzeResult result) =>
+        // Paragraphs DI classified as repeated boilerplate (page header/footer, footnote,
+        // page number) - kept separate from GetHeadings so "Headings" only ever means
+        // real section structure.
+        // - PageNumber role is included here, not split into its own bucket: it's just
+        //   per-page furniture like header/footer. Without it, PageNumber paragraphs fell
+        //   through both buckets and vanished silently.
+        private IReadOnlyList<Heading> GetBoilerplate(AnalyzeResult result) =>
             result.Paragraphs
-                .Where(p => p.Role == ParagraphRole.PageHeader || p.Role == ParagraphRole.PageFooter || p.Role == ParagraphRole.Footnote)
+                .Where(p => p.Role == ParagraphRole.PageHeader || p.Role == ParagraphRole.PageFooter
+                         || p.Role == ParagraphRole.Footnote || p.Role == ParagraphRole.PageNumber)
                 .Select(ToHeading)
                 .ToList();
 
         private static Heading ToHeading(DocumentParagraph p) => new(
             p.Content,
             p.Role.ToString()!,
-            p.Spans is { Count: > 0 } ps ? ps[0].Offset : 0,
+            p.Spans is { Count: > 0 } ps ? ps[0].Offset : null,
             p.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0);
 
-        // Returns each page's width/height/unit as measured by DI itself -
-        // not the dimensions declared in the PDF's own MediaBox.
-        public IReadOnlyList<PageDimensions> GetPageDimensions(AnalyzeResult result) =>
+        // Each page's width/height/unit as measured by DI - not the PDF's own MediaBox.
+        private IReadOnlyList<PageDimensions> GetPageDimensions(AnalyzeResult result) =>
             result.Pages
                 .Select(p => new PageDimensions(p.PageNumber, p.Width, p.Height, p.Unit.ToString() ?? ""))
                 .ToList();
 
-        // Returns every table, including each cell's row/column position and kind
-        // (e.g. columnHeader vs. regular content).
-        // - Offset and PageNumber follow the same Spans/BoundingRegions pattern used in
-        //   GetHeadings, since DocumentTable also has no PageNumber property of its own.
-        public IReadOnlyList<TableInfo> GetTables(AnalyzeResult result) =>
+        // Every table: cells' row/column position, kind (e.g. columnHeader vs. content),
+        // and row/column span for merged cells.
+        // - Offset/PageNumber: same Spans/BoundingRegions pattern as GetHeadings.
+        // - RowSpan/ColumnSpan: null for an ordinary cell; without them a merged header
+        //   cell would look like a missing cell downstream.
+        // - Offset is null, not 0, when Spans is empty - 0 is a valid real offset, so it
+        //   can't double as "unknown" too.
+        private IReadOnlyList<TableInfo> GetTables(AnalyzeResult result) =>
             result.Tables
                 .Select(t => new TableInfo(
                     t.RowCount,
                     t.ColumnCount,
-                    t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString() ?? "", c.Content)).ToList(),
-                    t.Spans is { Count: > 0 } ts ? ts[0].Offset : 0,
+                    t.Cells.Select(c => new TableCellInfo(c.RowIndex, c.ColumnIndex, c.Kind.ToString() ?? "", c.Content, c.RowSpan, c.ColumnSpan)).ToList(),
+                    t.Spans is { Count: > 0 } ts ? ts[0].Offset : null,
                     t.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
                 .ToList();
 
-        // Returns every checkbox/radio button on every page, with its selected/unselected
-        // state.
-        // - Offset comes from Span (singular), since a selection mark has exactly one
-        //   position - unlike paragraphs/tables, which use the plural Spans.
-        public IReadOnlyList<SelectionMarkInfo> GetSelectionMarks(AnalyzeResult result) =>
+        // Every checkbox/radio button: selected state, DI's confidence, bounding polygon.
+        // - Offset comes from Span (singular) - a selection mark has exactly one
+        //   position, unlike paragraphs/tables which use the plural Spans.
+        // - Confidence/Polygon are free fields on the same object already read for
+        //   State/Offset.
+        private IReadOnlyList<SelectionMarkInfo> GetSelectionMarks(AnalyzeResult result) =>
             result.Pages
-                .SelectMany(p => p.SelectionMarks.Select(sm => new SelectionMarkInfo(p.PageNumber, sm.State.ToString(), sm.Span.Offset)))
+                .SelectMany(p => p.SelectionMarks.Select(sm => new SelectionMarkInfo(
+                    p.PageNumber, sm.State.ToString(), sm.Span.Offset, sm.Confidence, ToPolygonPoints(sm.Polygon))))
                 .ToList();
 
-        // Returns every figure (image/diagram) DI detected, with its caption text if it has
-        // one. Free as part of prebuilt-layout - no add-on feature required.
-        public IReadOnlyList<FigureInfo> GetFigures(AnalyzeResult result) =>
+        // Every figure DI detected:
+        // - Caption text, if present.
+        // - Id - only needed to later fetch the cropped image via the figures output endpoint.
+        // - Elements - JSON-pointer refs into paragraphs that discuss/describe the figure,
+        //   broader than just its Caption.
+        // All free as part of prebuilt-layout - no add-on feature required.
+        private IReadOnlyList<FigureInfo> GetFigures(AnalyzeResult result) =>
             result.Figures
                 .Select(f => new FigureInfo(
                     f.Caption?.Content,
-                    f.Spans is { Count: > 0 } fs ? fs[0].Offset : 0,
-                    f.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0))
+                    f.Spans is { Count: > 0 } fs ? fs[0].Offset : null,
+                    f.BoundingRegions is { Count: > 0 } br ? br[0].PageNumber : 0,
+                    f.Id,
+                    f.Elements ?? []))
                 .ToList();
 
-        // Returns every span of handwritten text DI detected, with DI's own confidence
-        // score attached rather than pre-filtered by a hardcoded threshold - callers decide
-        // what confidence is "good enough" for their use case.
-        // - "Styles" entries only point at spans within result.Content; they don't carry
-        //   the text itself, so the actual string has to be extracted with Substring.
-        public IReadOnlyList<HandwrittenSpan> GetHandwrittenSpans(AnalyzeResult result) =>
-            result.Styles
-                .Where(s => s.IsHandwritten == true)
-                .SelectMany(s => s.Spans.Select(span => new HandwrittenSpan(
-                    result.Content.Substring(span.Offset, span.Length),
-                    span.Offset,
-                    s.Confidence)))
-                .ToList();
-
-        // Returns every OCR-detected line of text on every page, with its bounding polygon -
-        // the most granular positional data DI offers for free. Potentially a lot of data
-        // (every line, every page); nothing persists this permanently today (dev-only
-        // reports only), so that's a future storage-cost concern, not a correctness one.
-        public IReadOnlyList<LineInfo> GetLines(AnalyzeResult result) =>
+        // Every OCR-detected line, with its bounding polygon - the most granular
+        // positional data DI offers for free.
+        // - Future highlight-on-source join (see LineInfo/PageDimensions): a chunk's span
+        //   range selects its lines by Offset, their Polygons union into the highlight region.
+        // - By far the bulkiest structure here (every line, every page). Not persisted
+        //   permanently today (dev-only reports only) - correct until source-grounding ships.
+        private IReadOnlyList<LineInfo> GetLines(AnalyzeResult result) =>
             result.Pages
                 .SelectMany(p => p.Lines.Select(line => new LineInfo(
                     line.Content,
-                    line.Spans is { Count: > 0 } ls ? ls[0].Offset : 0,
+                    line.Spans is { Count: > 0 } ls ? ls[0].Offset : null,
                     p.PageNumber,
                     ToPolygonPoints(line.Polygon))))
                 .ToList();
@@ -293,5 +536,36 @@ namespace ProtocolsIndexer.Services
                 points.Add(new PolygonPoint(polygon[i], polygon[i + 1]));
             return points;
         }
+
+        // Every DI-detected section - the closest thing prebuilt-layout offers to real
+        // semantic chunk boundaries, vs. the page-only boundaries GetPages relies on today.
+        // - Every Span captured (not anchor-only like GetHeadings/GetTables/GetFigures): a
+        //   section only means something as a start-to-end range.
+        // - Elements stay as DI's raw JSON-pointer strings - resolving them into actual
+        //   content is a future chunk-builder's job.
+        private IReadOnlyList<SectionInfo> GetSections(AnalyzeResult result) =>
+            result.Sections
+                .Select(s => new SectionInfo(
+                    s.Spans.Select(sp => new SectionSpan(sp.Offset, sp.Length)).ToList(),
+                    s.Elements.ToList()))
+                .ToList();
+
+        // Average OCR word-confidence per page - a data-quality signal only ("flag for
+        // review"), never a chunk-boundary signal (that's GetSections). Pages with zero
+        // detected words are omitted, not reported as 0.0 - that would misleadingly
+        // suggest DI is unsure about content that isn't there.
+        private IReadOnlyList<PageQuality> GetPageQuality(AnalyzeResult result) =>
+            result.Pages
+                .Where(p => p.Words.Count > 0)
+                .Select(p => new PageQuality(p.PageNumber, p.Words.Average(w => (double)w.Confidence)))
+                .ToList();
+
+        // DI's own non-fatal warnings (e.g. a page that partially failed OCR) - distinct
+        // from the zero-pages case, which is treated as an outright failure. Wraps
+        // Azure's DocumentIntelligenceWarning so callers don't need the SDK type.
+        private IReadOnlyList<AnalysisWarning> GetWarnings(AnalyzeResult result) =>
+            result.Warnings
+                .Select(w => new AnalysisWarning(w.Code, w.Message, w.Target))
+                .ToList();
     }
 }

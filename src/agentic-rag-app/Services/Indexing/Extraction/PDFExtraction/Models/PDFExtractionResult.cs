@@ -1,7 +1,7 @@
 namespace ProtocolsIndexer.Models;
 
 // One PDF file's complete extraction outcome - everything every step of the pipeline
-// (PdfDocumentValidator, PdfNativeMetadataExtractor, PDFStructureExtractor) produced for
+// (PdfDocumentValidator, PdfNativeMetadataExtractor, PDFDocumentAnalyzer) produced for
 // this file, combined into one object by DocumentIntelligenceExtractor. Error is set (and
 // every data field null) when the file couldn't be parsed at all (corrupt PDF, backend
 // exception) — the orchestrator folds this into the same ExtractionResult<T>.Errors
@@ -24,7 +24,7 @@ public record PDFExtractionResult(
     // when the file failed before/during opening.
     DocMetadata? NativeMetadata,
 
-    // Step 3: PDFStructureExtractor - the paid Document Intelligence call.
+    // Step 3: PDFDocumentAnalyzer - the paid Document Intelligence call.
     string?                       RawContent,       // analysis.Content, unsplit, before per-page assembly
     IReadOnlyList<PdfPageRecord>? Pages,
     PdfDocumentStructure?         Structure,
@@ -34,11 +34,17 @@ public record PDFExtractionResult(
 {
     // Per-page failures/soft-quality signals that don't fail the whole file (e.g. one
     // unreadable page, a likely-scanned page). Folded into the aggregate ExtractionResult
-    // by PdfExtractionAggregation, same bucket a file-level Error would land in.
+    // by PdfPipelineValidator, same bucket a file-level Error would land in.
     public IReadOnlyList<ExtractionError>   PageErrors  { get; init; } = [];
     public IReadOnlyList<ExtractionWarning> Warnings    { get; init; } = [];
 
     // Per-step diagnostic snapshot (see PdfExtractionDiagnostics) - currently always null;
     // nothing populates it since the PdfPig backend (the only producer) was removed.
     public PdfExtractionDiagnostics? Diagnostics { get; init; }
+
+    // Page number -> breadcrumb text (e.g. "Section: Chapter 3 > 3.2 Dosage"), built from
+    // NativeMetadata.Bookmarks by PDFSectionBreadCrumbBuilder. Empty when the PDF has no
+    // outline. Not consumed by anything yet - a future chunk-builder attaches the entry
+    // for whichever page(s) a chunk falls on.
+    public IReadOnlyDictionary<int, string> SectionBreadcrumbs { get; init; } = new Dictionary<int, string>();
 }

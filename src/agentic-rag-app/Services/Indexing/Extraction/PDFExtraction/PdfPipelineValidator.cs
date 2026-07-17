@@ -23,12 +23,16 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         new(@"^#{1,6}\s", RegexOptions.Multiline | RegexOptions.Compiled);
 
     public PdfValidationReport Validate(
-        ExtractionResult<PdfPageRecord>                   pagesExtraction,
-        PdfCleanResult                                     cleanResult,
-        int?                                               previousRunCleanedCount = null,
-        IReadOnlyList<PdfExtractionDiagnostics>?           diagnostics = null,
-        IReadOnlyDictionary<string, PdfDocumentStructure>? structures = null)
+        IReadOnlyList<PDFExtractionResult>        fileResults,
+        PdfCleanResult                             cleanResult,
+        int?                                       previousRunCleanedCount = null,
+        IReadOnlyList<PdfExtractionDiagnostics>?   diagnostics = null)
     {
+        var pagesExtraction = Aggregate(fileResults);
+        var structures = fileResults
+            .Where(f => f.Structure != null)
+            .ToDictionary(f => f.BlobName, f => f.Structure!, StringComparer.OrdinalIgnoreCase);
+
         var redFlags = new List<string>();
 
         // 1. Collect all errors from the previous steps.
@@ -100,6 +104,34 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         };
     }
 
+    // Folds one-file-at-a-time PDFExtractionResult results (from IPdfExtractor.Extract,
+    // called once per PDF blob) into the batch-level ExtractionResult<T> shape the rest
+    // of this validator's checks operate on. A file-level extraction error (corrupt PDF,
+    // backend exception) is recorded once against pages - a file that failed to parse
+    // contributes nothing. Kept as the validator's own concern (not a shared class other
+    // steps also depend on) since nothing but validation-level bookkeeping needs this
+    // exact shape - PdfCleaner takes the file results' pages directly.
+    private static ExtractionResult<PdfPageRecord> Aggregate(IEnumerable<PDFExtractionResult> fileResults)
+    {
+        var pages = new ExtractionResult<PdfPageRecord>();
+
+        foreach (var file in fileResults)
+        {
+            if (file.Error != null)
+            {
+                pages.AddError(file.Error);
+                continue;
+            }
+
+            foreach (var page in file.Pages!) pages.AddRecord(page); // Ok=true guarantees Pages is populated
+
+            foreach (var pageError in file.PageErrors) pages.AddError(pageError);
+            foreach (var warning in file.Warnings) pages.AddWarning(warning);
+        }
+
+        return pages;
+    }
+
     // 1. Aggregate every error/warning bucket into one place.
     private static List<ValidationIssue> CollectIssues(
         ExtractionResult<PdfPageRecord> pagesExtraction,
@@ -123,20 +155,18 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     }
 
     // 2. Every page that comes out of Extraction must land in exactly one Clean bucket:
-    // cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
-    // == pagesExtraction.Records.Count (no join step in between anymore).
+    // cleanResult.Records.Count + cleanResult.Errors.Count == pagesExtraction.Records.Count
+    // (no join step, and no dedup step, in between anymore).
     private static List<string> CheckExtractVsCleanCount(
         ExtractionResult<PdfPageRecord> pagesExtraction,
         PdfCleanResult                  cleanResult)
     {
         var reconciliation = new List<string>();
 
-        if (cleanResult.Records.Count + cleanResult.Errors.Count + cleanResult.DuplicatePagesSkipped
-                != pagesExtraction.Records.Count)
+        if (cleanResult.Records.Count + cleanResult.Errors.Count != pagesExtraction.Records.Count)
             reconciliation.Add(
                 $"Extract->Clean mismatch: {pagesExtraction.Records.Count} pages extracted, but " +
-                $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored + " +
-                $"{cleanResult.DuplicatePagesSkipped} duplicate-skipped.");
+                $"{cleanResult.Records.Count} cleaned + {cleanResult.Errors.Count} errored.");
 
         // Zero cleaned records is never a legitimate outcome — same rationale as CSV's
         // validator: the diff step downstream deletes anything "missing", so an
@@ -144,13 +174,18 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         if (cleanResult.Records.Count == 0)
             reconciliation.Add("Zero cleaned records produced — refusing to pass an empty run.");
 
-        // Referential integrity: no duplicate (BlobName, PageIndex) in the final output.
-        // Defense-in-depth, not reachable today — PdfCleaner already dedupes on this
-        // exact key before a record ever reaches cleanResult.Records.
-        var duplicateKeys = cleanResult.Records
+        // Referential integrity: no duplicate (BlobName, PageIndex) among the pages the
+        // extractor produced. This is the sole enforcement of that invariant now — PdfCleaner
+        // no longer dedupes, since a genuine duplicate here can only mean the extractor
+        // returned the same page twice (DI reports each page's own PageNumber once), not a
+        // data-quality issue to route around. Checked against pagesExtraction (not
+        // cleanResult) so the "extractor" attribution stays honest regardless of what
+        // Clean does to the record set. Landing in reconciliation (not Issues) means it
+        // fails the run unconditionally — no error-rate threshold to slip under.
+        var duplicateKeys = pagesExtraction.Records
             .GroupBy(r => (r.BlobName, r.PageIndex))
             .Where(g => g.Count() > 1)
-            .Select(g => $"Duplicate output key: {g.Key.BlobName} / page {g.Key.PageIndex} appears {g.Count()} times");
+            .Select(g => $"Duplicate page from extractor: {g.Key.BlobName} / page {g.Key.PageIndex} appears {g.Count()} times");
         reconciliation.AddRange(duplicateKeys);
 
         return reconciliation;
@@ -202,8 +237,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     // 4c. Table structure issues read directly off DI's own table data (PdfDocumentStructure.Tables) -
     // replaces a previous heuristic that pattern-matched GFM pipe-table syntax ("| a | b |")
     // in the rendered content. DI's markdown output actually renders tables as HTML
-    // <table> elements (see PDFMarkdownExtractor), so that heuristic never matched real
-    // output and was silently a no-op.
+    // <table> elements, so that heuristic never matched real output and was silently a no-op.
     private static List<ValidationIssue> TableStructureQualityCheck(
         IReadOnlyDictionary<string, PdfDocumentStructure>? structures)
     {

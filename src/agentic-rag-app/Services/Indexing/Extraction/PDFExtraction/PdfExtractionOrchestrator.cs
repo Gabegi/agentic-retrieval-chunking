@@ -65,17 +65,20 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     {
         var runAt = DateTimeOffset.UtcNow;
 
-        var (fileResults, lastModifiedByBlob) = await ExtractAllFilesAsync(ct);
+        // 1/ Extract Data from PDFs
+        var (fileResults, lastModifiedByBlob) = await ExtractPdfsFromBlobAsync(ct);
 
-        var pagesResult = PdfExtractionAggregation.Aggregate(fileResults);
-        var cleanResult = _cleaner.Clean(pagesResult.Records);
+        // A plain projection at the composition root, not a shared aggregation step —
+        // Clean only ever needs the pages themselves, never file-level error/warning
+        // bookkeeping, so it gets exactly that and nothing more. Validate needs the fuller
+        // picture (errors, warnings, per-file Structure), so it takes fileResults directly
+        // and builds its own internal representation - see PdfPipelineValidator.
+        var pages       = fileResults.Where(f => f.Ok).SelectMany(f => f.Pages!).ToList();
+        var cleanResult = _cleaner.Clean(pages);
 
         var (previousCount, previousETag) = await PreviousRunCount(ct);
         var diagnostics = fileResults.Select(f => f.Diagnostics).OfType<PdfExtractionDiagnostics>().ToList();
-        var structures = fileResults
-            .Where(f => f.Structure != null)
-            .ToDictionary(f => f.BlobName, f => f.Structure!, StringComparer.OrdinalIgnoreCase);
-        var report = _validator.Validate(pagesResult, cleanResult, previousCount, diagnostics, structures);
+        var report = _validator.Validate(fileResults, cleanResult, previousCount, diagnostics);
 
         await WriteReportsAsync(runAt, report, diagnostics, ct);
 
@@ -101,7 +104,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // already gives a corrupt PDF. Also captures each blob's storage LastModified —
     // that's what downstream diffing in ExtractionService needs to detect new/updated/
     // removed documents, not anything parsed out of the PDF's own text.
-    private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractAllFilesAsync(
+    private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractPdfsFromBlobAsync(
         CancellationToken ct)
     {
         var results      = new List<PDFExtractionResult>();
@@ -160,9 +163,9 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
     // Maps the validated, cleaned records into the source-agnostic ExtractionOutput
     // returned to the caller. Several ExtractionOutput fields have no PDF equivalent and
-    // are always zero here — see PdfValidationReport's own comment: no Zenya
-    // attention-flag (StaleDocCount), no version data (MissingVersionCount - nothing
-    // parses/populates Version for PDFs), and no folder/department concept
+    // are always null here (not "verified zero") — see PdfValidationReport's own comment:
+    // no Zenya attention-flag (StaleDocCount), no version data (MissingVersionCount -
+    // nothing parses/populates Version for PDFs), and no folder/department concept
     // (MissingDepartmentCount).
     private static ExtractionOutput BuildExtractionOutput(
         PdfValidationReport                report,
@@ -204,13 +207,13 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             ValidationErrors:       errors,
             ValidationWarnings:     warnings,
             ReconciliationProblems: report.ReconciliationProblems.Count,
-            StaleDocCount:          0,  // no Zenya attention-flag equivalent for PDFs
+            StaleDocCount:          null,  // no Zenya attention-flag equivalent for PDFs
             MojibakeRepairedPages:  report.MojibakeRepairedPages,
             DetectedTableCount:     report.DetectedTableCount,
             DocsWithoutHeadings:    report.DocumentsNeedingFallbackChunking.Count,
             MissingTitleCount:      missingTitle,
-            MissingVersionCount:    0,  // no version data for PDFs
-            MissingDepartmentCount: 0,  // no folder/department concept for PDFs
+            MissingVersionCount:    null,  // no version data for PDFs
+            MissingDepartmentCount: null,  // no folder/department concept for PDFs
             Issues:                 issues,
             RedFlags:               report.RedFlags.ToList(),
             SpotCheckSample:        spotCheck);
