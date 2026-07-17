@@ -93,7 +93,13 @@ namespace ProtocolsIndexer.Models
     // - Ok = false -> Error contains a typed reason instead of throwing an exception.
     //   This lets callers check Error.Reason and decide what to do
     //   (e.g. "Throttled" is worth retrying, "DiServiceError" probably isn't).
-    public sealed record AnalyzeOutcome(bool Ok, AnalyzeResult? Result, ExtractionError? Error);
+    public sealed record AnalyzeOutcome(bool Ok, AnalyzeResult? Result, ExtractionError? Error)
+    {
+        // Non-fatal findings from the analyze call itself (e.g. the non-BMP character
+        // check) - only ever populated when Ok is true, since Error already covers the
+        // failure case. Empty (not null) otherwise.
+        public IReadOnlyList<AnalysisWarning> Warnings { get; init; } = [];
+    }
 
     // Result of PDFDocumentAnalyzer.AnalyzeDocumentAsync (the DI-scoped step only -
     // preflight/native-metadata are separate steps, combined by DocumentIntelligenceExtractor
