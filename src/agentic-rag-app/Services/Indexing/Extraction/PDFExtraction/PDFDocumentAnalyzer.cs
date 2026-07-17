@@ -131,54 +131,31 @@ namespace ProtocolsIndexer.Services
                 }
                 catch (RequestFailedException ex) when (ex.Status == 429 && attempt < BackoffDelays.Length)
                 {
-                    await LogThrottleAndBackoff(blobName, attempt, ct);
+                    var wait = BackoffDelays[attempt];
+                    _logger.LogWarning("DI throttled '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
+                    await Task.Delay(wait, ct);
                 }
                 catch (RequestFailedException ex)
                 {
-                    return ToRequestFailedOutcome(ex, blobName);
+                    _logger.LogWarning(ex, "Document Intelligence failed to analyze '{Blob}'.", blobName);
+                    return new AnalyzeOutcome(false, null, new ExtractionError
+                    {
+                        DocumentId = blobName,
+                        Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
+                        Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
+                    });
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    return ToUnexpectedErrorOutcome(ex, blobName);
+                    _logger.LogWarning(ex, "Unexpected error analyzing '{Blob}' with Document Intelligence.", blobName);
+                    return new AnalyzeOutcome(false, null, new ExtractionError
+                    {
+                        DocumentId = blobName,
+                        Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
+                        Reason = PdfOpenFailureReason.Unknown,
+                    });
                 }
             }
-        }
-
-        // The one catch clause that can't return an AnalyzeOutcome: throttling means "try
-        // again", not "give up", so this only logs and waits out Microsoft's recommended
-        // backoff schedule, letting the retry loop's own for(;;) continue to the next attempt.
-        private async Task LogThrottleAndBackoff(string blobName, int attempt, CancellationToken ct)
-        {
-            var wait = BackoffDelays[attempt];
-            _logger.LogWarning("DI throttled '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
-            await Task.Delay(wait, ct);
-        }
-
-        // Retries exhausted on a 429, or any other non-429 request failure - either way DI
-        // told us clearly what went wrong via ex.Status, so Throttled/DiServiceError stay
-        // distinguishable for callers deciding what's worth retrying later.
-        private AnalyzeOutcome ToRequestFailedOutcome(RequestFailedException ex, string blobName)
-        {
-            _logger.LogWarning(ex, "Document Intelligence failed to analyze '{Blob}'.", blobName);
-            return new AnalyzeOutcome(false, null, new ExtractionError
-            {
-                DocumentId = blobName,
-                Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
-                Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
-            });
-        }
-
-        // Anything else the SDK or runtime threw while analyzing (SDK bug, deserialization
-        // failure, etc.) - not confidently attributable to a specific DI-side cause.
-        private AnalyzeOutcome ToUnexpectedErrorOutcome(Exception ex, string blobName)
-        {
-            _logger.LogWarning(ex, "Unexpected error analyzing '{Blob}' with Document Intelligence.", blobName);
-            return new AnalyzeOutcome(false, null, new ExtractionError
-            {
-                DocumentId = blobName,
-                Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
-                Reason = PdfOpenFailureReason.Unknown,
-            });
         }
 
         // Single place that decides whether a raw DI response is usable, and collects
