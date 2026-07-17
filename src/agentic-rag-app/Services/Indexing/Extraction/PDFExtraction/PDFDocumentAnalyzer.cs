@@ -357,7 +357,7 @@ namespace ProtocolsIndexer.Services
         // Not ported from the deleted PDFMarkdownExtractor: heading carry-forward, setext
         // normalization (superseded by DI's own structural Headings/Sections), or
         // page-level table repair (see step 3). Bookmark breadcrumbs live in
-        // SectionBreadcrumbBuilder, for a future per-chunk (not per-page) use.
+        // PDFSectionBreadCrumbBuilder, for a future per-chunk (not per-page) use.
         private (IReadOnlyList<PdfPageRecord> Pages, IReadOnlyList<AnalysisWarning> Warnings) GetPages(
             AnalyzeResult result, string blobName, string title)
         {

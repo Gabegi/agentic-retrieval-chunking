@@ -7,7 +7,7 @@ namespace ProtocolsIndexer.Services;
 // Extracted out of the deleted PDFMarkdownExtractor: real PDF outline data and a correct
 // stack algorithm are worth keeping for a future chunk-builder to attach per-chunk (not
 // per-page, the way the old class did it).
-public static class SectionBreadcrumbBuilder
+public static class PDFSectionBreadCrumbBuilder
 {
     // Steps:
     // 1. Keep only bookmarks with a resolvable page number - others can't be anchored to
