@@ -84,8 +84,11 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         var pages       = fileResults.Where(f => f.Ok).SelectMany(f => f.Pages!).ToList();
         var cleanResult = _pdfCleaner.CleanPdf(pages);
 
+        // Check # of docs processed vs previous run
         var (previousCount, previousETag) = await PreviousRunCount(ct);
         var diagnostics = fileResults.Select(f => f.Diagnostics).OfType<PdfExtractionDiagnostics>().ToList();
+
+        
         var report = _validator.Validate(fileResults, cleanResult, previousCount, diagnostics);
 
         await WriteReportsAsync(runAt, report, diagnostics, ct);
