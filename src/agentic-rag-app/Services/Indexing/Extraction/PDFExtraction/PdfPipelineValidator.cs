@@ -51,7 +51,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         int?                                       previousRunCleanedCount = null,
         IReadOnlyList<PdfExtractionDiagnostics>?   diagnostics = null)
     {
-        //1. Puts things into 3 buckets:
+        // 1. Puts things into 3 buckets:
             // - Records = pages from files that extracted successfully.
             // - Errors = either a whole file that failed (file.Error, counted once) or individual bad pages within an otherwise-successful file (file.PageErrors).
             // - Warnings = non-fatal issues from successful files (file.Warnings).
@@ -74,24 +74,24 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         // 5. Checks difference between Cleaning and Previous Run
         var diffCleaningNPreviousRun = CheckDiffCleanNPreviousRun(cleanResult, previousRunCleanedCount);
 
-        // 7. Per-page text quality (U+FFFD, control/unassigned chars).
+        // 6. Per-page text quality (U+FFFD, control/unassigned chars).
         issues.AddRange(TextQualityCheck(cleanResult));
 
-        // 7b. Tbles collapsed into repeated-phrase prose during extraction.
+        // 7. Tables collapsed into repeated-phrase prose during extraction.
         issues.AddRange(TableFlatteningCheck(cleanResult, structures));
 
-        // 7c. Table structure issues, from DI's own table data — not a text-pattern guess.
+        // 8. Table structure issues, from DI's own table data — not a text-pattern guess.
         issues.AddRange(TableStructureQualityCheck(structures));
 
-        // 8. ADVISORY: total tables detected this run — trended over time, not gated.
+        // 9. ADVISORY: total tables detected this run — trended over time, not gated.
         var detectedTableCount = CountDetectedTables(structures);
 
-        // 9. ADVISORY: documents with zero headings across every page need fallback chunking.
+        // 10. ADVISORY: documents with zero headings across every page need fallback chunking.
         var docsWithNoPagesWithHeadings = DocsWithNoPagesWithHeading(cleanResult);
         if (docsWithNoPagesWithHeadings.Count > 0)
             redFlags.Add($"{docsWithNoPagesWithHeadings.Count} document(s) have no markdown headings — need fallback chunking.");
 
-        // 9b. ADVISORY, currently dormant: only fires if a backend populates
+        // 11. ADVISORY, currently dormant: only fires if a backend populates
         // PdfFileExtraction.Diagnostics again (nothing does since PdfPig was removed).
         // Kept as the report slot for whichever backend picks decoration detection back up.
         if (diagnostics is { Count: > 0 })
@@ -102,10 +102,10 @@ public class PdfPipelineValidator : IPdfPipelineValidator
                     $"{noDecorationCount} document(s) got no header/footer stripping — too few pages for decoration detection.");
         }
 
-        // 10. ADVISORY: random sample for human review.
+        // 12. ADVISORY: random sample for human review.
         var sample = BuildRandomCheckSample(cleanResult);
 
-        // 11. Final pass/fail. Error rate is per ATTEMPTED page, so file-level failures
+        // 13. Final pass/fail. Error rate is per ATTEMPTED page, so file-level failures
         // (which contribute errors but no pages) still count against the denominator.
         var errorCount     = issues.Count(i => i.Severity == "Error");
         var totalAttempted = pagesExtraction.RowsAttempted;
@@ -132,7 +132,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         };
     }
 
-        // Folds per-file PDFExtractionResult results into the batch-level shape the checks
+        // 1. Folds per-file PDFExtractionResult results into the batch-level shape the checks
     // operate on. A file-level extraction error is recorded once; a file that failed to
     // parse contributes nothing else. Validator-private on purpose — nothing but
     // validation bookkeeping needs this exact shape.
@@ -203,7 +203,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return issues;
     }
 
-    // 2. Every extracted page must land in exactly one Clean bucket, an empty run never
+    // 4. Every extracted page must land in exactly one Clean bucket, an empty run never
     // passes (the diff step would delete the entire index), and the extractor must not
     // produce duplicate (BlobName, PageNumber) pairs. Duplicates land in reconciliation
     // (not Issues) so no error-rate threshold can let them slip through — this is the
@@ -234,7 +234,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return reconciliation;
     }
 
-    // 3. Magnitude shift vs a previous run, if supplied.
+    // 5. Magnitude shift vs a previous run, if supplied.
     // Design constraint for a future content-hash extraction skip: cleanResult only
     // reflects files actually (re-)extracted this run. If skipped-unchanged files stop
     // contributing to the count without their prior page counts being folded back in,
@@ -256,7 +256,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return magnitude;
     }
 
-    // 4. Per-page text-quality signals. Single pass per page: both counters in one
+    // 6. Per-page text-quality signals. Single pass per page: both counters in one
     // walk of the content instead of two full Count() scans.
     private static List<ValidationIssue> TextQualityCheck(PdfCleanResult cleanResult)
     {
@@ -292,7 +292,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return issues;
     }
 
-    // 4b. PDF-only heuristic: a trigram repeating MinTrigramRepeats+ times on one page
+    // 7. PDF-only heuristic: a trigram repeating MinTrigramRepeats+ times on one page
     // suggests table rows run together with no delimiters left. Skips pages where DI
     // already detected a table — this check's purpose is tables DI MISSED; running it on
     // detected-table pages just false-positives on legitimate repeated cell content.
@@ -342,7 +342,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             .ToList();
     }
 
-    // 4c. Table structure issues read directly off DI's own table data. Replaces an
+    // 8. Table structure issues read directly off DI's own table data. Replaces an
     // earlier heuristic that pattern-matched GFM pipe tables — DI renders tables as
     // HTML <table> elements, so that heuristic never matched and was silently a no-op.
     private static List<ValidationIssue> TableStructureQualityCheck(
@@ -369,11 +369,11 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return issues;
     }
 
-    // 5. Total tables detected this run — real count from DI's table detection.
+    // 9. Total tables detected this run — real count from DI's table detection.
     private static int CountDetectedTables(IReadOnlyDictionary<string, PdfDocumentStructure>? structures) =>
         structures?.Values.Sum(s => s.Tables.Count) ?? 0;
 
-    // 6. Document flagged if none of its pages has a markdown heading.
+    // 10. Document flagged if none of its pages has a markdown heading.
     private static List<string> DocsWithNoPagesWithHeading(PdfCleanResult cleanResult)
     {
         var docsWithHeadings = cleanResult.Records

@@ -196,7 +196,7 @@ public class PdfPipelineValidatorTests
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page], structure)], clean);
 
         Assert.IsTrue(report.Issues.Any(i =>
-            i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("malformed")));
+            i.Stage == "TableStructure" && i.Severity == "Warning" && i.Message.Contains("malformed")));
     }
 
     [TestMethod]
@@ -209,7 +209,7 @@ public class PdfPipelineValidatorTests
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page], structure)], clean);
 
         Assert.IsTrue(report.Issues.Any(i =>
-            i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("no cell data")));
+            i.Stage == "TableStructure" && i.Severity == "Warning" && i.Message.Contains("no cell data")));
     }
 
     [TestMethod]
@@ -221,7 +221,7 @@ public class PdfPipelineValidatorTests
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
         Assert.AreEqual(0, report.DetectedTableCount);
-        Assert.IsFalse(report.Issues.Any(i => i.Stage == "TextQuality"));
+        Assert.IsFalse(report.Issues.Any(i => i.Stage == "TableStructure"));
     }
 
     [TestMethod]
