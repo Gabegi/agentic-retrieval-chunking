@@ -70,35 +70,43 @@ public class ExtractionService : IExtractionService
         var seenSourceIds  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var newCount       = 0;
         var updated        = 0;
+        var skipped        = 0;
 
-        foreach (var doc in docs)
+        // Grouped by SourceId (not iterated per ExtractionDocument) because a single
+        // document can span several records - one per PDF page or CSV row, all sharing
+        // one SourceId. The new/updated/skip/delete decision is document-level (same
+        // last_modified_date across every record of that SourceId), so it must be made
+        // once per document; only the resulting records fed into toProcess stay page/row-level.
+        foreach (var group in docs.GroupBy(d => d.SourceId, StringComparer.OrdinalIgnoreCase))
         {
-            seenSourceIds.Add(doc.SourceId);
+            var sourceId = group.Key;
+            seenSourceIds.Add(sourceId);
 
-            if (!indexedDates.TryGetValue(doc.SourceId, out var indexedDate))
+            if (!indexedDates.TryGetValue(sourceId, out var indexedDate))
             {
-                toProcess.Add(doc);
+                toProcess.AddRange(group);
                 newCount++;
                 continue;
             }
 
             if (!forceReindex)
             {
-                var modifiedStr = doc.Metadata.GetValueOrDefault("last_modified_date");
+                var modifiedStr = group.First().Metadata.GetValueOrDefault("last_modified_date");
                 if (DateTimeOffset.TryParse(modifiedStr, out var modifiedDate) && modifiedDate <= indexedDate)
+                {
+                    skipped++;
                     continue;
+                }
             }
 
-            toDeleteChunks.Add(doc.SourceId);
-            toProcess.Add(doc);
+            toDeleteChunks.Add(sourceId);
+            toProcess.AddRange(group);
             updated++;
         }
 
         // Docs that were previously indexed but no longer appear in the source
         var removedSourceIds = indexedDates.Keys.Where(id => !seenSourceIds.Contains(id)).ToList();
         toDeleteChunks.AddRange(removedSourceIds);
-
-        var skipped = docs.Count - toProcess.Count;
 
         return (toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
     }
