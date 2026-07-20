@@ -76,7 +76,7 @@ public static class PdfDocumentValidator
     // 0.1.9 build, not just docs) - anything else falls through to the generic catch and
     // is reported as Unknown rather than mislabeled as a specific cause.
     public static bool TryOpenAndValidate(
-        byte[] pdfBytes, string blobName, ILogger logger,
+        byte[] pdfBytes, string blobName, ILogger logger, List<ExtractionWarning> warnings,
         [NotNullWhen(true)]  out PdfDocument?    pdf,
         [NotNullWhen(false)] out ExtractionError? error)
     {
@@ -90,6 +90,13 @@ public static class PdfDocumentValidator
             logger.LogInformation(
                 "Opened PDF '{Blob}': {Pages} page(s), version {Version}",
                 blobName, opened.NumberOfPages, opened.Version);
+
+            if (opened.Version < MinRecommendedVersion)
+                warnings.Add(new ExtractionWarning
+                {
+                    DocumentId = blobName,
+                    Message    = $"PDF spec version {opened.Version} is older than {MinRecommendedVersion} - older PDFs correlate with extraction trouble.",
+                });
 
             pdf   = opened;
             error = null;
@@ -128,7 +135,7 @@ public static class PdfDocumentValidator
         }
     }
 
-    private static bool IsPDFSizeOkForDI(byte[] pdfBytes, string blobName, [NotNullWhen(false)] out ExtractionError? error)
+    private static bool IsPDFSizeOkForDI(byte[] pdfBytes, string blobName, List<ExtractionWarning> warnings, [NotNullWhen(false)] out ExtractionError? error)
     {
         if (pdfBytes.Length == 0)
         {
@@ -147,6 +154,19 @@ public static class PdfDocumentValidator
             return false;
         }
 
+        if (pdfBytes.Length < MinReasonableBytes)
+            warnings.Add(new ExtractionWarning
+            {
+                DocumentId = blobName,
+                Message    = $"File is only {pdfBytes.Length} byte(s) - often a scan-of-nothing or placeholder.",
+            });
+        else if (pdfBytes.Length > MaxBytes * NearLimitFraction)
+            warnings.Add(new ExtractionWarning
+            {
+                DocumentId = blobName,
+                Message    = $"File is {pdfBytes.Length / 1024.0 / 1024.0:F1} MB, over {NearLimitFraction:P0} of the {MaxBytes / 1024 / 1024} MB Document Intelligence limit.",
+            });
+
         error = null;
         return true;
     }
@@ -154,7 +174,7 @@ public static class PdfDocumentValidator
     private static ExtractionError OpenError(string blobName, PdfOpenFailureReason reason, string message) =>
         new() { DocumentId = blobName, Message = message, Reason = reason };
 
-    private static bool IsPDFPageCountOkForDI(PdfDocument pdf, string blobName, [NotNullWhen(false)] out ExtractionError? error)
+    private static bool IsPDFPageCountOkForDI(PdfDocument pdf, string blobName, List<ExtractionWarning> warnings, [NotNullWhen(false)] out ExtractionError? error)
     {
         if (pdf.NumberOfPages == 0)
         {
@@ -172,6 +192,13 @@ public static class PdfDocumentValidator
             };
             return false;
         }
+
+        if (pdf.NumberOfPages > MaxPages * NearLimitFraction)
+            warnings.Add(new ExtractionWarning
+            {
+                DocumentId = blobName,
+                Message    = $"{pdf.NumberOfPages} pages, over {NearLimitFraction:P0} of the {MaxPages}-page Document Intelligence limit per analyze call.",
+            });
 
         error = null;
         return true;
