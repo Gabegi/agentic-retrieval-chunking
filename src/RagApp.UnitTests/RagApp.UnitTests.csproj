@@ -17,5 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\agentic-rag-app\ProtocolsIndexer.csproj" />
+    <ProjectReference Include="..\CsvIndexing\CsvIndexing.csproj" />
+    <ProjectReference Include="..\IndexingShared\IndexingShared.csproj" />
   </ItemGroup>
 </Project>
