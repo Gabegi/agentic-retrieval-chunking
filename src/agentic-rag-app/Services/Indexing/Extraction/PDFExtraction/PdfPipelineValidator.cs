@@ -388,7 +388,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             .ToList();
     }
 
-    // 7. Random sample for human review.
+    // 12. Random sample for human review.
     private static List<CleanedPdfPageRecord> BuildRandomCheckSample(PdfCleanResult cleanResult) =>
         cleanResult.Records.Count <= SpotCheckSampleSize
             ? [.. cleanResult.Records]
