@@ -67,17 +67,17 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             // - Cleaning
         var issues = GetIssuesFromExtractionNCleaning(pagesExtraction, cleanResult);
 
-        // 4. HARD GATE: extraction page counts must reconcile through clean.
-        var reconciliation = CheckDiffExtractNCleaning(pagesExtraction, cleanResult);
-        reconciliation.AddRange(similarNamingProblems);
+        // 4. Checks difference between Extraction count and Cleaning count
+        var diffExtractionNCleaning = CheckDiffExtractNCleaning(pagesExtraction, cleanResult);
+        diffExtractionNCleaning.AddRange(similarNamingProblems);
 
-        // 5. HARD GATE (overridable): magnitude shift vs a previous run, if supplied.
-        var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
+        // 5. Checks difference between Cleaning and Previous Run
+        var diffCleaningNPreviousRun = CheckDiffCleanNPreviousRun(cleanResult, previousRunCleanedCount);
 
         // 7. Per-page text quality (U+FFFD, control/unassigned chars).
         issues.AddRange(TextQualityCheck(cleanResult));
 
-        // 7b. PDF-only: tables collapsed into repeated-phrase prose during extraction.
+        // 7b. Tbles collapsed into repeated-phrase prose during extraction.
         issues.AddRange(TableFlatteningCheck(cleanResult, structures));
 
         // 7c. Table structure issues, from DI's own table data — not a text-pattern guess.
@@ -111,8 +111,8 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         var totalAttempted = pagesExtraction.RowsAttempted;
         var errorRate      = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
 
-        var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && reconciliation.Count == 0;
-        var passed                   = passedExcludingMagnitude && magnitude.Count == 0;
+        var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && diffExtractionNCleaning.Count == 0;
+        var passed                   = passedExcludingMagnitude && diffCleaningNPreviousRun.Count == 0;
 
         return new PdfValidationReport
         {
@@ -120,8 +120,8 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             PagesExtracted                   = pagesExtraction.Records.Count,
             CleanedRecords                   = cleanResult.Records.Count,
             Issues                           = issues,
-            ReconciliationProblems           = reconciliation,
-            MagnitudeWarnings                = magnitude,
+            ReconciliationProblems           = diffExtractionNCleaning,
+            MagnitudeWarnings                = diffCleaningNPreviousRun,
             RedFlags                         = redFlags,
             SpotCheckSample                  = sample,
             DocumentsNeedingFallbackChunking = docsWithNoPagesWithHeadings,
@@ -237,7 +237,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     // contributing to the count without their prior page counts being folded back in,
     // the first hash-skip run looks like a massive drop and trips this gate for a corpus
     // that didn't shrink. Resolve before shipping hash-skip, not after.
-    private static List<string> CheckMagnitudeShift(PdfCleanResult cleanResult, int? previousRunCleanedCount)
+    private static List<string> CheckDiffCleanNPreviousRun(PdfCleanResult cleanResult, int? previousRunCleanedCount)
     {
         var magnitude = new List<string>();
 
