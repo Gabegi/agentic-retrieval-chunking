@@ -36,8 +36,11 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
 
         // Step 1: local, free structural check — rejects oversized/corrupt/encrypted/
         // too-many-page files before spending a paid Document Intelligence call on them.
-        if (!PdfDocumentValidator.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var validationError))
-            return new PDFExtractionResult(false, blobName, fileSizeBytes, null, null, null, null, null, null, validationError);
+        if (!PdfDocumentValidator.IsPDFValid(pdfBytes, blobName, _logger, out var pdf, out var validationError, out var validationDiagnostics))
+            return new PDFExtractionResult(false, blobName, fileSizeBytes, null, null, null, null, null, null, validationError)
+            {
+                ValidationDiagnostics = validationDiagnostics,
+            };
 
         // Captured before Step 2 disposes pdf - PdfPig's own PDF spec version (e.g. 1.7),
         // otherwise only ever logged and then lost. Technically outside any try/finally
@@ -49,13 +52,24 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         // Step 2: ParseNativeMetadata takes ownership of pdf's lifetime (disposes it internally)
         // and reads everything PdfPig can offer beyond DI: native Title/Author/
         // CreationDate plus the outline/bookmark tree.
-        var nativeMetadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(pdf, blobName, _logger);
+        var nativeMetadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(pdf, blobName, _logger, out var metadataDiagnostics);
 
         // Step 3: submit to Document Intelligence's prebuilt-layout model and assemble
         // pages/structural data — lives in PdfDocumentAnalyzer.
         var structureResult = await _structureExtractor.AnalyzeDocumentAsync(pdfBytes, blobName, nativeMetadata, ct);
         if (!structureResult.Ok)
-            return new PDFExtractionResult(false, blobName, fileSizeBytes, pdfSpecVersion, nativeMetadata, null, null, null, null, structureResult.Error);
+            return new PDFExtractionResult(false, blobName, fileSizeBytes, pdfSpecVersion, nativeMetadata, null, null, null, null, structureResult.Error)
+            {
+                ValidationDiagnostics = validationDiagnostics,
+                MetadataDiagnostics   = metadataDiagnostics,
+                AnalysisDiagnostics   = new PdfStepDiagnostics([], [structureResult.Error!]),
+            };
+
+        // Bookmarks are PdfPig-derived (NativeMetadata), not DI-derived, so this is
+        // computed here rather than inside PdfDocumentAnalyzer/PdfDocumentStructure,
+        // which is scoped to what DI itself produces.
+        var (sectionBreadcrumbs, breadcrumbDiagnostics) =
+            PdfSectionBreadCrumbBuilder.BuildSectionBreadcrumbs(nativeMetadata.Bookmarks, nativeMetadata.PageCount, blobName);
 
         return new PDFExtractionResult(
             Ok:               true,
@@ -76,10 +90,16 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
             // extraction warning already uses.
             Warnings = structureResult.Warnings.Select(w => ToExtractionWarning(w, blobName)).ToList(),
 
-            // Bookmarks are PdfPig-derived (NativeMetadata), not DI-derived, so this is
-            // computed here rather than inside PdfDocumentAnalyzer/PdfDocumentStructure,
-            // which is scoped to what DI itself produces.
-            SectionBreadcrumbs = PdfSectionBreadCrumbBuilder.BuildSectionBreadcrumbs(nativeMetadata.Bookmarks, nativeMetadata.PageCount),
+            SectionBreadcrumbs = sectionBreadcrumbs,
+
+            // Per-step diagnostics (see PdfStepDiagnostics) - report/diagnostic material
+            // only, never a second gating source. AnalysisDiagnostics.Warnings is the same
+            // mapped list as the flat Warnings above by design - one signal, two views
+            // ("everything this file produced" vs. "grouped by which step produced it").
+            ValidationDiagnostics = validationDiagnostics,
+            MetadataDiagnostics   = metadataDiagnostics,
+            AnalysisDiagnostics   = new PdfStepDiagnostics(structureResult.Warnings.Select(w => ToExtractionWarning(w, blobName)).ToList(), []),
+            BreadcrumbDiagnostics = breadcrumbDiagnostics,
         };
     }
 

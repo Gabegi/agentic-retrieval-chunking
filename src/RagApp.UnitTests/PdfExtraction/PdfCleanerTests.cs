@@ -43,7 +43,7 @@ public class PdfCleanerTests
     }
 
     [TestMethod]
-    public void KnownMojibakePattern_IsRepairedAndCounted()
+    public void Mojibake_IsRepairedAndCounted()
     {
         var result = BuildCleaner().CleanPdf([Page(content: "GeÃ¯nformeerde beslissing")]);
 
@@ -60,36 +60,50 @@ public class PdfCleanerTests
         Assert.AreEqual("Line one\n\nLine two", result.Records[0].PageContent);
     }
 
-    // Regression guard for the actual bug: not "these strings don't repair" but "an
-    // earlier-listed pattern was a proper prefix of a later-listed one" (KnownMojibakePatterns
-    // is checked in order via sequential text.Replace calls, so a shorter prefix pattern
-    // checked first eats the longer pattern's shared prefix before its own fix ever runs).
-    // Guards future additions to the table, not just today's entries - the actual risk is
-    // someone appending a new pattern in the wrong slot.
-    [TestMethod]
-    public void MojibakePatterns_NoEarlierPatternIsPrefixOfLaterPattern()
+    // PdfCleaner no longer matches a fixed pattern table - it round-trips the whole page
+    // through Windows-1252 -> UTF-8 whenever 'Ã'/'â' appear, repairing the entire mis-decode
+    // class in one pass. Coverage is round-trip cases, not a pattern-ordering guard, matching
+    // PdfCleaner.RepairMojibake's own doc comment.
+    [DataTestMethod]
+    [DataRow("itâ€™s", "it's",       DisplayName = "right single quote")]
+    [DataRow("â€œquoteâ€",  "\"quote\"", DisplayName = "left+right double quote")]
+    [DataRow("enâ€“dash",  "en–dash",  DisplayName = "en dash")]
+    [DataRow("emâ€”dash",  "em—dash",  DisplayName = "em dash")]
+    [DataRow("GeÃ¯nformeerd", "Geïnformeerd", DisplayName = "i-diaeresis (Dutch)")]
+    [DataRow("cliÃ«nt",   "cliënt",   DisplayName = "e-diaeresis (Dutch)")]
+    [DataRow("kwaliteitÃ©n", "kwaliteitén", DisplayName = "e-acute")]
+    [DataRow("bÃ¼ro",     "büro",     DisplayName = "u-diaeresis")]
+    public void KnownMojibakeFragment_RoundTripsToRepairedText(string corrupted, string expected)
     {
-        var patterns = PdfCleaner.KnownMojibakePatterns;
+        var cleaned = BuildCleaner().CleanPdf([Page(content: $"x {corrupted} y")]).Records[0].PageContent;
 
-        for (int i = 0; i < patterns.Length; i++)
-            for (int j = i + 1; j < patterns.Length; j++)
-                Assert.IsFalse(patterns[j].Pattern.StartsWith(patterns[i].Pattern, StringComparison.Ordinal),
-                    $"Pattern[{i}] '{patterns[i].Pattern}' is a prefix of Pattern[{j}] '{patterns[j].Pattern}' " +
-                    "— the shorter one must be listed after the longer one, not before it.");
+        Assert.AreEqual($"x {expected} y", cleaned, $"'{corrupted}' did not repair to '{expected}'.");
     }
 
-    // Behavioral coverage for all 9 patterns, including the two the ordering bug actually
-    // broke (en/em dash). Both content and expected output are derived from PdfCleaner's own
-    // table, not retyped by hand - several of these characters are visually near-identical
-    // (en dash vs. em dash mojibake) and easy to mistranscribe.
+    // Safety valve, decode side: 'â' alone is ambiguous - it's both the mojibake fingerprint
+    // AND a legitimate letter (e.g. in loanwords). When the round-trip produces a replacement
+    // char (invalid UTF-8), that means the source wasn't actually mojibake - keep it as-is.
     [TestMethod]
-    public void AllKnownMojibakePatterns_EachRepairToTheirOwnFix()
+    public void LegitimateAccentedText_IsLeftUntouched()
     {
-        foreach (var (pattern, fix) in PdfCleaner.KnownMojibakePatterns)
-        {
-            var cleaned = BuildCleaner().CleanPdf([Page(content: $"x {pattern} y")]).Records[0].PageContent;
+        var result = BuildCleaner().CleanPdf([Page(content: "vâme")]);
 
-            Assert.AreEqual($"x {fix} y", cleaned, $"Pattern '{pattern}' did not repair to '{fix}'.");
-        }
+        Assert.AreEqual("vâme", result.Records[0].PageContent);
+        Assert.AreEqual(0, result.MojibakeRepairedPages);
+    }
+
+    // Safety valve, encode side: the actual bug this class's RepairMojibake was rewritten to
+    // fix. A page can contain a genuine mojibake fragment (triggering the round-trip attempt)
+    // AND, elsewhere on the same page, a real character outside Windows-1252's repertoire
+    // (arrows, checkboxes, non-Latin scripts). The old GetBytes(text) implementation silently
+    // replaced that character with '?' and reported "repaired". EncoderExceptionFallback
+    // makes that throw instead, so the whole page is left untouched rather than corrupted.
+    [TestMethod]
+    public void MojibakeFragmentPlusNonCp1252Character_IsLeftUntouched()
+    {
+        var result = BuildCleaner().CleanPdf([Page(content: "GeÃ¯nformeerd → volgende stap")]);
+
+        Assert.AreEqual("GeÃ¯nformeerd → volgende stap", result.Records[0].PageContent);
+        Assert.AreEqual(0, result.MojibakeRepairedPages);
     }
 }
