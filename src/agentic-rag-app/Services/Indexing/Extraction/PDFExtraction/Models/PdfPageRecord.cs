@@ -8,7 +8,7 @@ namespace ProtocolsIndexer.Models;
 public class PdfPageRecord
 {
     public string BlobName    { get; set; } = "";
-    public int    PageIndex   { get; set; }
+    public int    PageNumber  { get; set; }
 
     // Cleaned, not offset-addressable - GetPages strips noise comments before this is
     // set, so it's no longer an exact RawContent substring. Match any structural Offset

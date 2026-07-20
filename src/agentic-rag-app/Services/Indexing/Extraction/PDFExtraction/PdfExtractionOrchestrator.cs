@@ -76,37 +76,50 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     {
         var runAt = DateTimeOffset.UtcNow;
 
-        // 1/ Extract Data from PDFs
-        var (fileResults, lastModifiedByBlob) = await ExtractPdfsFromBlobAsync(ct);
+        // Populated once Validate succeeds; the finally block below writes reports off
+        // these captured locals so a failure anywhere after that point (the magnitude-check
+        // throw, SaveRunStateAsync, BuildExtractionOutput) still gets a report on the way out.
+        // A failure before Validate (blob listing, cleaning, PreviousRunCount) has no report
+        // to write - there's nothing to build if that data was never produced.
+        List<PdfExtractionDiagnostics> diagnostics = new();
+        PdfValidationReport? report = null;
 
-        // Filters to successfully-extracted files and flattens their pages into one list
-        // because _cleaner.Clean only needs page content — not the file-level error/warning data that _validator.Validate needs separately from fileResults itself
-        var pages       = fileResults.Where(f => f.Ok).SelectMany(f => f.Pages!).ToList();
-        var cleanResult = _pdfCleaner.CleanPdf(pages);
+        try
+        {
+            // 1/ Extract Data from PDFs
+            var (fileResults, lastModifiedByBlob) = await ExtractPdfsFromBlobAsync(ct);
 
-        // Check # of docs processed vs previous run
-        var (previousCount, previousETag) = await PreviousRunCount(ct);
-        var diagnostics = fileResults.Select(f => f.Diagnostics).OfType<PdfExtractionDiagnostics>().ToList();
+            // Filters to successfully-extracted files and flattens their pages into one list
+            // because _cleaner.Clean only needs page content — not the file-level error/warning data that _validator.Validate needs separately from fileResults itself
+            var pages       = fileResults.Where(f => f.Ok).SelectMany(f => f.Pages!).ToList();
+            var cleanResult = _pdfCleaner.CleanPdf(pages);
 
-        
-        var report = _validator.Validate(fileResults, cleanResult, previousCount, diagnostics);
+            // Check # of docs processed vs previous run
+            var (previousCount, previousETag) = await PreviousRunCount(ct);
+            diagnostics = fileResults.Select(f => f.Diagnostics).OfType<PdfExtractionDiagnostics>().ToList();
 
-        await WriteReportsAsync(runAt, report, diagnostics, ct);
+            report = _validator.Validate(fileResults, cleanResult, previousCount, diagnostics);
 
-        var (effectivePassed, errors, warnings, missingTitle) =
-            LogAndEmitValidationTelemetry(report, cleanResult, overrideMagnitudeCheck);
+            var (effectivePassed, errors, warnings, missingTitle) =
+                LogAndEmitValidationTelemetry(report, cleanResult, overrideMagnitudeCheck);
 
-        if (!effectivePassed)
-            throw new InvalidOperationException(
-                $"PDF validation failed ({report.ReconciliationProblems.Count} reconciliation problem(s), " +
-                $"{report.MagnitudeWarnings.Count} magnitude warning(s)) — aborting extraction.");
+            if (!effectivePassed)
+                throw new InvalidOperationException(
+                    $"PDF validation failed ({report.ReconciliationProblems.Count} reconciliation problem(s), " +
+                    $"{report.MagnitudeWarnings.Count} magnitude warning(s)) — aborting extraction.");
 
-        // Whether passed normally or via override, this becomes the new baseline - an
-        // override run resets the magnitude check so the NEXT run is auto-gated again
-        // instead of comparing against the same stale count.
-        await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
+            // Whether passed normally or via override, this becomes the new baseline - an
+            // override run resets the magnitude check so the NEXT run is auto-gated again
+            // instead of comparing against the same stale count.
+            await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
 
-        return BuildExtractionOutput(report, cleanResult, errors, warnings, missingTitle, lastModifiedByBlob);
+            return BuildExtractionOutput(report, cleanResult, errors, warnings, missingTitle, lastModifiedByBlob);
+        }
+        finally
+        {
+            if (report is not null)
+                await WriteReportsAsync(runAt, report, diagnostics, ct);
+        }
     }
 
     // Downloads and extracts every PDF blob in the container, up to MaxExtractionParallelism
@@ -265,9 +278,8 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             SpotCheckSample:        spotCheck);
     }
 
-    // Everything this run logs and emits as metrics, in one place — mirrors
-    // CsvExtractionOrchestrator.LogAndEmitValidationTelemetry, minus the metrics
-    // (StaleDocs, "department"/"version" metadata) that have no PDF equivalent.
+    // Everything this run logs and emits as metrics, in one plac
+    // 
     private (bool EffectivePassed, int Errors, int Warnings, int MissingTitle)
         LogAndEmitValidationTelemetry(
             PdfValidationReport report,
