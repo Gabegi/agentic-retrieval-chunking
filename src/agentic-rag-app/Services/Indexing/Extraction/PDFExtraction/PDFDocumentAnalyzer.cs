@@ -498,7 +498,7 @@ namespace ProtocolsIndexer.Services
                 pages.Add(new PdfPageRecord
                 {
                     BlobName    = blobName,
-                    PageIndex   = p.PageNumber,
+                    PageNumber  = p.PageNumber,
                     PageContent = content,
                     Title       = title,
                 });

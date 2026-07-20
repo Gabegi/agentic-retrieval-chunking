@@ -15,7 +15,7 @@ namespace ProtocolsIndexer.Services;
 // aborts the whole run.
 //
 // Explicitly out of scope:
-//   - Duplicate (BlobName, PageIndex) pages - that's an extractor invariant
+//   - Duplicate (BlobName, PageNumber) pages - that's an extractor invariant
 //     violation, asserted once in PdfPipelineValidator, not here.
 //   - Header/footer/boilerplate stripping - Cordaan's PDF conventions aren't
 //     confirmed yet, and a wrong regex here silently deletes real content, which is
@@ -92,7 +92,7 @@ public class PdfCleaner : IPdfCleaner
                 result.AddWarning(new CleaningWarning
                 {
                     DocumentId = page.BlobName,
-                    Message    = $"Page {page.PageIndex}: repaired mojibake in source text (round-trip re-decode).",
+                    Message    = $"Page {page.PageNumber}: repaired mojibake in source text (round-trip re-decode).",
                 });
             }
 
@@ -100,7 +100,7 @@ public class PdfCleaner : IPdfCleaner
                 result.AddWarning(new CleaningWarning
                 {
                     DocumentId = page.BlobName,
-                    Message    = $"PageContent is empty after cleanup (page {page.PageIndex}) - likely a blank source page.",
+                    Message    = $"PageContent is empty after cleanup (page {page.PageNumber}) - likely a blank source page.",
                 });
 
             result.AddRecord(ToCleanedRecord(page, content));
@@ -114,7 +114,7 @@ public class PdfCleaner : IPdfCleaner
     private static CleanedPdfPageRecord ToCleanedRecord(PdfPageRecord page, string content) => new()
     {
         BlobName    = page.BlobName,
-        PageIndex   = page.PageIndex,
+        PageNumber  = page.PageNumber,
         PageContent = content,
         Title       = TrimOrEmpty(page.Title),
     };
