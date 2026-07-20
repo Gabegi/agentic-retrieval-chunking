@@ -205,7 +205,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     // 2. Every extracted page must land in exactly one Clean bucket, an empty run never
     // passes (the diff step would delete the entire index), and the extractor must not
-    // produce duplicate (BlobName, PageIndex) pairs. Duplicates land in reconciliation
+    // produce duplicate (BlobName, PageNumber) pairs. Duplicates land in reconciliation
     // (not Issues) so no error-rate threshold can let them slip through — this is the
     // sole enforcement of that invariant, checked against pagesExtraction so the
     // "extractor" attribution stays honest regardless of what Clean does.
@@ -223,10 +223,13 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         if (cleanResult.Records.Count == 0)
             reconciliation.Add("Zero cleaned records produced — refusing to pass an empty run.");
 
+        // Grouped case-insensitively on BlobName - same convention as BuildStructureLookup's
+        // dictionary, so "Report.pdf" and "report.pdf" pages of the same PageNumber collide
+        // here too instead of only being caught by the structure-lookup collision check.
         reconciliation.AddRange(pagesExtraction.Records
-            .GroupBy(r => (r.BlobName, r.PageIndex))
+            .GroupBy(r => (BlobName: r.BlobName.ToUpperInvariant(), r.PageNumber))
             .Where(g => g.Count() > 1)
-            .Select(g => $"Duplicate page from extractor: {g.Key.BlobName} / page {g.Key.PageIndex} appears {g.Count()} times"));
+            .Select(g => $"Duplicate page from extractor: {g.First().BlobName} / page {g.Key.PageNumber} appears {g.Count()} times"));
 
         return reconciliation;
     }
@@ -271,15 +274,19 @@ public class PdfPipelineValidator : IPdfPipelineValidator
                     corruptCharCount++;
             }
 
-            if (replacementCount > 0)
-                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
-                    DocumentId = record.BlobName,
-                    Message    = $"Page {record.PageIndex}: {replacementCount} U+FFFD char(s) — source text is corrupted." });
+            // One issue per page even when both problems are present - each Error here
+            // counts against the error-rate denominator (attempted pages), so a page
+            // reported twice would silently double its own weight in that rate.
+            if (replacementCount > 0 || corruptCharCount > 0)
+            {
+                var parts = new List<string>();
+                if (replacementCount > 0) parts.Add($"{replacementCount} U+FFFD char(s)");
+                if (corruptCharCount > 0) parts.Add($"{corruptCharCount} control/unassigned character(s)");
 
-            if (corruptCharCount > 0)
                 issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
                     DocumentId = record.BlobName,
-                    Message    = $"Page {record.PageIndex}: {corruptCharCount} control/unassigned character(s) — likely encoding corruption." });
+                    Message    = $"Page {record.PageNumber}: {string.Join(", ", parts)} — source text is corrupted / likely encoding corruption." });
+            }
         }
 
         return issues;
@@ -301,7 +308,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         {
             var hasDetectedTable = structures != null
                 && structures.TryGetValue(record.BlobName, out var structure)
-                && structure.Tables.Any(t => t.PageNumber == record.PageIndex);
+                && structure.Tables.Any(t => t.PageNumber == record.PageNumber);
             if (hasDetectedTable) continue;
 
             var repeated = FindRepeatedTrigrams(record.PageContent);
@@ -309,7 +316,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
             issues.Add(new ValidationIssue { Stage = "TableFlattening", Severity = "Warning",
                 DocumentId = record.BlobName,
-                Message    = $"Page {record.PageIndex}: possible flattened table — repeated phrase(s) {string.Join(", ", repeated.Take(3))}." });
+                Message    = $"Page {record.PageNumber}: possible flattened table — repeated phrase(s) {string.Join(", ", repeated.Take(3))}." });
         }
 
         return issues;
@@ -349,11 +356,11 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             foreach (var table in structure.Tables)
             {
                 if (table.RowCount <= 0 || table.ColumnCount <= 0)
-                    issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
+                    issues.Add(new ValidationIssue { Stage = "TableStructure", Severity = "Warning",
                         DocumentId = blobName,
                         Message    = $"Table at offset {table.Offset}: reported {table.RowCount} row(s) x {table.ColumnCount} column(s) — malformed." });
                 else if (table.Cells.Count == 0)
-                    issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
+                    issues.Add(new ValidationIssue { Stage = "TableStructure", Severity = "Warning",
                         DocumentId = blobName,
                         Message    = $"Table at offset {table.Offset}: {table.RowCount}x{table.ColumnCount} reported but no cell data was extracted." });
             }

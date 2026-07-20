@@ -271,7 +271,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         var extractionDocs = cleanResult.Records
             .Select(r => new ExtractionDocument(
                 SourceId: r.BlobName,
-                Ordinal:  r.PageIndex,
+                Ordinal:  r.PageNumber,
                 Content:  r.PageContent,
                 Metadata: new Dictionary<string, string>
                 {

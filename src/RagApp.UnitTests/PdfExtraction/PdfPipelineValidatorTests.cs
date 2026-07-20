@@ -13,7 +13,7 @@ public class PdfPipelineValidatorTests
     private static PdfPageRecord Page(string blobName, string content, int pageIndex = 0, string title = "Title") => new()
     {
         BlobName    = blobName,
-        PageIndex   = pageIndex,
+        PageNumber  = pageIndex,
         PageContent = content,
         Title       = title,
     };
@@ -228,7 +228,7 @@ public class PdfPipelineValidatorTests
     public void DuplicatePageFromExtractor_FailsViaReconciliation_NotErrorRate()
     {
         // Two distinct pages plus one deliberate duplicate of page 0 - modeling the
-        // extractor reporting the same (BlobName, PageIndex) twice, since PdfCleaner no
+        // extractor reporting the same (BlobName, PageNumber) twice, since PdfCleaner no
         // longer dedupes at all. Neither page trips any Issue-level check, so the
         // error-rate gate alone would pass this run; only the reconciliation check
         // (unconditional, no rate threshold) should fail it - proving the

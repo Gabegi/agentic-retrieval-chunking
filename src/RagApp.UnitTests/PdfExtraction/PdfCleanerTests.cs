@@ -16,7 +16,7 @@ public class PdfCleanerTests
         string title     = " Title ") => new()
     {
         BlobName    = blobName,
-        PageIndex   = pageIndex,
+        PageNumber  = pageIndex,
         PageContent = content,
         Title       = title,
     };
