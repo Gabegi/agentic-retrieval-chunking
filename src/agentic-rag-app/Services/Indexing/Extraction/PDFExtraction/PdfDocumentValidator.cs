@@ -22,31 +22,52 @@ public static class PdfDocumentValidator
     public const long MaxBytes = 500L * 1024 * 1024; // DI hard limit, all paid tiers
     public const int  MaxPages = 2000;                // DI hard limit per analyze call, all paid tiers
 
+    // Soft-warning thresholds - predict a future hard failure or flag a likely-junk file,
+    // without rejecting anything themselves.
+    private const double NearLimitFraction     = 0.8;          // 80% of MaxBytes/MaxPages
+    private const long   MinReasonableBytes    = 10 * 1024;    // below this, likely a scan-of-nothing/placeholder
+    private const double MinRecommendedVersion = 1.4;          // older PDF spec versions correlate with extraction trouble
+
     // All three checks Document Intelligence needs before a paid analyze call, in the
     // right order. Returns the opened, page-count-validated PdfDocument on success so the
     // caller can read metadata/bookmarks from it - the caller owns disposing it from
     // there; on failure (including a page-count rejection after a successful open) this
     // disposes it internally, since pdf is null and the caller never gets a handle to it.
+    //
+    // diagnostics mirrors every hard failure into its own Errors list (same ExtractionError
+    // instance as the out error above) so "which step failed" is answerable the same way
+    // for every pipeline step - see PdfStepDiagnostics's own doc comment for why this must
+    // never also feed the validation gate.
     public static bool IsPDFValid(
         byte[] pdfBytes, string blobName, ILogger logger,
         [NotNullWhen(true)]  out PdfDocument?    pdf,
-        [NotNullWhen(false)] out ExtractionError? error)
+        [NotNullWhen(false)] out ExtractionError? error,
+        out PdfStepDiagnostics diagnostics)
     {
         pdf = null;
+        var warnings = new List<ExtractionWarning>();
 
-        if (!IsPDFSizeOkForDI(pdfBytes, blobName, out error))
-            return false;
-
-        if (!TryOpenAndValidate(pdfBytes, blobName, logger, out pdf, out error))
-            return false;
-
-        if (!IsPDFPageCountOkForDI(pdf, blobName, out error))
+        if (!IsPDFSizeOkForDI(pdfBytes, blobName, warnings, out error))
         {
-            pdf.Dispose();
-            pdf = null;
+            diagnostics = new PdfStepDiagnostics(warnings, [error]);
             return false;
         }
 
+        if (!TryOpenAndValidate(pdfBytes, blobName, logger, warnings, out pdf, out error))
+        {
+            diagnostics = new PdfStepDiagnostics(warnings, [error]);
+            return false;
+        }
+
+        if (!IsPDFPageCountOkForDI(pdf, blobName, warnings, out error))
+        {
+            pdf.Dispose();
+            pdf = null;
+            diagnostics = new PdfStepDiagnostics(warnings, [error]);
+            return false;
+        }
+
+        diagnostics = new PdfStepDiagnostics(warnings, []);
         return true;
     }
 

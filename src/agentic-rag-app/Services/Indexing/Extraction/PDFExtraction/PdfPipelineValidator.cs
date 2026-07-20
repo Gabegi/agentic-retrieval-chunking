@@ -61,16 +61,16 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         // checks below. structureCollisionProblems: two blobs whose names only differ by
         // case, so one's structure data got dropped building that lookup - fed into
         // reconciliation as a hard-gate problem.
-        var (structures, structureCollisionProblems) = BuildStructureLookup(fileResults);
+        var (structures, similarNamingProblems) = BuildStructureLookup(fileResults);
 
         var redFlags = new List<string>();
 
-        // 1. Collect all errors/warnings from the previous steps.
+        // 3. Collect all errors/warnings from the previous steps.
         var issues = CollectIssues(pagesExtraction, cleanResult);
 
         // 2. HARD GATE: extraction page counts must reconcile through clean.
         var reconciliation = CheckExtractVsCleanCount(pagesExtraction, cleanResult);
-        reconciliation.AddRange(structureCollisionProblems);
+        reconciliation.AddRange(similarNamingProblems);
 
         // 3. HARD GATE (overridable): magnitude shift vs a previous run, if supplied.
         var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
@@ -181,7 +181,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return (structures, collisionProblems);
     }
 
-    // 1. Aggregate every error/warning bucket into one place. DocumentId (blob name)
+    // 3. Aggregate every error/warning bucket into one place. DocumentId (blob name)
     // identifies the file; RowNumber is a CSV concept and never set for PDFs.
     private static List<ValidationIssue> CollectIssues(
         ExtractionResult<PdfPageRecord> pagesExtraction,

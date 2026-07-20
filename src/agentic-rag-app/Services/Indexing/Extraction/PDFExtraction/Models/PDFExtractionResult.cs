@@ -73,6 +73,18 @@ public record PDFExtractionResult
     public IReadOnlyList<ExtractionError>   PageErrors  { get; init; } = [];
     public IReadOnlyList<ExtractionWarning> Warnings    { get; init; } = [];
 
+    // Per-step diagnostics (see PdfStepDiagnostics) - report/diagnostic material only,
+    // never fed into validation gating. Lets a report say which step a finding came
+    // from, instead of everything landing in the one undifferentiated Warnings/
+    // PageErrors pile above. ValidationDiagnostics is populated even when Ok is false
+    // (it mirrors the file-level Error so "which step failed" is answerable the same
+    // way for every step); the other three are empty when the pipeline never reached
+    // that step.
+    public PdfStepDiagnostics ValidationDiagnostics { get; init; } = PdfStepDiagnostics.Empty;
+    public PdfStepDiagnostics MetadataDiagnostics    { get; init; } = PdfStepDiagnostics.Empty;
+    public PdfStepDiagnostics AnalysisDiagnostics    { get; init; } = PdfStepDiagnostics.Empty;
+    public PdfStepDiagnostics BreadcrumbDiagnostics  { get; init; } = PdfStepDiagnostics.Empty;
+
     // Per-step diagnostic snapshot (see PdfExtractionDiagnostics) - currently always null;
     // nothing populates it since the PdfPig backend (the only producer) was removed.
     public PdfExtractionDiagnostics? Diagnostics { get; init; }

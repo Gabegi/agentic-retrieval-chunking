@@ -1,6 +1,5 @@
 namespace ProtocolsIndexer.Models;
 
-// Mirrors CSV's CleanedPageRecord.
 public class CleanedPdfPageRecord
 {
     public string BlobName    { get; set; } = "";
