@@ -138,28 +138,6 @@ var host = new HostBuilder()
         services.AddSingleton<IChunkingStrategy, ChunkingStrategy1>();
         services.AddSingleton<IChunkingService, ChunkingService>();
 
-        // CSV pipeline stages - stateless, so singletons are safe.
-        services.AddSingleton<ICsvExtractor,     CsvExtractor>();
-        services.AddSingleton<ICsvJoiner,        CsvJoiner>();
-        services.AddSingleton<IDataCleaner,      DataCleaner>();
-        services.AddSingleton<IPipelineValidator, PipelineValidator>();
-
-        // CSV pipeline stages stay registered so CsvExtractionOrchestrator below still
-        // compiles/resolves, but CSV is no longer the active IExtractionOrchestrator —
-        // the Zenya CSV export was abandoned in favor of PDF. Kept standalone (not
-        // wired into IExtractionOrchestrator) in case CSV ever needs to run again;
-        // see docstring on PdfExtractionOrchestrator for the mirror-image note this
-        // replaces.
-        services.AddSingleton(sp => new CsvExtractionOrchestrator(
-            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
-            sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
-            sp.GetRequiredService<IRunReportWriter>(),
-            sp.GetRequiredService<ICsvExtractor>(),
-            sp.GetRequiredService<ICsvJoiner>(),
-            sp.GetRequiredService<IDataCleaner>(),
-            sp.GetRequiredService<IPipelineValidator>(),
-            sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
-
         // PDF extraction backend — only registered when Document Intelligence is
         // configured; PdfExtractionOrchestrator resolves it explicitly by Name below
         // rather than via GetRequiredService, so a future second backend can't silently
@@ -174,11 +152,10 @@ var host = new HostBuilder()
         services.AddSingleton<IPdfCleaner,           PdfCleaner>();
         services.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
 
-        // Extraction source — exactly one IExtractionOrchestrator is active at a time.
-        // PDF is now that source (CSV/Zenya export was abandoned); ExtractionService
-        // takes whichever IExtractionOrchestrator is registered here, no other change
-        // needed. To switch back, swap this registration for CsvExtractionOrchestrator
-        // above.
+        // Extraction source — PDF is the only IExtractionOrchestrator left in this project.
+        // CSV's pipeline (extractor, chunking, embedding, upload, index) moved out to the
+        // standalone CsvIndexing project — see IndexingShared for the source-agnostic
+        // seam types (ExtractionDocument/ExtractionOutput/etc.) both sides return/consume.
         services.AddSingleton<IExtractionOrchestrator>(sp => new PdfExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
