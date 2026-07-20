@@ -67,6 +67,19 @@ internal static class Instrumentation
     internal static readonly Counter<long> MissingMetadata =
         Meter.CreateCounter<long>("indexer.missing_metadata", description: "Docs missing key metadata fields (title, version, department)");
 
+    // ── PDF Extraction (Document Intelligence) ──────────────────────────────────
+
+    // 429 throttle retries while polling a DI analyze operation. A spike here means
+    // you're hitting Document Intelligence rate limits — see MaxExtractionParallelism
+    // in PdfExtractionOrchestrator.
+    internal static readonly Counter<long> DiThrottleRetries =
+        Meter.CreateCounter<long>("indexer.di_throttle_retries", description: "Document Intelligence 429 throttle retries while polling an analyze operation");
+
+    // Wall-clock time from submitting a DI analyze call to it completing (includes any
+    // throttle backoff). Watch for a rising p95 as a leading indicator of throttling.
+    internal static readonly Histogram<double> DiAnalyzeDuration =
+        Meter.CreateHistogram<double>("indexer.di_analyze_duration_seconds", unit: "s", description: "Wall-clock time for one Document Intelligence analyze call, submit to completion");
+
     // ── Chunking ─────────────────────────────────────────────────────────────
     // Tags: strategy (chunking strategy name)
 
