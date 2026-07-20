@@ -17,7 +17,7 @@ pr: none
 # public-access toggle has to flip rather than just an allow rule).
 parameters:
   - name: environment
-    displayName: 'Environment to upload into'
+    displayName: 'Target environment'
     type: string
     default: development
     values:
