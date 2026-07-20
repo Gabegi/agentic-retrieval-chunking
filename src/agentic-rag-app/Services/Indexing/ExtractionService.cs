@@ -72,16 +72,13 @@ public class ExtractionService : IExtractionService
         var updated        = 0;
         var skipped        = 0;
 
-        // Grouped by SourceId (not iterated per ExtractionDocument) because a single
-        // document can span several records - one per PDF page or CSV row, all sharing
-        // one SourceId. The new/updated/skip/delete decision is document-level (same
-        // last_modified_date across every record of that SourceId), so it must be made
-        // once per document; only the resulting records fed into toProcess stay page/row-level.
+        // Grouped by SourceId = document, one document can have multiple pages
         foreach (var group in docs.GroupBy(d => d.SourceId, StringComparer.OrdinalIgnoreCase))
         {
             var sourceId = group.Key;
             seenSourceIds.Add(sourceId);
 
+            // checks if document ID is already indexed
             if (!indexedDates.TryGetValue(sourceId, out var indexedDate))
             {
                 toProcess.AddRange(group);
@@ -89,6 +86,7 @@ public class ExtractionService : IExtractionService
                 continue;
             }
 
+            // if document is already indexed, skip adding it to the index
             if (!forceReindex)
             {
                 var modifiedStr = group.First().Metadata.GetValueOrDefault("last_modified_date");
