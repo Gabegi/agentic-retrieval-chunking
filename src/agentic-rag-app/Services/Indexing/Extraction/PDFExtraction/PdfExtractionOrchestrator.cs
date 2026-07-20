@@ -145,8 +145,11 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
                 try
                 {
-                    // always write a report
-                    await WriteReportsAsync(runAt, validation, diagnostics, ct);
+                    // CancellationToken.None, not ct: if this run failed because ct was
+                    // cancelled, writing the report with that same token would throw
+                    // immediately and the "always write a report" guarantee would silently
+                    // not hold on the one path it matters most for.
+                    await WriteReportsAsync(runAt, validation, diagnostics, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
