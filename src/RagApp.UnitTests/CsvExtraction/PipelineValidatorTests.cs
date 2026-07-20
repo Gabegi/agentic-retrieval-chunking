@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Services;
+using CsvIndexing.Models;
+using CsvIndexing.Services;
 
 namespace RagApp.UnitTests.CsvExtraction;
 
