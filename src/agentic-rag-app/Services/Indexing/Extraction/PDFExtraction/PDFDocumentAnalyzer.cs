@@ -401,17 +401,44 @@ namespace ProtocolsIndexer.Services
             var pages    = new List<PdfPageRecord>();
             var warnings = new List<AnalysisWarning>();
 
+            var setextNormalizedCount    = 0;
+            var noiseCommentsStripped    = 0;
+            var pagesWithNoiseComments   = 0;
+
             foreach (var p in result.Pages)
             {
                 var content = SliceBySpans(result.Content, p.Spans);
-                content = NoiseCommentLineRegex.Replace(content, "");
-                content = SetextTitleRegex.Replace(content, "# ${title}");
+
+                // MatchEvaluator counts and replaces in one regex pass each - same cost as
+                // the plain .Replace(content, "...") this replaced, not two scans per pattern.
+                var pageNoiseCount = 0;
+                content = NoiseCommentLineRegex.Replace(content, _ => { pageNoiseCount++; return ""; });
+                if (pageNoiseCount > 0)
+                {
+                    noiseCommentsStripped += pageNoiseCount;
+                    pagesWithNoiseComments++;
+                }
+
+                var pageSetextCount = 0;
+                content = SetextTitleRegex.Replace(content, m =>
+                {
+                    pageSetextCount++;
+                    return "# " + m.Groups["title"].Value;
+                });
+                setextNormalizedCount += pageSetextCount;
+
                 content = content.Trim('\r', '\n');
 
                 if (content.Length == 0)
+                {
                     _logger.LogWarning(
                         "'{Blob}' page {Page} has no content (no Spans) - an empty page could reach the index unnoticed.",
                         blobName, p.PageNumber);
+                    warnings.Add(new AnalysisWarning(
+                        "EmptyPageContent",
+                        $"Page {p.PageNumber} has no content (no Spans) - an empty page could reach the index unnoticed.",
+                        blobName));
+                }
 
                 var openCount  = TableOpenTagRegex.Matches(content).Count;
                 var closeCount = TableCloseTagRegex.Matches(content).Count;
@@ -434,6 +461,20 @@ namespace ProtocolsIndexer.Services
                     Title       = title,
                 });
             }
+
+            // File-level summaries (not per-page) - measure how much DI decoration/cosmetic
+            // normalization this file needed, worth knowing but not worth a warning per page.
+            if (setextNormalizedCount > 0)
+                warnings.Add(new AnalysisWarning(
+                    "SetextTitleNormalized",
+                    $"Setext-style title normalized to ATX on {setextNormalizedCount} page(s).",
+                    blobName));
+
+            if (noiseCommentsStripped > 0)
+                warnings.Add(new AnalysisWarning(
+                    "NoiseCommentsStripped",
+                    $"{noiseCommentsStripped} DI decoration comment(s) (page header/footer/number/figure-content) stripped across {pagesWithNoiseComments} page(s).",
+                    blobName));
 
             return (pages, warnings);
         }
@@ -582,15 +623,45 @@ namespace ProtocolsIndexer.Services
                     s.Elements.ToList()))
                 .ToList();
 
+        // Below this, a page's OCR is likely garbled enough to be worth a human look -
+        // the single most actionable content-quality signal this class produces.
+        private const double MinAcceptablePageConfidence = 0.85;
+
         // Average OCR word-confidence per page - a data-quality signal only ("flag for
         // review"), never a chunk-boundary signal (that's GetSections). Pages with zero
-        // detected words are omitted, not reported as 0.0 - that would misleadingly
-        // suggest DI is unsure about content that isn't there.
-        private IReadOnlyList<PageQuality> GetPageQuality(AnalyzeResult result) =>
-            result.Pages
-                .Where(p => p.Words.Count > 0)
-                .Select(p => new PageQuality(p.PageNumber, p.Words.Average(w => (double)w.Confidence)))
-                .ToList();
+        // detected words are omitted from Quality, not reported as 0.0 confidence - that
+        // would misleadingly suggest DI is unsure about content that isn't there. They
+        // still get their own warning below (likely an image-only/scanned page) instead
+        // of silently vanishing.
+        private (IReadOnlyList<PageQuality> Quality, IReadOnlyList<AnalysisWarning> Warnings) GetPageQuality(
+            AnalyzeResult result, string blobName)
+        {
+            var quality  = new List<PageQuality>();
+            var warnings = new List<AnalysisWarning>();
+
+            foreach (var p in result.Pages)
+            {
+                if (p.Words.Count == 0)
+                {
+                    warnings.Add(new AnalysisWarning(
+                        "ZeroWordsOnPage",
+                        $"Page {p.PageNumber} has zero detected words - likely an image-only/scanned page.",
+                        blobName));
+                    continue;
+                }
+
+                var confidence = p.Words.Average(w => (double)w.Confidence);
+                quality.Add(new PageQuality(p.PageNumber, confidence));
+
+                if (confidence < MinAcceptablePageConfidence)
+                    warnings.Add(new AnalysisWarning(
+                        "LowPageConfidence",
+                        $"Page {p.PageNumber}: avg OCR word confidence {confidence:F2}, below the {MinAcceptablePageConfidence:F2} threshold.",
+                        blobName));
+            }
+
+            return (quality, warnings);
+        }
 
         // DI's own non-fatal warnings (e.g. a page that partially failed OCR) - distinct
         // from the zero-pages case, which is treated as an outright failure. Wraps
