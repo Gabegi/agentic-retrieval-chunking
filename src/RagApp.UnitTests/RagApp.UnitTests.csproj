@@ -17,11 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\agentic-rag-app\ProtocolsIndexer.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- Tests for the retired PdfPig/joiner-based PDF pipeline (see the matching
-         Compile Remove in ProtocolsIndexer.csproj) — kept on disk, excluded from
-         compilation since the types they test no longer exist in the active build. -->
-    <Compile Remove="PdfExtraction\old\**\*.cs" />
+    <ProjectReference Include="..\CsvIndexing\CsvIndexing.csproj" />
+    <ProjectReference Include="..\IndexingShared\IndexingShared.csproj" />
   </ItemGroup>
 </Project>

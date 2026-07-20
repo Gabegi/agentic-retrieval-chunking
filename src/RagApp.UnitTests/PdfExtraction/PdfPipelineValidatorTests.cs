@@ -13,7 +13,7 @@ public class PdfPipelineValidatorTests
     private static PdfPageRecord Page(string blobName, string content, int pageIndex = 0, string title = "Title") => new()
     {
         BlobName    = blobName,
-        PageIndex   = pageIndex,
+        PageNumber  = pageIndex,
         PageContent = content,
         Title       = title,
     };
@@ -51,7 +51,7 @@ public class PdfPipelineValidatorTests
     {
         var page        = Page("doc1.pdf", "## Heading\nSome markdown content");
         var fileResults = new[] { FileResult("doc1.pdf", [page]) };
-        var clean       = BuildCleaner().Clean([page]);
+        var clean       = BuildCleaner().CleanPdf([page]);
         return (fileResults, clean);
     }
 
@@ -69,7 +69,7 @@ public class PdfPipelineValidatorTests
     [TestMethod]
     public void NoInputAtAll_FailsRatherThanPassingVacuously()
     {
-        var clean = BuildCleaner().Clean([]);
+        var clean = BuildCleaner().CleanPdf([]);
 
         var report = BuildValidator().Validate([], clean);
 
@@ -81,7 +81,7 @@ public class PdfPipelineValidatorTests
     public void ContentWithoutHeadings_NeedsFallbackChunking()
     {
         var page  = Page("doc1.pdf", "Plain text, no headings at all.");
-        var clean = BuildCleaner().Clean([page]);
+        var clean = BuildCleaner().CleanPdf([page]);
 
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
@@ -92,7 +92,7 @@ public class PdfPipelineValidatorTests
     public void ContentWithMarkdownHeading_DoesNotNeedFallbackChunking()
     {
         var page  = Page("doc1.pdf", "## Heading\nSome content under it.");
-        var clean = BuildCleaner().Clean([page]);
+        var clean = BuildCleaner().CleanPdf([page]);
 
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
@@ -103,7 +103,7 @@ public class PdfPipelineValidatorTests
     public void ReplacementCharacterInContent_IsTextQualityError()
     {
         var page  = Page("doc1.pdf", "Corrupted � text");
-        var clean = BuildCleaner().Clean([page]);
+        var clean = BuildCleaner().CleanPdf([page]);
 
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
@@ -115,10 +115,12 @@ public class PdfPipelineValidatorTests
     public void RepeatedTrigram_IsFlaggedAsPossibleFlattenedTable()
     {
         // Simulates a table collapsed into run-on prose: the same 3-word phrase repeats
-        // across what used to be distinct rows.
-        var content = string.Join(" ", Enumerable.Repeat("Naam Bond Waarde", 5));
+        // across what used to be distinct rows. 11 repeats (33 words) clears
+        // MinWordsForFlatteningCheck (30) - TableFlatteningCheck skips shorter pages
+        // before it ever looks at trigram repeats, regardless of how many there are.
+        var content = string.Join(" ", Enumerable.Repeat("Naam Bond Waarde", 11));
         var page    = Page("doc1.pdf", content);
-        var clean   = BuildCleaner().Clean([page]);
+        var clean   = BuildCleaner().CleanPdf([page]);
 
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
@@ -174,7 +176,7 @@ public class PdfPipelineValidatorTests
     public void DetectedTableCount_SumsRealTableDataAcrossFiles()
     {
         var page  = Page("doc1.pdf", "Some content");
-        var clean = BuildCleaner().Clean([page]);
+        var clean = BuildCleaner().CleanPdf([page]);
         var structure = Structure(
             new TableInfo(2, 3, [new TableCellInfo(0, 0, "content", "a", null, null)], Offset: 0, PageNumber: 1),
             new TableInfo(1, 1, [new TableCellInfo(0, 0, "content", "b", null, null)], Offset: 10, PageNumber: 1));
@@ -188,45 +190,45 @@ public class PdfPipelineValidatorTests
     public void MalformedTable_ZeroRowsOrColumns_IsFlaggedAsWarning()
     {
         var page  = Page("doc1.pdf", "Some content");
-        var clean = BuildCleaner().Clean([page]);
+        var clean = BuildCleaner().CleanPdf([page]);
         var structure = Structure(new TableInfo(0, 0, [], Offset: 0, PageNumber: 1));
 
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page], structure)], clean);
 
         Assert.IsTrue(report.Issues.Any(i =>
-            i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("malformed")));
+            i.Stage == "TableStructure" && i.Severity == "Warning" && i.Message.Contains("malformed")));
     }
 
     [TestMethod]
     public void TableWithNoCellData_IsFlaggedAsWarning()
     {
         var page  = Page("doc1.pdf", "Some content");
-        var clean = BuildCleaner().Clean([page]);
+        var clean = BuildCleaner().CleanPdf([page]);
         var structure = Structure(new TableInfo(2, 2, [], Offset: 0, PageNumber: 1));
 
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page], structure)], clean);
 
         Assert.IsTrue(report.Issues.Any(i =>
-            i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("no cell data")));
+            i.Stage == "TableStructure" && i.Severity == "Warning" && i.Message.Contains("no cell data")));
     }
 
     [TestMethod]
     public void NoStructuresProvided_DetectedTableCountIsZeroAndNoQualityIssues()
     {
         var page  = Page("doc1.pdf", "Some content");
-        var clean = BuildCleaner().Clean([page]);
+        var clean = BuildCleaner().CleanPdf([page]);
 
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
         Assert.AreEqual(0, report.DetectedTableCount);
-        Assert.IsFalse(report.Issues.Any(i => i.Stage == "TextQuality"));
+        Assert.IsFalse(report.Issues.Any(i => i.Stage == "TableStructure"));
     }
 
     [TestMethod]
     public void DuplicatePageFromExtractor_FailsViaReconciliation_NotErrorRate()
     {
         // Two distinct pages plus one deliberate duplicate of page 0 - modeling the
-        // extractor reporting the same (BlobName, PageIndex) twice, since PdfCleaner no
+        // extractor reporting the same (BlobName, PageNumber) twice, since PdfCleaner no
         // longer dedupes at all. Neither page trips any Issue-level check, so the
         // error-rate gate alone would pass this run; only the reconciliation check
         // (unconditional, no rate threshold) should fail it - proving the
@@ -238,7 +240,7 @@ public class PdfPipelineValidatorTests
 
         var allPages    = new[] { page0, page0Dup, page1 };
         var fileResults = new[] { FileResult("doc1.pdf", allPages) };
-        var clean        = BuildCleaner().Clean(allPages);
+        var clean        = BuildCleaner().CleanPdf(allPages);
 
         var report = BuildValidator().Validate(fileResults, clean);
 
