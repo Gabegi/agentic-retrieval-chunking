@@ -76,13 +76,19 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     {
         var runAt = DateTimeOffset.UtcNow;
 
-        // Populated once Validate succeeds; the finally block below writes reports off
-        // these captured locals so a failure anywhere after that point (the magnitude-check
-        // throw, SaveRunStateAsync, BuildExtractionOutput) still gets a report on the way out.
-        // A failure before Validate (blob listing, cleaning, PreviousRunCount) has no report
-        // to write - there's nothing to build if that data was never produced.
-        List<PdfExtractionDiagnostics> diagnostics = new();
-        PdfValidationReport? report = null;
+        // Captured as the pipeline progresses so the finally block below can always emit
+        // telemetry and write a report off whatever got built, regardless of where the try
+        // block throws (the magnitude-check abort, SaveRunStateAsync, BuildExtractionOutput).
+        // effectivePassed is captured before the magnitude-check throw specifically so that
+        // throw's failure is still reflected in the logs/metrics emitted afterward in finally
+        // - report.Passed (written verbatim to the blob report) already carries it independent
+        // of any of this. Nothing to emit if Validate itself never ran (blob listing/cleaning/
+        // PreviousRunCount failed) - there's no report or cleanResult to build either from.
+        List<PdfExtractionDiagnostics> diagnostics              = new();
+        PdfValidationReport?           report                   = null;
+        PdfCleanResult?                cleanResult              = null;
+        var                            effectivePassed          = false;
+        var                            magnitudeOverrideApplied = false;
 
         try
         {
@@ -91,8 +97,8 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
             // Filters to successfully-extracted files and flattens their pages into one list
             // because _cleaner.Clean only needs page content — not the file-level error/warning data that _validator.Validate needs separately from fileResults itself
-            var pages       = fileResults.Where(f => f.Ok).SelectMany(f => f.Pages!).ToList();
-            var cleanResult = _pdfCleaner.CleanPdf(pages);
+            var pages = fileResults.Where(f => f.Ok).SelectMany(f => f.Pages!).ToList();
+            cleanResult = _pdfCleaner.CleanPdf(pages);
 
             // Check # of docs processed vs previous run
             var (previousCount, previousETag) = await PreviousRunCount(ct);
@@ -100,8 +106,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
             report = _validator.Validate(fileResults, cleanResult, previousCount, diagnostics);
 
-            var (effectivePassed, errors, warnings, missingTitle) =
-                LogAndEmitValidationTelemetry(report, cleanResult, overrideMagnitudeCheck);
+            (effectivePassed, magnitudeOverrideApplied) = EvaluateValidation(report, overrideMagnitudeCheck);
 
             if (!effectivePassed)
                 throw new InvalidOperationException(
@@ -113,12 +118,35 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             // instead of comparing against the same stale count.
             await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
 
+            var (errors, warnings, missingTitle) = CountIssues(report, cleanResult);
             return BuildExtractionOutput(report, cleanResult, errors, warnings, missingTitle, lastModifiedByBlob);
         }
         finally
         {
             if (report is not null)
-                await WriteReportsAsync(runAt, report, diagnostics, ct);
+            {
+                // Each caught independently: a failure in one (e.g. a transient blob error
+                // writing the report) must not mask whatever real exception the try block
+                // is already propagating (including the magnitude-check InvalidOperationException
+                // above), and must not stop the other of the two from still running.
+                try
+                {
+                    EmitValidationTelemetry(report, cleanResult!, effectivePassed, magnitudeOverrideApplied);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to emit PDF validation telemetry for run at {RunAt}.", runAt);
+                }
+
+                try
+                {
+                    await WriteReportsAsync(runAt, report, diagnostics, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to write PDF extraction reports for run at {RunAt}.", runAt);
+                }
+            }
         }
     }
 
@@ -278,17 +306,48 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             SpotCheckSample:        spotCheck);
     }
 
-    // Everything this run logs and emits as metrics, in one plac
-    // 
-    private (bool EffectivePassed, int Errors, int Warnings, int MissingTitle)
-        LogAndEmitValidationTelemetry(
-            PdfValidationReport report,
-            PdfCleanResult      cleanResult,
-            bool                overrideMagnitudeCheck)
+    // Pure pass/fail decision — magnitude-check gate only, no logging or metrics. Kept
+    // separate from EmitValidationTelemetry below so the two can run on different
+    // schedules: this one drives the abort-throw from inside the try block, while the
+    // telemetry it feeds always runs from the finally block regardless of that throw.
+    private static (bool EffectivePassed, bool MagnitudeOverrideApplied) EvaluateValidation(
+        PdfValidationReport report, bool overrideMagnitudeCheck)
     {
         var magnitudeOverrideApplied = !report.Passed && overrideMagnitudeCheck && report.PassedExcludingMagnitude;
         var effectivePassed          = report.Passed || magnitudeOverrideApplied;
+        return (effectivePassed, magnitudeOverrideApplied);
+    }
 
+    // Pure counts derived from the report/cleanResult — no side effects, safe to compute
+    // independently of whether EmitValidationTelemetry below ever runs. BuildExtractionOutput
+    // needs these on the success path; EmitValidationTelemetry recomputes them itself so
+    // its own (always-run, finally-block) emission doesn't depend on the success path
+    // having reached this call.
+    private static (int Errors, int Warnings, int MissingTitle) CountIssues(
+        PdfValidationReport report, PdfCleanResult cleanResult)
+    {
+        var errors   = report.Issues.Count(i => i.Severity == "Error");
+        var warnings = report.Issues.Count(i => i.Severity != "Error");
+
+        // Metadata completeness — a document only counts as "missing" if EVERY one of
+        // its pages lacks that field, matching CsvExtractionOrchestrator's rule.
+        var byDocument   = cleanResult.Records.GroupBy(r => r.BlobName).ToList();
+        var missingTitle = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
+
+        return (errors, warnings, missingTitle);
+    }
+
+    // Everything this run logs and emits as metrics, in one place. Always called from
+    // ExtractDocumentsAsync's finally block once a report exists, independent of whether
+    // validation passed - effectivePassed/magnitudeOverrideApplied are passed in (captured
+    // before the magnitude-check throw) so a failed run is still logged and recorded as
+    // failed here, not silently dropped because the throw already unwound the try block.
+    private void EmitValidationTelemetry(
+        PdfValidationReport report,
+        PdfCleanResult      cleanResult,
+        bool                effectivePassed,
+        bool                magnitudeOverrideApplied)
+    {
         foreach (var warning in report.MagnitudeWarnings)
             _logger.LogWarning("{Warning}", warning);
 
@@ -309,8 +368,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             _logger.LogWarning("…{More} more issue(s) not logged (see the run report for the full list).",
                 report.Issues.Count - MaxLoggedIssues);
 
-        var errors   = report.Issues.Count(i => i.Severity == "Error");
-        var warnings = report.Issues.Count(i => i.Severity != "Error");
+        var (errors, warnings, missingTitle) = CountIssues(report, cleanResult);
 
         var sourceTag = new KeyValuePair<string, object?>("source", Source);
 
@@ -320,14 +378,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         Instrumentation.MojibakeRepairedPages.Add(report.MojibakeRepairedPages, sourceTag);
         Instrumentation.DetectedTableCount.Record(report.DetectedTableCount, sourceTag);
 
-        // Metadata completeness — a document only counts as "missing" if EVERY one of
-        // its pages lacks that field, matching CsvExtractionOrchestrator's rule.
-        var byDocument   = cleanResult.Records.GroupBy(r => r.BlobName).ToList();
-        var missingTitle = byDocument.Count(g => g.All(r => string.IsNullOrWhiteSpace(r.Title)));
-
         Instrumentation.MissingMetadata.Add(missingTitle, sourceTag, new("field", "title"));
-
-        return (effectivePassed, errors, warnings, missingTitle);
     }
 
     // Stable hash of the PDF's raw bytes, used as a dedup/caching key:
