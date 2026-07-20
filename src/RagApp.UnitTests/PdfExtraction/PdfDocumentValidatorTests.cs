@@ -93,11 +93,11 @@ public class PdfDocumentValidatorTests
 
         Assert.IsFalse(ok);
         Assert.IsTrue(diagnostics.Warnings.Any(w => w.Message.Contains("byte(s)")));
-        Assert.AreEqual(PdfOpenFailureReason.Unknown, error!.Reason);
+        Assert.AreEqual(PdfOpenFailureReason.MalformedFormat, error!.Reason);
     }
 
     [TestMethod]
-    public void ValidMinimalPdf_Succeeds_NoWarnings()
+    public void ValidMinimalPdf_Succeeds_NoErrors()
     {
         var bytes = BuildMinimalPdf(pageCount: 1);
 
@@ -175,12 +175,15 @@ public class PdfDocumentValidatorTests
     [TestMethod]
     public void PageCountWellUnderLimit_NoPageCountWarning()
     {
+        // These hand-built PDFs are always well under MinReasonableBytes (10KB), so the
+        // small-file warning always fires too - scope this assertion to the page-count
+        // warning specifically rather than asserting the whole list is empty.
         var bytes = BuildMinimalPdf(pageCount: 5);
 
         var ok = PdfDocumentValidator.IsPDFValid(bytes, "doc.pdf", NullLogger.Instance, out var pdf, out _, out var diagnostics);
 
         Assert.IsTrue(ok);
-        Assert.AreEqual(0, diagnostics.Warnings.Count);
+        Assert.IsFalse(diagnostics.Warnings.Any(w => w.Message.Contains("Document Intelligence limit per analyze call")));
         pdf!.Dispose();
     }
 

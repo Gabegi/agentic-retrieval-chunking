@@ -71,7 +71,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         var reconciliation = CheckDiffExtractNCleaning(pagesExtraction, cleanResult);
         reconciliation.AddRange(similarNamingProblems);
 
-        // 6. HARD GATE (overridable): magnitude shift vs a previous run, if supplied.
+        // 5. HARD GATE (overridable): magnitude shift vs a previous run, if supplied.
         var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
 
         // 7. Per-page text quality (U+FFFD, control/unassigned chars).
