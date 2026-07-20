@@ -51,8 +51,17 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         int?                                       previousRunCleanedCount = null,
         IReadOnlyList<PdfExtractionDiagnostics>?   diagnostics = null)
     {
-        var pagesExtraction = Aggregate(fileResults);
-        var (structures, structureCollisions) = BuildStructureLookup(fileResults);
+        //1. Puts things into 3 buckets:
+            // - Records = pages from files that extracted successfully.
+            // - Errors = either a whole file that failed (file.Error, counted once) or individual bad pages within an otherwise-successful file (file.PageErrors).
+            // - Warnings = non-fatal issues from successful files (file.Warnings).
+        var pagesExtraction = SortResultsInto3Buckets(fileResults);
+
+        // 2. structures: blobName -> that file's table/heading data, used by the table
+        // checks below. structureCollisionProblems: two blobs whose names only differ by
+        // case, so one's structure data got dropped building that lookup - fed into
+        // reconciliation as a hard-gate problem.
+        var (structures, structureCollisionProblems) = BuildStructureLookup(fileResults);
 
         var redFlags = new List<string>();
 
@@ -61,7 +70,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
         // 2. HARD GATE: extraction page counts must reconcile through clean.
         var reconciliation = CheckExtractVsCleanCount(pagesExtraction, cleanResult);
-        reconciliation.AddRange(structureCollisions);
+        reconciliation.AddRange(structureCollisionProblems);
 
         // 3. HARD GATE (overridable): magnitude shift vs a previous run, if supplied.
         var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
@@ -124,16 +133,18 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         };
     }
 
-    // Folds per-file PDFExtractionResult results into the batch-level shape the checks
+        // Folds per-file PDFExtractionResult results into the batch-level shape the checks
     // operate on. A file-level extraction error is recorded once; a file that failed to
     // parse contributes nothing else. Validator-private on purpose — nothing but
     // validation bookkeeping needs this exact shape.
-    private static ExtractionResult<PdfPageRecord> Aggregate(IEnumerable<PDFExtractionResult> fileResults)
+    private static ExtractionResult<PdfPageRecord> SortResultsInto3Buckets(IEnumerable<PDFExtractionResult> fileResults)
     {
         var pages = new ExtractionResult<PdfPageRecord>();
 
         foreach (var file in fileResults)
         {
+            // if failed file has no pages, it's null
+            // without this check the Add fails
             if (file.Error != null)
             {
                 pages.AddError(file.Error);
@@ -148,24 +159,26 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return pages;
     }
 
-    // Blob names differing only by case are legal in Azure Blob Storage but collide under
-    // the case-insensitive lookup the table checks need. A naive ToDictionary would throw
-    // and abort the whole run — build defensively and surface any collision as a
-    // reconciliation problem instead.
-    private static (Dictionary<string, PdfDocumentStructure> Structures, List<string> Collisions) BuildStructureLookup(
+
+
+    // 2. Azure Blob Storage allows both "Report.pdf" and "report.pdf" in the same container,
+    // but this lookup is case-insensitive, so they'd collide. ToDictionary would throw and
+    // crash the run on that collision; TryAdd below just logs it as a reconciliation
+    // problem instead.
+    private static (Dictionary<string, PdfDocumentStructure> Structures, List<string> CollisionProblems) BuildStructureLookup(
         IReadOnlyList<PDFExtractionResult> fileResults)
     {
-        var structures = new Dictionary<string, PdfDocumentStructure>(StringComparer.OrdinalIgnoreCase);
-        var collisions = new List<string>();
+        var structures        = new Dictionary<string, PdfDocumentStructure>(StringComparer.OrdinalIgnoreCase);
+        var collisionProblems = new List<string>();
 
         foreach (var file in fileResults.Where(f => f.Structure != null))
         {
             if (!structures.TryAdd(file.BlobName, file.Structure!))
-                collisions.Add(
+                collisionProblems.Add(
                     $"Blob name '{file.BlobName}' collides case-insensitively with another blob in this run — structure data for one was dropped.");
         }
 
-        return (structures, collisions);
+        return (structures, collisionProblems);
     }
 
     // 1. Aggregate every error/warning bucket into one place. DocumentId (blob name)
