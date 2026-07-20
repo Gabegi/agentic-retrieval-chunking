@@ -398,13 +398,20 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     private async Task<(int? Count, ETag? ETag)> PreviousRunCount(CancellationToken ct)
     {
         var blob = _stateContainer.GetBlobClient(StateBlobName);
-        if (!await blob.ExistsAsync(ct)) return (null, null);
 
         try
         {
             var download = await blob.DownloadContentAsync(ct);
             var state    = download.Value.Content.ToObjectFromJson<RunState>();
             return (state?.CleanedRecords, download.Value.Details.ETag);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            // No previous state blob - first run, or it was removed. Checking existence
+            // separately (ExistsAsync then DownloadContentAsync) would be a second
+            // round-trip and racy anyway (the blob could vanish between the two calls),
+            // so just attempt the download and treat 404 as "no baseline".
+            return (null, null);
         }
         catch (JsonException ex)
         {
@@ -428,11 +435,14 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             await _stateContainer.GetBlobClient(StateBlobName)
                 .UploadAsync(BinaryData.FromString(json), new BlobUploadOptions { Conditions = conditions }, ct);
         }
-        catch (RequestFailedException ex) when (ex.Status == 412)
+        catch (RequestFailedException ex) when (ex.Status is 412 or 409)
         {
             // Lost a race with another concurrent run's save - not worth failing this
             // otherwise-successful run over. The next run's magnitude check just
-            // compares against whichever baseline won the race.
+            // compares against whichever baseline won the race. 412 is the IfMatch/
+            // IfNoneMatch precondition failure; 409 (BlobAlreadyExists) is what the
+            // first-run IfNoneMatch: * path gets instead when the blob was created
+            // concurrently since there was no previous state to match against.
             _logger.LogWarning(
                 "State blob '{Blob}' was updated concurrently — this run's baseline was not saved.", StateBlobName);
         }
