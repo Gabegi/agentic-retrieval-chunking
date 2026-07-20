@@ -21,6 +21,11 @@ using ProtocolsIndexer.Configuration;
 using ProtocolsIndexer.Observability;
 using ProtocolsIndexer.Observability.Reports;
 using ProtocolsIndexer.Services;
+using System.Text;
+
+// Required for PdfCleaner's Windows-1252 mojibake repair (Encoding.GetEncoding(1252)) -
+// code pages beyond the built-in set aren't available on .NET Core+ without this.
+Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
