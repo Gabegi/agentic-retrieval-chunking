@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -5,6 +6,7 @@ using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using ProtocolsIndexer.Models;
+using ProtocolsIndexer.Observability;
 
 namespace ProtocolsIndexer.Services
 {
@@ -116,6 +118,13 @@ namespace ProtocolsIndexer.Services
         {
             _logger.LogInformation("Submitting '{Blob}' to Document Intelligence.", blobName);
 
+            // Operational health (throttling, wall-clock time), not per-file content
+            // quality - emitted as OTel metrics via Instrumentation, not as a
+            // per-file AnalysisWarning. See indexer.di_throttle_retries/
+            // indexer.di_analyze_duration_seconds.
+            var sw            = Stopwatch.StartNew();
+            var throttleCount = 0;
+
             // Markdown output (vs. DI's default plain text): renders tables as HTML
             // <table> elements with real rowspan/colspan (GetTables relies on this) and
             // keeps RawContent in the format downstream chunking is meant to consume.
@@ -124,6 +133,24 @@ namespace ProtocolsIndexer.Services
                 OutputContentFormat = DocumentContentFormat.Markdown,
             };
 
+            try
+            {
+                return await SubmitAndPollAsync(pdfBytes, blobName, analyzeOptions, ct, throttleCounter => throttleCount = throttleCounter);
+            }
+            finally
+            {
+                // Recorded regardless of outcome (success, DI failure, or cancellation) -
+                // operational health applies whether or not the analysis itself succeeded.
+                Instrumentation.DiAnalyzeDuration.Record(sw.Elapsed.TotalSeconds);
+                if (throttleCount > 0)
+                    Instrumentation.DiThrottleRetries.Add(throttleCount);
+            }
+        }
+
+        private async Task<AnalyzeOutcome> SubmitAndPollAsync(
+            byte[] pdfBytes, string blobName, AnalyzeDocumentOptions analyzeOptions, CancellationToken ct,
+            Action<int> reportThrottleCount)
+        {
             Operation<AnalyzeResult> operation;
             try
             {
@@ -150,6 +177,8 @@ namespace ProtocolsIndexer.Services
                 });
             }
 
+            var throttleCount = 0;
+
             for (var attempt = 0; !operation.HasCompleted; attempt++)
             {
                 try
@@ -158,6 +187,9 @@ namespace ProtocolsIndexer.Services
                 }
                 catch (RequestFailedException ex) when (ex.Status == 429 && attempt < BackoffDelays.Length)
                 {
+                    throttleCount++;
+                    reportThrottleCount(throttleCount);
+
                     var wait = BackoffDelays[attempt];
                     _logger.LogWarning("DI throttled polling '{Blob}' (attempt {Attempt}); backing off {Wait}.", blobName, attempt + 1, wait);
                     await Task.Delay(wait, ct);
