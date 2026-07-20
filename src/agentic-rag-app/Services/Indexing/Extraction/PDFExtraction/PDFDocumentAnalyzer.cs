@@ -65,7 +65,11 @@ namespace ProtocolsIndexer.Services
 
             // pages.Count reused below for EstimatedCostUsd - same count as analysis.Pages,
             // but already non-null, so no null-forgiving operator needed.
-            var (pages, pageWarnings) = GetPages(analysis, blobName, GetTitle(nativeMetadata, blobName));
+            var (pages, pageWarnings)       = GetPages(analysis, blobName, GetTitle(nativeMetadata, blobName));
+            var (pageQuality, qualityWarnings) = GetPageQuality(analysis, blobName);
+            var tables      = GetTables(analysis);
+            var figures     = GetFigures(analysis);
+            var structureWarnings = StructureWarnings(tables, figures, pages.Count, blobName);
 
             return new PDFStructureExtractorResult(
                 true,
@@ -74,19 +78,53 @@ namespace ProtocolsIndexer.Services
                 new PdfDocumentStructure(
                 GetHeadings(analysis),
                 GetBoilerplate(analysis),
-                GetTables(analysis),
+                tables,
                 GetPageDimensions(analysis),
                 GetSelectionMarks(analysis),
-                GetFigures(analysis),
+                figures,
                 GetLines(analysis),
                 GetSections(analysis),
-                GetPageQuality(analysis)),
+                pageQuality),
                 pages.Count * CostPerPage, null)
             {
                 // Merges warnings from every stage (DI's own, non-BMP check, per-page
-                // table-balance check) into one list, regardless of which stage found them.
-                Warnings = analyzeResults.Warnings.Concat(GetWarnings(analysis)).Concat(pageWarnings).ToList(),
+                // table-balance check, page quality, figure/table/cost summary) into one
+                // list, regardless of which stage found them.
+                Warnings = analyzeResults.Warnings.Concat(GetWarnings(analysis)).Concat(pageWarnings)
+                    .Concat(qualityWarnings).Concat(structureWarnings).ToList(),
             };
+        }
+
+        // File-level structural summary findings: figures/tables DI extracted, but that
+        // came back incomplete or malformed, plus a cost echo - all computed from data
+        // GetTables/GetFigures already produced, so flagged here at the source rather than
+        // recomputed by PdfPipelineValidator later.
+        private static IReadOnlyList<AnalysisWarning> StructureWarnings(
+            IReadOnlyList<TableInfo> tables, IReadOnlyList<FigureInfo> figures, int pageCount, string blobName)
+        {
+            var warnings = new List<AnalysisWarning>();
+
+            var uncaptionedFigures = figures.Count(f => f.Caption is null);
+            if (uncaptionedFigures > 0)
+                warnings.Add(new AnalysisWarning(
+                    "FiguresWithoutCaption",
+                    $"{uncaptionedFigures} of {figures.Count} figure(s) have no caption.",
+                    blobName));
+
+            var malformedTables = tables.Count(t => t.Cells.Count == 0 || t.RowCount == 0 || t.ColumnCount == 0);
+            if (malformedTables > 0)
+                warnings.Add(new AnalysisWarning(
+                    "MalformedTable",
+                    $"{malformedTables} of {tables.Count} table(s) have no cells or a zero row/column count.",
+                    blobName));
+
+            var estimatedCost = pageCount * CostPerPage;
+            warnings.Add(new AnalysisWarning(
+                "EstimatedCost",
+                $"Estimated cost: ${estimatedCost:F2} ({pageCount} page(s) at ${CostPerPage}/page).",
+                blobName));
+
+            return warnings;
         }
 
         // Submits the PDF to DI exactly once, then polls for completion itself instead of
