@@ -77,7 +77,7 @@ namespace ProtocolsIndexer.Services
                 }
 
                 return bookmarks.GetNodes()
-                    .Select(node => new Bookmark(node.Title, node.Level, TryGetPageNumber(node)))
+                    .Select(node => new Bookmark(node.Title, node.Level, TryGetPageNumber(node), node is ExternalBookmarkNode))
                     .ToList();
             }
             catch (Exception ex)
