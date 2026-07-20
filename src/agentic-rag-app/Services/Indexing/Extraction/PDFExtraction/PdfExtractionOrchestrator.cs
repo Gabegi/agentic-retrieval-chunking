@@ -89,6 +89,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         PdfCleanResult?                cleanResult              = null;
         var                            effectivePassed          = false;
         var                            magnitudeOverrideApplied = false;
+        Exception?                     failure                  = null;
 
         try
         {
@@ -124,6 +125,15 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
             var (errors, warnings, missingTitle) = CountIssues(validation, cleanResult);
             return BuildExtractionOutput(validation, cleanResult, errors, warnings, missingTitle, lastModifiedByBlob);
+        }
+        catch (Exception ex)
+        {
+            // Captured (not swallowed - rethrown below) so the finally block can still
+            // write *something* even when the run failed before a PdfValidationReport
+            // ever existed (blob listing, cleaning, PreviousRunCount) - see the
+            // WriteFailureReportAsync branch below.
+            failure = ex;
+            throw;
         }
         finally
         {

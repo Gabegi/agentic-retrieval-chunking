@@ -144,10 +144,13 @@ var host = new HostBuilder()
         services.AddSingleton<IDataCleaner,      DataCleaner>();
         services.AddSingleton<IPipelineValidator, PipelineValidator>();
 
-        // Extraction source — exactly one IExtractionOrchestrator is active at a time. To
-        // switch (e.g. to a PDF extractor), replace this registration; ExtractionService takes
-        // whichever IExtractionOrchestrator is registered here, no other change needed.
-        services.AddSingleton<IExtractionOrchestrator>(sp => new CsvExtractionOrchestrator(
+        // CSV pipeline stages stay registered so CsvExtractionOrchestrator below still
+        // compiles/resolves, but CSV is no longer the active IExtractionOrchestrator —
+        // the Zenya CSV export was abandoned in favor of PDF. Kept standalone (not
+        // wired into IExtractionOrchestrator) in case CSV ever needs to run again;
+        // see docstring on PdfExtractionOrchestrator for the mirror-image note this
+        // replaces.
+        services.AddSingleton(sp => new CsvExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
             sp.GetRequiredService<IRunReportWriter>(),
@@ -157,11 +160,10 @@ var host = new HostBuilder()
             sp.GetRequiredService<IPipelineValidator>(),
             sp.GetRequiredService<ILogger<CsvExtractionOrchestrator>>()));
 
-        // PDF extraction — not wired into IExtractionOrchestrator yet, CSV remains the
-        // sole active source (see docstring on PdfExtractionOrchestrator). Only
-        // registered when Document Intelligence is configured; PdfExtractionOrchestrator
-        // resolves it explicitly by Name below rather than via GetRequiredService, so a
-        // future second backend can't silently change which one gets picked.
+        // PDF extraction backend — only registered when Document Intelligence is
+        // configured; PdfExtractionOrchestrator resolves it explicitly by Name below
+        // rather than via GetRequiredService, so a future second backend can't silently
+        // change which one gets picked.
         if (!string.IsNullOrWhiteSpace(config.DocumentIntelligenceEndpoint))
         {
             services.AddSingleton(_ =>
@@ -172,10 +174,12 @@ var host = new HostBuilder()
         services.AddSingleton<IPdfCleaner,           PdfCleaner>();
         services.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
 
-        // PDF orchestrator — registered standalone (not as IExtractionOrchestrator) since
-        // CSV remains the sole active source for now; see docstring on
-        // PdfExtractionOrchestrator.
-        services.AddSingleton(sp => new PdfExtractionOrchestrator(
+        // Extraction source — exactly one IExtractionOrchestrator is active at a time.
+        // PDF is now that source (CSV/Zenya export was abandoned); ExtractionService
+        // takes whichever IExtractionOrchestrator is registered here, no other change
+        // needed. To switch back, swap this registration for CsvExtractionOrchestrator
+        // above.
+        services.AddSingleton<IExtractionOrchestrator>(sp => new PdfExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
             sp.GetRequiredService<IRunReportWriter>(),
