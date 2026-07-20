@@ -166,6 +166,21 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                     _logger.LogError(ex, "Failed to write PDF extraction reports for run at {RunAt}.", runAt);
                 }
             }
+            else if (failure is not null)
+            {
+                // Nothing made it as far as a PdfValidationReport (blob listing, cleaning,
+                // or PreviousRunCount threw) - write a minimal failure report instead so
+                // this run still leaves something behind, same CancellationToken.None
+                // reasoning as WriteReportsAsync above.
+                try
+                {
+                    await WriteFailureReportAsync(runAt, failure, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to write PDF extraction failure report for run at {RunAt}.", runAt);
+                }
+            }
         }
     }
 
@@ -265,6 +280,23 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         if (diagnostics.Count > 0)
             await _reportWriter.WriteReportAsync(
                 $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-diagnostics.json", diagnostics, ct);
+    }
+
+    private sealed record PdfExtractionFailureReport(
+        DateTimeOffset RunAt, string ExceptionType, string Message, string? StackTrace);
+
+    // Dev-only (see IRunReportWriter.IsEnabled), same as WriteReportsAsync above - fallback
+    // for a run that failed before a PdfValidationReport ever existed (blob listing,
+    // cleaning, or PreviousRunCount threw), so there's still something written for that
+    // run instead of silence.
+    private async Task WriteFailureReportAsync(DateTimeOffset runAt, Exception failure, CancellationToken ct)
+    {
+        if (!_reportWriter.IsEnabled) return;
+
+        await _reportWriter.WriteReportAsync(
+            $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-failure-report.json",
+            new PdfExtractionFailureReport(runAt, failure.GetType().FullName ?? failure.GetType().Name, failure.Message, failure.StackTrace),
+            ct);
     }
 
     // Maps the validated, cleaned records into the source-agnostic ExtractionOutput

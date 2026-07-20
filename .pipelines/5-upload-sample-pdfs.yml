@@ -1,0 +1,127 @@
+trigger: none
+pr: none
+
+# Manual, test-only pipeline: uploads the sample PDFs under data/pdf into the
+# "documents" container on the data storage account. Does NOT trigger the
+# indexing workflow itself - start that manually afterward from the portal
+# (Function App > StartIndexing > Code + Test > Test/Run), which works
+# regardless of the site's ip_restriction since it goes through ARM's
+# control plane, not the public HTTP endpoint.
+#
+# The data storage account denies public traffic by default
+# (public_network_access_enabled = false - see infra/storage.tf) and this
+# hosted agent has no VNet access, so this pipeline briefly flips that toggle
+# for its own runner IP and reverts it after uploading - same dance as
+# 4-deploy-application.yml's SCM-firewall step, applied to the storage
+# account instead (which has no IP-restriction escape hatch, so the whole
+# public-access toggle has to flip rather than just an allow rule).
+parameters:
+  - name: environment
+    displayName: 'Environment to upload into'
+    type: string
+    default: development
+    values:
+      - development
+      - production
+
+variables:
+  - ${{ if eq(parameters.environment, 'production') }}:
+      - name: serviceConnection
+        value: 'cor-cap-app-prd'
+      - name: storageAccountName
+        value: 'corstdatacapprdwe'
+      - name: dataRg
+        value: 'cor-cap-data-prd-we-001'
+  - ${{ else }}:
+      - name: serviceConnection
+        value: 'cor-cap-app-dev'
+      - name: storageAccountName
+        value: 'corstdatacapdevwe'
+      - name: dataRg
+        value: 'cor-cap-data-dev-we-001'
+  - name: containerName
+    value: 'documents'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+  - stage: UploadSamplePdfs
+    displayName: 'Upload sample PDFs (${{ parameters.environment }})'
+    jobs:
+      - job: upload
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: 'Open storage account firewall for this runner'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                RUNNER_IP=$(curl -fsSL https://api.ipify.org)
+                echo "##vso[task.setvariable variable=runnerIp]$RUNNER_IP"
+                az storage account update \
+                  --resource-group $(dataRg) \
+                  --name $(storageAccountName) \
+                  --public-network-access Enabled \
+                  --default-action Deny
+                az storage account network-rule add \
+                  --resource-group $(dataRg) \
+                  --account-name $(storageAccountName) \
+                  --ip-address "$RUNNER_IP"
+
+          - task: AzureCLI@2
+            displayName: 'Upload sample PDFs to documents container'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                ACCOUNT_KEY=$(az storage account keys list \
+                  --resource-group $(dataRg) --account-name $(storageAccountName) \
+                  --query "[0].value" -o tsv)
+
+                # Network rule additions aren't instant - poll rather than a blind
+                # sleep, so this only waits as long as it actually needs to.
+                READY=0
+                for i in $(seq 1 20); do
+                  if az storage blob list \
+                      --account-name $(storageAccountName) --account-key "$ACCOUNT_KEY" \
+                      --container-name $(containerName) -o none 2>/dev/null; then
+                    READY=1
+                    break
+                  fi
+                  echo "Waiting for storage network rule to propagate... ($i/20)"
+                  sleep 15
+                done
+                if [ "$READY" -ne 1 ]; then
+                  echo "##vso[task.logissue type=error]Storage network rule never propagated - runner still can't reach $(storageAccountName)."
+                  exit 1
+                fi
+
+                az storage blob upload-batch \
+                  --account-name $(storageAccountName) \
+                  --account-key "$ACCOUNT_KEY" \
+                  --destination $(containerName) \
+                  --source data/pdf \
+                  --pattern "*.pdf" \
+                  --overwrite
+
+          - task: AzureCLI@2
+            displayName: 'Close storage account firewall for this runner'
+            condition: always()
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az storage account network-rule remove \
+                  --resource-group $(dataRg) \
+                  --account-name $(storageAccountName) \
+                  --ip-address "$(runnerIp)" || true
+                az storage account update \
+                  --resource-group $(dataRg) \
+                  --name $(storageAccountName) \
+                  --public-network-access Disabled
