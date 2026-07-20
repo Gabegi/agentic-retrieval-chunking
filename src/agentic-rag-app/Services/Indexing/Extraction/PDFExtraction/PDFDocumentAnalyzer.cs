@@ -99,7 +99,10 @@ namespace ProtocolsIndexer.Services
         // came back incomplete or malformed, plus a cost echo - all computed from data
         // GetTables/GetFigures already produced, so flagged here at the source rather than
         // recomputed by PdfPipelineValidator later.
-        private static IReadOnlyList<AnalysisWarning> StructureWarnings(
+        // internal (not private): unit tests build a real AnalyzeResult via
+        // ModelReaderWriter.Read<AnalyzeResult>(json) and call this directly, bypassing the
+        // live Document Intelligence call GetPages/GetTables/GetFigures don't need.
+        internal static IReadOnlyList<AnalysisWarning> StructureWarnings(
             IReadOnlyList<TableInfo> tables, IReadOnlyList<FigureInfo> figures, int pageCount, string blobName)
         {
             var warnings = new List<AnalysisWarning>();
@@ -433,7 +436,8 @@ namespace ProtocolsIndexer.Services
         // (superseded by DI's own structural Headings/Sections) or page-level table
         // repair (see step 3). Bookmark breadcrumbs live in PDFSectionBreadCrumbBuilder,
         // for a future per-chunk (not per-page) use.
-        private (IReadOnlyList<PdfPageRecord> Pages, IReadOnlyList<AnalysisWarning> Warnings) GetPages(
+        // internal (not private): see StructureWarnings' note - testable without a live DI call.
+        internal (IReadOnlyList<PdfPageRecord> Pages, IReadOnlyList<AnalysisWarning> Warnings) GetPages(
             AnalyzeResult result, string blobName, string title)
         {
             var pages    = new List<PdfPageRecord>();
@@ -671,7 +675,8 @@ namespace ProtocolsIndexer.Services
         // would misleadingly suggest DI is unsure about content that isn't there. They
         // still get their own warning below (likely an image-only/scanned page) instead
         // of silently vanishing.
-        private (IReadOnlyList<PageQuality> Quality, IReadOnlyList<AnalysisWarning> Warnings) GetPageQuality(
+        // internal (not private): see StructureWarnings' note - testable without a live DI call.
+        internal (IReadOnlyList<PageQuality> Quality, IReadOnlyList<AnalysisWarning> Warnings) GetPageQuality(
             AnalyzeResult result, string blobName)
         {
             var quality  = new List<PageQuality>();
