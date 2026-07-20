@@ -115,8 +115,10 @@ public class PdfPipelineValidatorTests
     public void RepeatedTrigram_IsFlaggedAsPossibleFlattenedTable()
     {
         // Simulates a table collapsed into run-on prose: the same 3-word phrase repeats
-        // across what used to be distinct rows.
-        var content = string.Join(" ", Enumerable.Repeat("Naam Bond Waarde", 5));
+        // across what used to be distinct rows. 11 repeats (33 words) clears
+        // MinWordsForFlatteningCheck (30) - TableFlatteningCheck skips shorter pages
+        // before it ever looks at trigram repeats, regardless of how many there are.
+        var content = string.Join(" ", Enumerable.Repeat("Naam Bond Waarde", 11));
         var page    = Page("doc1.pdf", content);
         var clean   = BuildCleaner().CleanPdf([page]);
 
