@@ -57,42 +57,41 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             // - Warnings = non-fatal issues from successful files (file.Warnings).
         var pagesExtraction = SortResultsInto3Buckets(fileResults);
 
-        // 2. structures: blobName -> that file's table/heading data, used by the table
-        // checks below. structureCollisionProblems: two blobs whose names only differ by
-        // case, so one's structure data got dropped building that lookup - fed into
-        // reconciliation as a hard-gate problem.
-        var (structures, similarNamingProblems) = BuildStructureLookup(fileResults);
+        // 2. dictionary of document structure per blob name (key)
+        var (structures, similarNamingProblems) = GetDocumentStructure(fileResults);
 
         var redFlags = new List<string>();
 
-        // 3. Collect all errors/warnings from the previous steps.
-        var issues = CollectIssues(pagesExtraction, cleanResult);
+        // 3. Collect all errors issues from two sources
+            // - Extraction
+            // - Cleaning
+        var issues = GetIssuesFromExtractionNCleaning(pagesExtraction, cleanResult);
 
-        // 2. HARD GATE: extraction page counts must reconcile through clean.
-        var reconciliation = CheckExtractVsCleanCount(pagesExtraction, cleanResult);
+        // 4. HARD GATE: extraction page counts must reconcile through clean.
+        var reconciliation = CheckDiffExtractNCleaning(pagesExtraction, cleanResult);
         reconciliation.AddRange(similarNamingProblems);
 
-        // 3. HARD GATE (overridable): magnitude shift vs a previous run, if supplied.
+        // 6. HARD GATE (overridable): magnitude shift vs a previous run, if supplied.
         var magnitude = CheckMagnitudeShift(cleanResult, previousRunCleanedCount);
 
-        // 4. Per-page text quality (U+FFFD, control/unassigned chars).
+        // 7. Per-page text quality (U+FFFD, control/unassigned chars).
         issues.AddRange(TextQualityCheck(cleanResult));
 
-        // 4b. PDF-only: tables collapsed into repeated-phrase prose during extraction.
+        // 7b. PDF-only: tables collapsed into repeated-phrase prose during extraction.
         issues.AddRange(TableFlatteningCheck(cleanResult, structures));
 
-        // 4c. Table structure issues, from DI's own table data — not a text-pattern guess.
+        // 7c. Table structure issues, from DI's own table data — not a text-pattern guess.
         issues.AddRange(TableStructureQualityCheck(structures));
 
-        // 5. ADVISORY: total tables detected this run — trended over time, not gated.
+        // 8. ADVISORY: total tables detected this run — trended over time, not gated.
         var detectedTableCount = CountDetectedTables(structures);
 
-        // 6. ADVISORY: documents with zero headings across every page need fallback chunking.
+        // 9. ADVISORY: documents with zero headings across every page need fallback chunking.
         var docsWithNoPagesWithHeadings = DocsWithNoPagesWithHeading(cleanResult);
         if (docsWithNoPagesWithHeadings.Count > 0)
             redFlags.Add($"{docsWithNoPagesWithHeadings.Count} document(s) have no markdown headings — need fallback chunking.");
 
-        // 6b. ADVISORY, currently dormant: only fires if a backend populates
+        // 9b. ADVISORY, currently dormant: only fires if a backend populates
         // PdfFileExtraction.Diagnostics again (nothing does since PdfPig was removed).
         // Kept as the report slot for whichever backend picks decoration detection back up.
         if (diagnostics is { Count: > 0 })
@@ -103,10 +102,10 @@ public class PdfPipelineValidator : IPdfPipelineValidator
                     $"{noDecorationCount} document(s) got no header/footer stripping — too few pages for decoration detection.");
         }
 
-        // 7. ADVISORY: random sample for human review.
+        // 10. ADVISORY: random sample for human review.
         var sample = BuildRandomCheckSample(cleanResult);
 
-        // 8. Final pass/fail. Error rate is per ATTEMPTED page, so file-level failures
+        // 11. Final pass/fail. Error rate is per ATTEMPTED page, so file-level failures
         // (which contribute errors but no pages) still count against the denominator.
         var errorCount     = issues.Count(i => i.Severity == "Error");
         var totalAttempted = pagesExtraction.RowsAttempted;
@@ -165,7 +164,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     // but this lookup is case-insensitive, so they'd collide. ToDictionary would throw and
     // crash the run on that collision; TryAdd below just logs it as a reconciliation
     // problem instead.
-    private static (Dictionary<string, PdfDocumentStructure> Structures, List<string> CollisionProblems) BuildStructureLookup(
+    private static (Dictionary<string, PdfDocumentStructure> Structures, List<string> CollisionProblems) GetDocumentStructure(
         IReadOnlyList<PDFExtractionResult> fileResults)
     {
         var structures        = new Dictionary<string, PdfDocumentStructure>(StringComparer.OrdinalIgnoreCase);
@@ -183,7 +182,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
     // 3. Aggregate every error/warning bucket into one place. DocumentId (blob name)
     // identifies the file; RowNumber is a CSV concept and never set for PDFs.
-    private static List<ValidationIssue> CollectIssues(
+    private static List<ValidationIssue> GetIssuesFromExtractionNCleaning(
         ExtractionResult<PdfPageRecord> pagesExtraction,
         PdfCleanResult                  cleanResult)
     {
@@ -210,7 +209,7 @@ public class PdfPipelineValidator : IPdfPipelineValidator
     // (not Issues) so no error-rate threshold can let them slip through — this is the
     // sole enforcement of that invariant, checked against pagesExtraction so the
     // "extractor" attribution stays honest regardless of what Clean does.
-    private static List<string> CheckExtractVsCleanCount(
+    private static List<string> CheckDiffExtractNCleaning(
         ExtractionResult<PdfPageRecord> pagesExtraction,
         PdfCleanResult                  cleanResult)
     {
