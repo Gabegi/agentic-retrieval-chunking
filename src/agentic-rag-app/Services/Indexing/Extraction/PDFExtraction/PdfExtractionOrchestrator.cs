@@ -29,6 +29,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     private readonly IPdfExtractor                      _extractor;
     private readonly IPdfCleaner                        _pdfCleaner;
     private readonly IPdfPipelineValidator               _validator;
+    private readonly IHostEnvironment                    _env;
     private readonly ILogger<PdfExtractionOrchestrator>  _logger;
 
     public string Source => "pdf";
