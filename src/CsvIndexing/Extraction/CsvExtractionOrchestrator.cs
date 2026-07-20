@@ -4,6 +4,7 @@ using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 using CsvIndexing.Models;
 using IndexingShared.Models;
+using IndexingShared.Observability;
 using IndexingShared.Observability.Reports;
 using System.Text.Json;
 
