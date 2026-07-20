@@ -134,7 +134,12 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                 // Skips any blob item whose name doesn't end in .pdf (case-insensitive), so non-PDF files in the container are ignored.
                 if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
 
-                // we need a lastmodified date to tell new/updated docs apart from unchanged ones
+                // we need a lastmodified date to tell new/updated docs apart from unchanged ones.
+                // Recorded here, before the try block below, so failed downloads/extractions
+                // still get an entry. Harmless today - a failed file produces no cleaned record,
+                // so its entry here never reaches BuildExtractionOutput - but if this dictionary
+                // is ever used for a pre-extraction skip decision, a failed file would look
+                // "processed" and never get retried.
                 if (blobItem.Properties.LastModified is { } modified)
                 {
                     lastModified[blobItem.Name] = modified;
