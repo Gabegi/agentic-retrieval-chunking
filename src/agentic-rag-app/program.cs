@@ -186,6 +186,7 @@ var host = new HostBuilder()
             sp.GetServices<IPdfExtractor>().Single(e => e.Name == "DocumentIntelligence"),
             sp.GetRequiredService<IPdfCleaner>(),
             sp.GetRequiredService<IPdfPipelineValidator>(),
+            sp.GetRequiredService<IHostEnvironment>(),
             sp.GetRequiredService<ILogger<PdfExtractionOrchestrator>>()));
 
         // RAG pipeline
