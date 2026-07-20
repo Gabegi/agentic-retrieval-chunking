@@ -63,6 +63,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         IPdfExtractor                      extractor,
         IPdfCleaner                        cleaner,
         IPdfPipelineValidator              validator,
+        IHostEnvironment                   env,
         ILogger<PdfExtractionOrchestrator> logger)
     {
         _container      = container;
@@ -71,6 +72,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         _extractor      = extractor;
         _pdfCleaner        = cleaner;
         _validator      = validator;
+        _env            = env;
         _logger         = logger;
     }
 
