@@ -1,0 +1,142 @@
+using System.ClientModel;
+using System.Net.Http;
+using Azure;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
+using IndexingShared.Configuration;
+using IndexingShared.Models;
+using IndexingShared.Observability;
+
+namespace CsvIndexing.Services;
+
+public class EmbeddingService : IEmbeddingService
+{
+    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
+    private readonly IndexerConfig                                 _config;
+    private readonly ILogger<EmbeddingService>                     _logger;
+
+    private const int MaxParallelism = 4;
+    private const int BatchSize = 100;    // one request per batch instead of one per chunk
+    private const int TruncationLimit = 24_000;
+
+    public EmbeddingService(
+        IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
+        IndexerConfig                                 config,
+        ILogger<EmbeddingService>                     logger)
+    {
+        _embeddingGenerator = embeddingGenerator;
+        _config             = config;
+        _logger             = logger;
+    }
+
+    public async Task<EmbeddingRunResult> EmbedDocumentsAsync(
+        IEnumerable<ProtocolDocument> documents,
+        CancellationToken ct = default)
+    {
+        var docList   = documents.ToList();
+        var semaphore = new SemaphoreSlim(MaxParallelism);
+
+        _logger.LogInformation("Embedding {Count} documents in batches of {BatchSize}", docList.Count, BatchSize);
+
+        var tasks        = docList.Chunk(BatchSize).Select(batch => EmbedBatchAsync(batch, semaphore, ct)).ToList();
+        var batchResults = await Task.WhenAll(tasks);
+        var results      = batchResults.SelectMany(b => b.Results).ToArray();
+
+        _logger.LogInformation("Embedding complete — {Count} embedded", results.Length);
+
+        return new EmbeddingRunResult(
+            Documents:        results.Select(r => r.Document),
+            ChunksTruncated:  results.Count(r => r.Truncated),
+            EmbeddingRetries: batchResults.Sum(b => b.Retries),
+            VectorDimErrors:  results.Count(r => r.DimError));
+    }
+
+    private async Task<BatchResult> EmbedBatchAsync(
+        IReadOnlyList<ProtocolDocument> batch, SemaphoreSlim semaphore, CancellationToken ct)
+    {
+        await semaphore.WaitAsync(ct);
+        try
+        {
+            var texts     = new string[batch.Count];
+            var truncated = new bool[batch.Count];
+
+            for (int i = 0; i < batch.Count; i++)
+            {
+                var text = batch[i].EmbeddingText;
+                if (text.Length > TruncationLimit)
+                {
+                    _logger.LogWarning("Truncating oversized chunk {Id} ({Length} chars)", batch[i].Id, text.Length);
+                    text = text[..TruncationLimit];
+                    truncated[i] = true;
+                    Instrumentation.ChunksTruncated.Add(1);
+                }
+                texts[i] = text;
+            }
+
+            var (vectors, retries) = await EmbedWithRetryAsync(texts, ct);
+
+            var results = new List<EmbedChunkResult>(batch.Count);
+            for (int i = 0; i < batch.Count; i++)
+            {
+                var doc           = batch[i];
+                doc.ContentVector = vectors[i];
+
+                var dimError = doc.ContentVector?.Length != _config.OpenAiEmbeddingDimensions;
+                if (dimError)
+                {
+                    _logger.LogError("Wrong vector dimensions {Dims} for {Id}", doc.ContentVector?.Length, doc.Id);
+                    Instrumentation.VectorDimErrors.Add(1);
+                }
+
+                results.Add(new EmbedChunkResult(doc, truncated[i], dimError));
+            }
+
+            return new BatchResult(results, retries);
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
+    private async Task<(float[][] Vectors, int Retries)> EmbedWithRetryAsync(IReadOnlyList<string> texts, CancellationToken ct)
+    {
+        const int maxRetries = 5;
+        var retries = 0;
+
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            try
+            {
+                var result = await _embeddingGenerator.GenerateAsync(texts, cancellationToken: ct);
+                return (result.Select(e => e.Vector.ToArray()).ToArray(), retries);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested && IsRetryable(ex))
+            {
+                if (attempt == maxRetries - 1) throw;
+                retries++;
+                Instrumentation.EmbeddingRetries.Add(1);
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt + 1)); // 2s, 4s, 8s, 16s
+                _logger.LogWarning(ex, "Embedding call failed, retry {Attempt}/{Max} in {Delay}s",
+                    attempt + 1, maxRetries, delay.TotalSeconds);
+                await Task.Delay(delay, ct);
+            }
+        }
+
+        throw new InvalidOperationException("Unreachable");
+    }
+
+    // Retries throttling (429), transient server-side failures (5xx), and network-level
+    // faults — a dropped connection or timeout is no less recoverable than a 429.
+    private static bool IsRetryable(Exception ex) => ex switch
+    {
+        ClientResultException  cre => cre.Status == 429 || cre.Status >= 500,
+        RequestFailedException rfe => rfe.Status == 429 || rfe.Status >= 500,
+        HttpRequestException        => true,
+        TaskCanceledException       => true,   // request timeout, not caller cancellation (guarded above)
+        _ => false
+    };
+
+    private record EmbedChunkResult(ProtocolDocument Document, bool Truncated, bool DimError);
+    private record BatchResult(List<EmbedChunkResult> Results, int Retries);
+}
