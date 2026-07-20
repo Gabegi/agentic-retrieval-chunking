@@ -31,7 +31,7 @@ public class PdfCleaner : IPdfCleaner
         ("Ã«", "ë"), ("Ã©", "é"), ("Ã¯", "ï"), ("Ã¼", "ü"),
     ];
 
-    public PdfCleanResult Clean(IReadOnlyList<PdfPageRecord> pages)
+    public PdfCleanResult CleanPdf(IReadOnlyList<PdfPageRecord> pages)
     {
         var result = new PdfCleanResult();
 

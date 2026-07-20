@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Azure;
@@ -25,7 +26,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     private readonly BlobContainerClient                _stateContainer;
     private readonly IRunReportWriter                   _reportWriter;
     private readonly IPdfExtractor                      _extractor;
-    private readonly IPdfCleaner                        _cleaner;
+    private readonly IPdfCleaner                        _pdfCleaner;
     private readonly IPdfPipelineValidator               _validator;
     private readonly ILogger<PdfExtractionOrchestrator>  _logger;
 
@@ -47,6 +48,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // log volume/cost. Coincidentally the same number today; not the same knob.
     private const int MaxReturnedIssues = 100;
 
+    // Each blob triggers a paid, rate-limited Document Intelligence call; tune this
+    // against DI's actual throttling limits before raising it.
+    private const int MaxExtractionParallelism = 8;
+
     private sealed record RunState(int CleanedRecords);
 
     public PdfExtractionOrchestrator(
@@ -62,7 +67,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         _stateContainer = stateContainer;
         _reportWriter   = reportWriter;
         _extractor      = extractor;
-        _cleaner        = cleaner;
+        _pdfCleaner        = cleaner;
         _validator      = validator;
         _logger         = logger;
     }
@@ -74,13 +79,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         // 1/ Extract Data from PDFs
         var (fileResults, lastModifiedByBlob) = await ExtractPdfsFromBlobAsync(ct);
 
-        // A plain projection at the composition root, not a shared aggregation step —
-        // Clean only ever needs the pages themselves, never file-level error/warning
-        // bookkeeping, so it gets exactly that and nothing more. Validate needs the fuller
-        // picture (errors, warnings, per-file Structure), so it takes fileResults directly
-        // and builds its own internal representation - see PdfPipelineValidator.
+        // Filters to successfully-extracted files and flattens their pages into one list
+        // because _cleaner.Clean only needs page content — not the file-level error/warning data that _validator.Validate needs separately from fileResults itself
         var pages       = fileResults.Where(f => f.Ok).SelectMany(f => f.Pages!).ToList();
-        var cleanResult = _cleaner.Clean(pages);
+        var cleanResult = _pdfCleaner.CleanPdf(pages);
 
         var (previousCount, previousETag) = await PreviousRunCount(ct);
         var diagnostics = fileResults.Select(f => f.Diagnostics).OfType<PdfExtractionDiagnostics>().ToList();
@@ -104,67 +106,79 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         return BuildExtractionOutput(report, cleanResult, errors, warnings, missingTitle, lastModifiedByBlob);
     }
 
-    // Downloads and extracts every PDF blob in the container. One file's exception
-    // (network blip, an unexpected extractor bug) shouldn't abort the whole run — it
-    // becomes a file-level ExtractionError instead, same treatment TryOpenAndValidate
-    // already gives a corrupt PDF. Also captures each blob's storage LastModified —
-    // that's what downstream diffing in ExtractionService needs to detect new/updated/
-    // removed documents, not anything parsed out of the PDF's own text.
+    // Downloads and extracts every PDF blob in the container, up to MaxExtractionParallelism
+    // at a time. One file's exception (network blip, an unexpected extractor bug) shouldn't
+    // abort the whole run — it becomes a file-level ExtractionError instead, same treatment
+    // TryOpenAndValidate already gives a corrupt PDF. Also captures each blob's storage
+    // LastModified — that's what downstream diffing in ExtractionService needs to detect
+    // new/updated/removed documents, not anything parsed out of the PDF's own text.
     private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractPdfsFromBlobAsync(
         CancellationToken ct)
     {
-        var results      = new List<PDFExtractionResult>();
-        var lastModified  = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        // Declares two thread-safe collections:
+        // One to accumulate per-blob extraction results => ConcurrentBag<T> is a thread-safe, unordered collection, multiple threads can call .Add() on it at once without locking
+        var results      = new ConcurrentBag<PDFExtractionResult>();
+        var lastModified = new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
 
-        await foreach (var item in _container.GetBlobsAsync(cancellationToken: ct))
-        {
-            if (!item.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
 
-            // DateTimeOffset.UtcNow as a fallback would self-perpetuate: a null-LastModified
-            // blob would get a fresh "modified" date every single run, which always reads as
-            // newer than whatever got stored as its indexed date last time, so
-            // ExtractionService's diff would treat it as "updated" and reprocess it forever.
-            // DateTimeOffset.MinValue is stable across runs instead - once indexed, it never
-            // again looks newer than its own indexed date, so it stops churning.
-            if (item.Properties.LastModified is { } modified)
+        // Iterates through items in blob, for each BlobItem, runs the download-and-extract
+        await Parallel.ForEachAsync(
+            _container.GetBlobsAsync(cancellationToken: ct),
+            new ParallelOptions { MaxDegreeOfParallelism = MaxExtractionParallelism, CancellationToken = ct },
+            async (blobItem, cancellationToken) =>
             {
-                lastModified[item.Name] = modified;
-            }
-            else
-            {
-                _logger.LogWarning(
-                    "'{Blob}' has no LastModified from blob storage — treating as never-modified so it isn't reprocessed every run.",
-                    item.Name);
-                lastModified[item.Name] = DateTimeOffset.MinValue;
-            }
+                
+                // Skips any blob item whose name doesn't end in .pdf (case-insensitive), so non-PDF files in the container are ignored.
+                if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
 
-            using var ms = new MemoryStream();
-            await _container.GetBlobClient(item.Name).DownloadToAsync(ms, ct);
-            var pdfBytes = ms.ToArray();
+                // we need a lastmodified date to tell new/updated docs apart from unchanged ones
+                if (blobItem.Properties.LastModified is { } modified)
+                {
+                    lastModified[blobItem.Name] = modified;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "'{Blob}' has no LastModified from blob storage — treating as never-modified so it isn't reprocessed every run.",
+                        blobItem.Name);
+                    lastModified[blobItem.Name] = DateTimeOffset.MinValue;
+                }
 
-            // Computed here, before any backend is invoked, so it applies regardless of
-            // which IPdfExtractor ends up running - same bytes always hash the same,
-            // independent of blob name, so a byte-identical re-upload is detectable before
-            // paying for extraction again. Not yet compared against anything (no store of
-            // previously-seen hashes exists) - logged for now so the value is at least
-            // visible while that dedup check gets built. Gated on IsEnabled so SHA-256 isn't
-            // computed on every blob, every run, when Debug logging is off (the normal case).
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("'{Blob}' content hash: {Hash}", item.Name, ComputeContentHash(pdfBytes));
+                // Try block covers the download too: a failed download for one blob must not
+                // abort the run - and under Parallel.ForEachAsync an uncaught exception would
+                // also cancel the other in-flight tasks, discarding paid DI calls mid-flight.
+                try
+                {
+                    // DownloadContentAsync is the docs-preferred API for blobs that fit in
+                    // memory; avoids the MemoryStream + ToArray() double allocation.
+                    var download = await _container.GetBlobClient(blobItem.Name).DownloadContentAsync(cancellationToken);
+                    var pdfBytes = download.Value.Content.ToArray();
 
-            try
-            {
-                results.Add(await _extractor.ExtractPDFAsync(item.Name, pdfBytes, ct));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Extractor threw for '{Blob}'; recording as a file-level error.", item.Name);
-                results.Add(new PDFExtractionResult(false, item.Name, pdfBytes.LongLength, null, null, null, null, null, null,
-                    new ExtractionError { DocumentId = item.Name, Message = ex.Message, Reason = PdfOpenFailureReason.Unknown }));
-            }
-        }
+                    // Computed here, before any backend is invoked, so it applies regardless of
+                    // which IPdfExtractor ends up running - same bytes always hash the same,
+                    // independent of blob name, so a byte-identical re-upload is detectable before
+                    // paying for extraction again. Not yet compared against anything (no store of
+                    // previously-seen hashes exists) - logged for now so the value is at least
+                    // visible while that dedup check gets built. Gated on IsEnabled so SHA-256 isn't
+                    // computed on every blob, every run, when Debug logging is off (the normal case).
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                        _logger.LogDebug("'{Blob}' content hash: {Hash}", blobItem.Name, ComputeContentHash(pdfBytes));
 
-        return (results, lastModified);
+                    results.Add(await _extractor.ExtractPDFAsync(blobItem.Name, pdfBytes, cancellationToken));
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // real cancellation should still stop the run, not log as a file error
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Download or extraction failed for '{Blob}'; recording as a file-level error.", blobItem.Name);
+                    results.Add(new PDFExtractionResult(false, blobItem.Name, blobItem.Properties.ContentLength ?? 0, null, null, null, null, null, null,
+                        new ExtractionError { DocumentId = blobItem.Name, Message = ex.Message, Reason = PdfOpenFailureReason.Unknown }));
+                }
+            });
+
+        return (results.ToList(), new Dictionary<string, DateTimeOffset>(lastModified, StringComparer.OrdinalIgnoreCase));
     }
 
     // Dev-only (see IRunReportWriter.IsEnabled): the validation report (same shape

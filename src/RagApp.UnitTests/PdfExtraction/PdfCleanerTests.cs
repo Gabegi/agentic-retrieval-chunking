@@ -24,7 +24,7 @@ public class PdfCleanerTests
     [TestMethod]
     public void ValidPage_IsCleanedAndTrimmed()
     {
-        var result = BuildCleaner().Clean([Page()]);
+        var result = BuildCleaner().CleanPdf([Page()]);
 
         Assert.AreEqual(1, result.Records.Count);
         Assert.AreEqual(0, result.Errors.Count);
@@ -35,7 +35,7 @@ public class PdfCleanerTests
     [TestMethod]
     public void EmptyContentAfterCleanup_ProducesWarningNotError()
     {
-        var result = BuildCleaner().Clean([Page(content: "   ")]);
+        var result = BuildCleaner().CleanPdf([Page(content: "   ")]);
 
         Assert.AreEqual(1, result.Records.Count);
         Assert.AreEqual(1, result.Warnings.Count);
@@ -45,7 +45,7 @@ public class PdfCleanerTests
     [TestMethod]
     public void KnownMojibakePattern_IsRepairedAndCounted()
     {
-        var result = BuildCleaner().Clean([Page(content: "GeÃ¯nformeerde beslissing")]);
+        var result = BuildCleaner().CleanPdf([Page(content: "GeÃ¯nformeerde beslissing")]);
 
         StringAssert.Contains(result.Records[0].PageContent, "ï");
         Assert.AreEqual(1, result.MojibakeRepairedPages);
@@ -55,7 +55,7 @@ public class PdfCleanerTests
     [TestMethod]
     public void ExcessBlankLines_AreCollapsed()
     {
-        var result = BuildCleaner().Clean([Page(content: "Line one\n\n\n\n\nLine two")]);
+        var result = BuildCleaner().CleanPdf([Page(content: "Line one\n\n\n\n\nLine two")]);
 
         Assert.AreEqual("Line one\n\nLine two", result.Records[0].PageContent);
     }
@@ -87,7 +87,7 @@ public class PdfCleanerTests
     {
         foreach (var (pattern, fix) in PdfCleaner.KnownMojibakePatterns)
         {
-            var cleaned = BuildCleaner().Clean([Page(content: $"x {pattern} y")]).Records[0].PageContent;
+            var cleaned = BuildCleaner().CleanPdf([Page(content: $"x {pattern} y")]).Records[0].PageContent;
 
             Assert.AreEqual($"x {fix} y", cleaned, $"Pattern '{pattern}' did not repair to '{fix}'.");
         }
