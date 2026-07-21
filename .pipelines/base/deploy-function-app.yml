@@ -47,7 +47,7 @@ stages:
               zip -r $(Build.ArtifactStagingDirectory)/protocol-indexer.zip .
             displayName: 'Zip package'
 
-          # Same OIDC service connection as 1-infra-deploy.yml - no separate
+          # Same OIDC service connection as deploy-azure-infrastructure.yml - no separate
           # secrets/credentials to manage for app deploys.
           #
           # The Function App denies public traffic by default (see
