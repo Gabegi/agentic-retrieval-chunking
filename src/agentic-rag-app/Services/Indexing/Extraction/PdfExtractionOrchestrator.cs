@@ -189,14 +189,31 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         }
     }
 
-    // Downloads and extracts every PDF blob in the container, up to MaxExtractionParallelism
-    // at a time. One file's exception (network blip, an unexpected extractor bug) shouldn't
-    // abort the whole run — it becomes a file-level ExtractionError instead, same treatment
-    // TryOpenAndValidate already gives a corrupt PDF. Also captures each blob's storage
-    // LastModified — that's what downstream diffing in ExtractionService needs to detect
-    // new/updated/removed documents, not anything parsed out of the PDF's own text.
+    // Cheap listing of every PDF blob's name + LastModified only — no download, no
+    // Document Intelligence call. Lets ExtractionService diff this against the index
+    // BEFORE paying for extraction on anything already up to date.
+    public async Task<IReadOnlyDictionary<string, DateTimeOffset>> ListSourceDocumentsAsync(CancellationToken ct = default)
+    {
+        var result = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+
+        await foreach (var blobItem in _container.GetBlobsAsync(cancellationToken: ct))
+        {
+            if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+            result[blobItem.Name] = blobItem.Properties.LastModified ?? DateTimeOffset.MinValue;
+        }
+
+        return result;
+    }
+
+    // Downloads and extracts every PDF blob in the container that's in sourceIdsToProcess,
+    // up to MaxExtractionParallelism at a time. One file's exception (network blip, an
+    // unexpected extractor bug) shouldn't abort the whole run — it becomes a file-level
+    // ExtractionError instead, same treatment TryOpenAndValidate already gives a corrupt
+    // PDF. Also captures each blob's storage LastModified — that's what downstream
+    // diffing in ExtractionService needs to detect new/updated/removed documents, not
+    // anything parsed out of the PDF's own text.
     private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractPdfsFromBlobAsync(
-        CancellationToken ct)
+        IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct)
     {
         // Declares two thread-safe collections:
         // One to accumulate per-blob extraction results => ConcurrentBag<T> is a thread-safe, unordered collection, multiple threads can call .Add() on it at once without locking
@@ -210,9 +227,14 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             new ParallelOptions { MaxDegreeOfParallelism = MaxExtractionParallelism, CancellationToken = ct },
             async (blobItem, cancellationToken) =>
             {
-                
+
                 // Skips any blob item whose name doesn't end in .pdf (case-insensitive), so non-PDF files in the container are ignored.
                 if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
+
+                // Already up to date in the index (per ExtractionService's pre-extraction
+                // diff against ListSourceDocumentsAsync) - skip the paid download +
+                // Document Intelligence call entirely.
+                if (!sourceIdsToProcess.Contains(blobItem.Name)) return;
 
                 // we need a lastmodified date to tell new/updated docs apart from unchanged ones.
                 // Recorded here, before the try block below, so failed downloads/extractions
