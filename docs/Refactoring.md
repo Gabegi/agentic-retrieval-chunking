@@ -246,14 +246,21 @@ Verify: `dotnet build`, run existing `IndexService`/`IndexDocumentService`/
 tests won't surface a singleton-vs-per-invocation client lifetime mistake.
 
 **Phase 3 — `AgenticRagApp.Observability`.**
-New class library, depends on `Infrastructure` + `Domain`. Move `IRunReportWriter`/
-`RunReportWriter` (dedupe the `AgenticRag`-local and `IndexingShared` copies into
-one), `IPipelineArtifactWriter`/`PipelineArtifactWriter`, `ISnapshotService`/
-`SnapshotService`, `Instrumentation`, stat models. Fork `IndexRunReport` into
+New class library, depends on `Domain` **only** (see dependency-direction note — no
+reference to `Infrastructure` or any Azure SDK package). Move `IRunReportWriter`
+(interface, to `Domain`) / `RunReportWriter` (implementation, to `Observability`,
+rewritten against `Domain`'s `IArtifactStore` instead of `BlobContainerClient` —
+dedupe the `AgenticRag`-local and `IndexingShared` copies into this one),
+`IPipelineArtifactWriter`/`PipelineArtifactWriter`, `ISnapshotService`/
+`SnapshotService` (both likewise rewritten against `IArtifactStore`),
+`Instrumentation`, stat models. Fork `IndexRunReport` into
 `PdfIndexRunReport`/`CsvIndexRunReport` per decision #7, both deriving from Phase 1's
 shared envelope. Update `IndexingFunction.cs`'s `BuildReport` and CSV's
-report-writing call sites accordingly. Delete `IndexingShared/Observability`.
-Verify: `dotnet build`, `RunReportWriterTests` pass against the consolidated type.
+report-writing call sites accordingly. Delete `IndexingShared/Observability`. In the
+host, wire `Infrastructure`'s `BlobArtifactStore` against `IArtifactStore` in DI.
+Verify: `dotnet build`, `RunReportWriterTests`/`SnapshotService` tests pass against
+the consolidated types using a fake `IArtifactStore` (no Azure SDK needed to test
+this project at all — that's the point of the port).
 
 **Phase 4 — Rename `CsvIndexing` → `AgenticRagApp.Indexing.Csv`.**
 Folder/csproj/namespace/sln rename. Repoint its project references at `Domain`,
@@ -280,20 +287,33 @@ production pipeline).
 **Phase 6 — Split tests per project.**
 `RagApp.UnitTests` is already internally organized by slice (`Indexing/`, `Querying/`,
 `Observability/`, `CsvExtraction/`, `PdfExtraction/`, `Functions/`) — map each folder
-to its new `AgenticRagApp.<X>.Tests` project. Update `ragapplication.sln` and
-`.pipelines/3-build-test.yml`'s `dotnet test` invocation(s) accordingly (one call per
-new test project, or a solution-wide `dotnet test` that excludes
-`RagApp.Evaluation.Tests`). Repoint `RagApp.Evaluation.Tests`'s `ProjectReference` at
-the renamed `AgenticRagApp.csproj`. Delete `RagApp.UnitTests` once emptied.
-Verify: `dotnet test` green across all new test projects, coverage publish step in the
-pipeline still resolves its glob.
+to its new `AgenticRagApp.<X>.Tests` project. Before writing test files: `dotnet
+test` has no clean "exclude this project" flag, so a solution-wide test run that
+tries to skip `RagApp.Evaluation.Tests` is fragile. Decided approach: replace the
+single `dotnet test` line in `.pipelines/3-build-test.yml` with **one explicit
+`dotnet test` call per new test project**, all writing into the same
+`--results-directory` (coverlet already namespaces each run's `coverage.cobertura.xml`
+under a per-run GUID subfolder, so the existing double-`**` glob in
+`PublishCodeCoverageResults@2` keeps working unmodified). Repoint
+`RagApp.Evaluation.Tests`'s `ProjectReference` at the renamed
+`AgenticRagApp.csproj`. Delete `RagApp.UnitTests` once emptied.
+Verify: `dotnet test --list-tests` on `RagApp.UnitTests` before the move, and on the
+full set of new test projects after — diff the two lists rather than just comparing
+counts, so a test that moved but silently lost discovery (bad trait/category, wrong
+namespace) doesn't slip through. Then confirm all green and the coverage publish
+step in the pipeline still resolves its glob.
 
-**Phase 7 — Update stale docs.**
+**Phase 7 — Update stale docs, record the "why" as an ADR.**
 `docs/indexing-pipeline-split.md`, `docs/refactoring-backlog.md`,
 `docs/plan210726.md` (and any other doc referencing `agentic-rag-app`/`CsvIndexing`/
 `IndexingShared` by old name) get marked done/superseded or path-corrected, so a
 future session doesn't re-derive stale intent from them the way this session had to
-reconcile it.
+reconcile it. Also write a short ADR (e.g. `docs/adr/0001-no-shared-extraction-document.md`)
+capturing why `ExtractionDocument`/`ProtocolDocument` were deliberately **not**
+unified into one shared `Domain` type despite the vertical-slice restructure — the
+divergence reasoning in "Domain project scope" above — so this doesn't get
+re-litigated by a future session that only sees two similarly-named types in two
+different projects and assumes it's an oversight.
 
 ## Verification (end to end, after all phases)
 

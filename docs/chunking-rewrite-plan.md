@@ -179,9 +179,11 @@ mirroring the `SnapshotChunk` pattern - built by
 `DocumentChunk` now serializes fully everywhere (blob hand-off, Stage 2
 archive); only the one upload call site narrows down.
 
-**Residual gap**: no test exercises an actual JSON round-trip of
-`DocumentChunk` (this bug's exact failure mode) or asserts `SearchUploadChunk`
-contains only schema fields. Worth adding before this ships for real.
+**Residual gap** ✅ closed: `RagApp.UnitTests/Indexing/DocumentChunkTests.cs`
+now covers the exact failure mode - a real `JsonSerializer` round-trip of a
+fully-populated `DocumentChunk` asserting every field (including the four
+derived Tier 2 fields) survives, plus a test asserting `SearchUploadChunk`
+serializes to exactly the 13 schema field names, no more, no less.
 
 ## Explicitly out of scope
 
