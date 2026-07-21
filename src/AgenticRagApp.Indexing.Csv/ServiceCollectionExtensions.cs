@@ -12,7 +12,7 @@ namespace AgenticRagApp.Indexing.Csv;
 // called AgenticRagApp.Infrastructure's AddAgenticRagAppInfrastructure() (BlobServiceClient,
 // IndexerConfig, SearchClient/SearchIndexClient, the "pipeline-temp" keyed
 // BlobContainerClient, IEmbeddingGenerator<string, Embedding<float>>) — see
-// IndexingShared for the remaining source-agnostic seam types (ExtractionDocument/
+// AgenticRagApp.Common for the remaining source-agnostic seam types (ExtractionDocument/
 // ExtractionOutput/etc.) and IRunReportWriter.
 public static class ServiceCollectionExtensions
 {

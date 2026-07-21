@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using AgenticRagApp.Infrastructure.Clients.Blob;
-using CsvIndexing.Services;
-using IndexingShared.Observability.Reports;
+using AgenticRagApp.Indexing.Csv.Services;
+using AgenticRagApp.Observability.Reports;
 
 namespace RagApp.UnitTests.CsvExtraction;
 
