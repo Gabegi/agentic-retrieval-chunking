@@ -392,34 +392,49 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             SpotCheckSample:        spotCheck);
     }
 
-    // File-level native PDF facts (Author, CreatedAt) - same value applies to every page
-    // of that file, so this is a per-blob lookup, not per-page like PdfPageContext below.
+    // File-level native PDF facts (Author, CreatedAt, PageCount, Bookmarks) - same value
+    // applies to every page of that file, so this is a per-blob lookup, not per-page like
+    // PdfPageContext below.
     private static Dictionary<string, DocMetadata> BuildNativeMetadataLookup(
         IReadOnlyList<PDFExtractionResult> fileResults) =>
         fileResults
             .Where(f => f.Ok && f.NativeMetadata is not null)
             .ToDictionary(f => f.BlobName, f => f.NativeMetadata!, StringComparer.OrdinalIgnoreCase);
 
+    // DI's semantic sections aren't page-scoped (a section's Elements can span pages), so
+    // - like NativeMetadata above - this is file-level, duplicated across every page's
+    // ExtractionDocument rather than filtered per page.
+    private static Dictionary<string, IReadOnlyList<SectionInfo>> BuildSectionsLookup(
+        IReadOnlyList<PDFExtractionResult> fileResults) =>
+        fileResults
+            .Where(f => f.Ok)
+            .ToDictionary(f => f.BlobName, IReadOnlyList<SectionInfo> (f) => f.Structure?.Sections ?? [],
+                StringComparer.OrdinalIgnoreCase);
+
     // Everything Structure/SectionBreadcrumbs knows about one page. Breadcrumb comes from
     // the bookmark outline (PDFSectionBreadCrumbBuilder, hierarchical - "Chapter 3 > 3.2
-    // Dosage"); Heading from Document Intelligence's own title/sectionHeading-role paragraph
-    // detection, which works even when the PDF has no outline at all. TableCount/
-    // FigureCaptions default to real zero/empty (DI looked and found none), not "unknown" -
-    // only Breadcrumb/Heading/AverageWordConfidence are genuinely nullable "no data" cases.
+    // Dosage"); Headings from Document Intelligence's own title/sectionHeading-role
+    // paragraph detection, which works even when the PDF has no outline at all. List fields
+    // default to real empty (DI looked and found none), not "unknown" - only
+    // Breadcrumb/Dimensions/AverageWordConfidence are genuinely nullable "no data" cases.
     private sealed record PdfPageContext(
-        string?               Breadcrumb,
-        string?               Heading,
-        int                   TableCount,
-        double?               AverageWordConfidence,
-        IReadOnlyList<string> FigureCaptions)
+        string?                          Breadcrumb,
+        IReadOnlyList<Heading>           Headings,
+        IReadOnlyList<Heading>           Boilerplate,
+        IReadOnlyList<TableInfo>         Tables,
+        PageDimensions?                  Dimensions,
+        IReadOnlyList<SelectionMarkInfo> SelectionMarks,
+        IReadOnlyList<FigureInfo>        Figures,
+        IReadOnlyList<LineInfo>          Lines,
+        double?                          AverageWordConfidence)
     {
-        public static readonly PdfPageContext Empty = new(null, null, 0, null, []);
+        public static readonly PdfPageContext Empty = new(null, [], [], [], null, [], [], [], null);
     }
 
-    // Sparse by design: only pages with at least one of these five signals get an entry.
-    // A page with none of them (no breadcrumb, no heading, no tables, no quality score, no
-    // figures - i.e. nothing Structure has any data for at all) is a legitimate "nothing to
-    // attach" case the caller handles via PdfPageContext.Empty, not a lookup miss to work around.
+    // Sparse by design: only pages with at least one of these signals get an entry. A page
+    // with none of them - nothing Structure has any data for at all - is a legitimate
+    // "nothing to attach" case the caller handles via PdfPageContext.Empty, not a lookup
+    // miss to work around.
     private static Dictionary<(string BlobName, int PageNumber), PdfPageContext> BuildPageContextLookup(
         IReadOnlyList<PDFExtractionResult> fileResults)
     {
@@ -427,38 +442,58 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
         foreach (var file in fileResults.Where(f => f.Ok))
         {
-            // First detected heading wins per page - good enough for "is there a heading
-            // on this page at all", which is all a page-level (not chunk-level) join needs.
             var headingsByPage = (file.Structure?.Headings ?? [])
                 .GroupBy(h => h.PageNumber)
-                .ToDictionary(g => g.Key, g => g.First().Content);
+                .ToDictionary(g => g.Key, IReadOnlyList<Heading> (g) => g.ToList());
 
-            var tableCountByPage = (file.Structure?.Tables ?? [])
+            var boilerplateByPage = (file.Structure?.Boilerplate ?? [])
+                .GroupBy(h => h.PageNumber)
+                .ToDictionary(g => g.Key, IReadOnlyList<Heading> (g) => g.ToList());
+
+            var tablesByPage = (file.Structure?.Tables ?? [])
                 .GroupBy(t => t.PageNumber)
-                .ToDictionary(g => g.Key, g => g.Count());
+                .ToDictionary(g => g.Key, IReadOnlyList<TableInfo> (g) => g.ToList());
+
+            var dimensionsByPage = (file.Structure?.PageDimensions ?? [])
+                .ToDictionary(d => d.PageNumber, d => d);
+
+            var selectionMarksByPage = (file.Structure?.SelectionMarks ?? [])
+                .GroupBy(s => s.PageNumber)
+                .ToDictionary(g => g.Key, IReadOnlyList<SelectionMarkInfo> (g) => g.ToList());
+
+            var figuresByPage = (file.Structure?.Figures ?? [])
+                .GroupBy(f => f.PageNumber)
+                .ToDictionary(g => g.Key, IReadOnlyList<FigureInfo> (g) => g.ToList());
+
+            var linesByPage = (file.Structure?.Lines ?? [])
+                .GroupBy(l => l.PageNumber)
+                .ToDictionary(g => g.Key, IReadOnlyList<LineInfo> (g) => g.ToList());
 
             var qualityByPage = (file.Structure?.PageQuality ?? [])
                 .ToDictionary(q => q.PageNumber, q => q.AverageWordConfidence);
 
-            var captionsByPage = (file.Structure?.Figures ?? [])
-                .Where(f => !string.IsNullOrWhiteSpace(f.Caption))
-                .GroupBy(f => f.PageNumber)
-                .ToDictionary(g => g.Key, IReadOnlyList<string> (g) => g.Select(f => f.Caption!).ToList());
-
             var pageNumbers = file.SectionBreadcrumbs.Keys
                 .Concat(headingsByPage.Keys)
-                .Concat(tableCountByPage.Keys)
+                .Concat(boilerplateByPage.Keys)
+                .Concat(tablesByPage.Keys)
+                .Concat(dimensionsByPage.Keys)
+                .Concat(selectionMarksByPage.Keys)
+                .Concat(figuresByPage.Keys)
+                .Concat(linesByPage.Keys)
                 .Concat(qualityByPage.Keys)
-                .Concat(captionsByPage.Keys)
                 .Distinct();
 
             foreach (var pageNumber in pageNumbers)
                 lookup[(file.BlobName, pageNumber)] = new PdfPageContext(
                     Breadcrumb:            file.SectionBreadcrumbs.GetValueOrDefault(pageNumber),
-                    Heading:               headingsByPage.GetValueOrDefault(pageNumber),
-                    TableCount:            tableCountByPage.GetValueOrDefault(pageNumber),
-                    AverageWordConfidence: qualityByPage.TryGetValue(pageNumber, out var q) ? q : null,
-                    FigureCaptions:        captionsByPage.GetValueOrDefault(pageNumber) ?? []);
+                    Headings:              headingsByPage.GetValueOrDefault(pageNumber) ?? [],
+                    Boilerplate:           boilerplateByPage.GetValueOrDefault(pageNumber) ?? [],
+                    Tables:                tablesByPage.GetValueOrDefault(pageNumber) ?? [],
+                    Dimensions:            dimensionsByPage.GetValueOrDefault(pageNumber),
+                    SelectionMarks:        selectionMarksByPage.GetValueOrDefault(pageNumber) ?? [],
+                    Figures:               figuresByPage.GetValueOrDefault(pageNumber) ?? [],
+                    Lines:                 linesByPage.GetValueOrDefault(pageNumber) ?? [],
+                    AverageWordConfidence: qualityByPage.TryGetValue(pageNumber, out var q) ? q : null);
         }
 
         return lookup;
