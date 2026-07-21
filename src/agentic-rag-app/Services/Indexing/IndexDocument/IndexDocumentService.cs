@@ -36,6 +36,11 @@ public class IndexDocumentService : IIndexDocumentService
     }
 
     // Uploads embedded documents to the index in batches of 1000 (push API limit).
+    // Maps each DocumentChunk down to SearchUploadChunk - the exact field set the Search
+    // schema knows about - right here, at the last possible moment before the actual
+    // upload call. DocumentChunk itself carries everything extraction produced (needed
+    // for the blob hand-off between pipeline activities and the Stage 2 archive); sending
+    // it to Search directly would include fields Search has no schema for and rejects.
     public async Task<(int Succeeded, int Failed)> UpsertDocumentsAsync(IEnumerable<DocumentChunk> documents, CancellationToken ct = default)
     {
         var docList   = documents.ToList();
@@ -46,7 +51,8 @@ public class IndexDocumentService : IIndexDocumentService
         foreach (var batch in docList.Chunk(1000))
         {
             batches++;
-            var response = await _searchClient.UploadDocumentsAsync(batch, cancellationToken: ct);
+            var uploadBatch = batch.Select(SearchUploadChunk.From).ToArray();
+            var response = await _searchClient.UploadDocumentsAsync(uploadBatch, cancellationToken: ct);
             foreach (var result in response.Value.Results)
             {
                 if (!result.Succeeded)
