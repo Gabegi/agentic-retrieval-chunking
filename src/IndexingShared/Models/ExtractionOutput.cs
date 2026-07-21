@@ -1,3 +1,5 @@
+using AgenticRagApp.Observability.Reports;
+
 namespace IndexingShared.Models;
 
 public record ExtractionOutput(
@@ -16,8 +18,3 @@ public record ExtractionOutput(
     IReadOnlyList<string>              RedFlags,
     IReadOnlyList<SpotCheckEntry>      SpotCheckSample
 );
-
-public record ValidationIssueEntry(string Stage, string Severity, string DocumentId, string Message);
-
-// Brief content preview used for manual spot-checking in the dev run report.
-public record SpotCheckEntry(string DocumentId, string Title, string ContentPreview);

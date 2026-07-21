@@ -5,8 +5,8 @@ namespace AgenticRagApp.Observability;
 
 public static class Instrumentation
 {
-    internal const string ActivitySourceName = "AgenticRagApp";
-    internal const string MeterName          = "AgenticRagApp";
+    public const string ActivitySourceName = "AgenticRagApp";
+    public const string MeterName          = "AgenticRagApp";
 
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, "1.0.0");
     public static readonly Meter          Meter          = new(MeterName, "1.0.0");
