@@ -69,6 +69,10 @@ var host = new HostBuilder()
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts"),
                 sp.GetRequiredService<ILogger<SnapshotService>>()));
 
+        // Index size telemetry + drift-check, source-scoped (see IIndexStatsMonitor) — one
+        // instance shared by PDF's and CSV's own UploadService.
+        services.AddSingleton<IIndexStatsMonitor, IndexStatsMonitor>();
+
         services.AddSingleton(sp =>
             new ChunkNeighborExpander(sp.GetRequiredService<SearchClient>()));
         services.AddSingleton<IRagQueryService, AgenticRagQueryService>();
