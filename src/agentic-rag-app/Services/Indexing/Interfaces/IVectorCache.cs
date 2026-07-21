@@ -12,4 +12,10 @@ public interface IVectorCache
     Task<float[]?> TryGetAsync(string contentHash, CancellationToken ct = default);
 
     Task SetAsync(string contentHash, float[] vector, CancellationToken ct = default);
+
+    // Deletes any cached vector whose hash isn't in liveHashes - cleans up entries for
+    // chunks that no longer exist in any currently-indexed document. Called by
+    // SnapshotService right after it writes a fresh full-corpus snapshot, using that
+    // snapshot's hash set as liveHashes. Returns the number of entries deleted.
+    Task<int> EvictOrphanedAsync(IReadOnlySet<string> liveHashes, CancellationToken ct = default);
 }
