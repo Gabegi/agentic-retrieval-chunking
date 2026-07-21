@@ -109,6 +109,10 @@ public record IndexRunReport(
     // Quality signal: truncated chunks were embedded with incomplete content.
     // The vector represents only the first 24k chars — retrieval quality for those chunks is degraded.
     int  ChunksTruncated,
+    // Quality/cost signal: chunks whose vector was reused from the cache instead of
+    // re-embedded. High relative to ChunksProduced on an updated-document run means the
+    // hash-based dedup is doing its job.
+    int  VectorCacheHits,
     // A spike here means you hit OpenAI rate limits — consider reducing parallelism or adding quota.
     int  EmbeddingRetries,
     // Should always be 0. Non-zero means the embedding model returned wrong dimensions — a config mismatch.
