@@ -2,8 +2,8 @@ using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
 using IndexingShared.Models;
-using IndexingShared.Observability;
-using IndexingShared.Observability.Reports;
+using AgenticRagApp.Observability;
+using AgenticRagApp.Observability.Reports;
 
 namespace CsvIndexing.Services;
 
@@ -15,6 +15,10 @@ public class IndexDocumentService : IIndexDocumentService
     // Run-over-run doc-count swing beyond this is flagged as drift. Tune based on observed
     // corpus volatility — the source data doesn't churn more than this between runs today.
     private const double DriftThresholdPct = 0.15;
+
+    // Scopes the drift-baseline blob (IRunReportWriter.GetLastIndexStatsAsync/SaveLastIndexStatsAsync)
+    // to this doc-type - PDF and CSV must never compare against each other's baseline.
+    private const string Source = "csv";
 
     private readonly ISearchDocumentStore          _documentStore;
     private readonly ISearchIndexStore             _indexStore;
@@ -84,7 +88,7 @@ public class IndexDocumentService : IIndexDocumentService
     public async Task<IReadOnlyList<string>> CheckDriftAsync(long documentCount, long storageSizeBytes, CancellationToken ct = default)
     {
         var redFlags = new List<string>();
-        var previous = await _reportWriter.GetLastIndexStatsAsync(ct);
+        var previous = await _reportWriter.GetLastIndexStatsAsync(Source, ct);
         if (previous is { DocumentCount: > 0 } baseline)
         {
             var deltaPct = (documentCount - baseline.DocumentCount) / (double)baseline.DocumentCount;
@@ -96,7 +100,7 @@ public class IndexDocumentService : IIndexDocumentService
             }
         }
 
-        await _reportWriter.SaveLastIndexStatsAsync(documentCount, storageSizeBytes, ct);
+        await _reportWriter.SaveLastIndexStatsAsync(Source, documentCount, storageSizeBytes, ct);
         return redFlags;
     }
 }

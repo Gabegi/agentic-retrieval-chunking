@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using IndexingShared.Observability;
+using AgenticRagApp.Observability;
 
 namespace CsvIndexing.Services;
 

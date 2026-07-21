@@ -1,7 +1,7 @@
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.DependencyInjection;
 using AgenticRagApp.Infrastructure.Clients.Blob;
-using IndexingShared.Observability.Reports;
+using AgenticRagApp.Observability.Reports;
 
 namespace CsvIndexing;
 

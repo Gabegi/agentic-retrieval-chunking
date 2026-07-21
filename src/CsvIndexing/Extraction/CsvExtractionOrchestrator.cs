@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.Blob;
 using CsvIndexing.Models;
 using IndexingShared.Models;
-using IndexingShared.Observability;
-using IndexingShared.Observability.Reports;
+using AgenticRagApp.Observability;
+using AgenticRagApp.Observability.Reports;
 
 namespace CsvIndexing.Services;
 

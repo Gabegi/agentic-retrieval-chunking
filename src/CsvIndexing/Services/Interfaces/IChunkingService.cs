@@ -1,6 +1,6 @@
 using CsvIndexing.Models;
 using IndexingShared.Models;
-using IndexingShared.Observability.Reports;
+using AgenticRagApp.Observability.Reports;
 
 namespace CsvIndexing.Services;
 
