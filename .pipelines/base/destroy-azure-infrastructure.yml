@@ -89,9 +89,9 @@ stages:
         steps:
           - checkout: self
 
-          - template: templates/install-terraform.yml
+          - template: ../templates/install-terraform.yml
 
-          - template: templates/terraform-cli.yml
+          - template: ../templates/terraform-cli.yml
             parameters:
               displayName: 'Init'
               serviceConnection: '$(serviceConnection)'
@@ -103,7 +103,7 @@ stages:
                   -backend-config="key=$(backendKey)" \
                   -backend-config="use_azuread_auth=true"
 
-          - template: templates/terraform-cli.yml
+          - template: ../templates/terraform-cli.yml
             parameters:
               displayName: 'Destroy Plan'
               serviceConnection: '$(serviceConnection)'
@@ -134,9 +134,9 @@ stages:
                 - download: current
                   artifact: tfplan
 
-                - template: templates/install-terraform.yml
+                - template: ../templates/install-terraform.yml
 
-                - template: templates/terraform-cli.yml
+                - template: ../templates/terraform-cli.yml
                   parameters:
                     displayName: 'Init'
                     serviceConnection: '$(serviceConnection)'
@@ -148,7 +148,7 @@ stages:
                         -backend-config="key=$(backendKey)" \
                         -backend-config="use_azuread_auth=true"
 
-                - template: templates/terraform-cli.yml
+                - template: ../templates/terraform-cli.yml
                   parameters:
                     displayName: 'Destroy Apply'
                     serviceConnection: '$(serviceConnection)'
