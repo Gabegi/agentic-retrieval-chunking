@@ -5,7 +5,7 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.FunctionApp", "AgenticRagApp.FunctionApp\AgenticRagApp.FunctionApp.csproj", "{C5A3988A-FB04-41FD-B6A1-6F2D20429072}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RagApp.Evaluation.Tests", "RagApp.Evaluation.Tests\RagApp.Evaluation.Tests.csproj", "{6B1F0AD6-0701-4F96-B7D4-50E890B0E813}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RagApp.Evaluation.Tests", "Evaluations\RagApp.Evaluation.Tests\RagApp.Evaluation.Tests.csproj", "{6B1F0AD6-0701-4F96-B7D4-50E890B0E813}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Common", "AgenticRagApp.Common\AgenticRagApp.Common.csproj", "{EADF56C2-D145-4FBC-A482-C3DFDB46E827}"
 EndProject
