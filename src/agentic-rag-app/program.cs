@@ -138,6 +138,14 @@ var host = new HostBuilder()
             new VectorCache(
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("indexing-artifacts")));
 
+        // Rolling full-corpus snapshot + the vector-cache eviction that rides along with it -
+        // same "indexing-artifacts" container, under its own snapshots/ path prefix.
+        services.AddSingleton<ISnapshotService>(sp =>
+            new SnapshotService(
+                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("indexing-artifacts"),
+                sp.GetRequiredService<IVectorCache>(),
+                sp.GetRequiredService<ILogger<SnapshotService>>()));
+
         services.AddSingleton(_ =>
             new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential));
         services.AddSingleton(_ =>
