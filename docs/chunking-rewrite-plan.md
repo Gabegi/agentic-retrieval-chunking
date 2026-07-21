@@ -78,31 +78,46 @@ Tier 2.
    as `breadcrumb`/`heading`/`author`/`created_date`, alongside the existing
    `title`/`last_modified_date`. Stayed string-only on purpose — no
    typed-fields decision needed yet, that's item #3.
-3. Reshape `ExtractionDocument`: keep `Metadata: Dictionary<string,string>`
-   for plain scalars (title, author, breadcrumb/heading text), but add typed
-   fields directly for structured/numeric data (`int TableCount`,
-   `double? AverageWordConfidence`, `IReadOnlyList<string> FigureCaptions`)
-   rather than round-tripping them through strings the way
-   `last_modified_date` awkwardly does today.
-   **Open decision**: confirm typed fields vs. keeping everything as strings
-   in `Metadata` to minimize the diff, before implementing.
-4. Rewrite `ChunkingService`:
-   - Delete the six dead reads (`folder_path`, `quick_code`, `relative_path`,
-     `check_date`, `version`, `summary`) — remove `Department`, `QuickCode`,
-     `RelativePath`, `CheckDate`, `Version`, `Summary` from `ProtocolDocument`
-     and stop setting them. Safe to drop from the C# model without touching
-     the live index — Azure Search just leaves those fields unset for new
-     docs; no migration needed to *remove* usage, only to *add* new fields.
-   - Wire the real breadcrumb/heading into the currently-dead `Heading`
-     field — reuses the existing (already indexed, already in semantic
-     config) schema field for free. Fall back to `Structure.Headings` for
-     docs with no bookmark outline.
-   - `HeadingsDetected` in `ChunkingResults`/the run report becomes a real
-     signal instead of a permanent zero, with no further change needed — it
-     already reads `chunk.Heading != null`.
-5. `EmbeddingText`/`Content`: fold the breadcrumb in the same way `Title` is
-   already prepended, so it's live in retrieval immediately without waiting
-   on a schema change.
+3. ✅ `ExtractionDocument` fully reshaped — **no `Metadata` dictionary at
+   all**, eliminated entirely (not kept alongside typed fields). Every piece
+   of extraction data worth carrying is a named, typed field: file-level
+   (`Title`, `Author`, `CreatedAt`, `PageCount`, `LastModifiedDate`,
+   `Bookmarks`, `Sections` — duplicated identically across every page of one
+   file, same as `Title` always was) and page-level, filtered to that page's
+   `PageNumber` (`Breadcrumb`, `Headings`, `Boilerplate`, `Tables`,
+   `Dimensions`, `SelectionMarks`, `Figures`, `Lines`,
+   `AverageWordConfidence`). Deliberately **not** carried:
+   `FileSizeBytes`/`PdfSpecVersion`/`EstimatedCostUsd` (already in the run
+   report) and `PageErrors`/`Warnings` (already fully surfaced through
+   `PdfPipelineValidator` → `ExtractionOutput.Issues` → the run report) —
+   duplicating either would repackage identical data, not add anything new.
+   Rationale for going all-typed rather than typed-fields-plus-dictionary:
+   a string-keyed dictionary is exactly what let six CSV-era fields sit
+   unused for so long without anyone noticing — nothing forced a reader to
+   account for every key. A fully typed record does.
+4. ✅ `ProtocolDocument` renamed to **`DocumentChunk`** (`ProtocolDocument`
+   was Zenya/CSV-era naming — "care protocols" specifically — for a project
+   that's PDF-only now) and restructured to match. Search-indexed fields
+   (`Id`, `DocumentId`, `Title`, `LastModifiedDate`, `Content`, `Heading`,
+   `PageNumber`, `ChunkIndex`, `ContentVector`) stay `[JsonPropertyName]`
+   mapped; `Department`/`QuickCode`/`RelativePath`/`CheckDate`/`Version`/
+   `Summary` removed entirely (dead for PDF, safe to drop without touching
+   the live index — Azure Search just leaves unset fields null for new
+   docs). Every other new field from `ExtractionDocument` (`Author`,
+   `CreatedAt`, `PageCount`, `Bookmarks`, `Sections`, `Breadcrumb`,
+   `Headings`, `Boilerplate`, `Tables`, `Dimensions`, `SelectionMarks`,
+   `Figures`, `Lines`, `AverageWordConfidence`) is carried through too,
+   `[JsonIgnore]`d (no matching Search schema field yet — Tier 2) but
+   available in the Stage 2 archive today.
+   `IndexService`'s schema and semantic config updated to match (dead
+   fields removed, including `summary` from `ContentFields`).
+5. ✅ `ChunkingService` rewritten: `Heading` = `Breadcrumb ?? Headings.FirstOrDefault()?.Content`,
+   prepended into `Content` the same way `Title` already was — real content
+   in the previously-always-null `Heading` field, and `HeadingsDetected` in
+   `ChunkingResults`/the run report becomes a real signal instead of a
+   permanent zero, no further change needed since it already reads
+   `chunk.Heading != null`. `EmbeddingText` simplified to `=> Content`
+   directly (no more `Summary` fold-in — that field is gone).
 
 ## Tier 2 — needs the schema-update mechanism built first
 
