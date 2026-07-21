@@ -21,6 +21,10 @@ test
 ```
 
 
+## Post-Deployment Steps
+
+- **Run one `force=true` reindex after deploying the rolling-snapshot feature.** The snapshot only accumulates chunks touched by normal runs, so a document indexed before this feature existed (and never updated since) won't appear in it otherwise. Until that first full run, vector-cache eviction may delete still-live vectors it can't yet see in a snapshot — safe, just an avoidable re-embed later, not a correctness issue.
+
 ## Terraform Pipeline Configuration
 
 | | dev | prod |
