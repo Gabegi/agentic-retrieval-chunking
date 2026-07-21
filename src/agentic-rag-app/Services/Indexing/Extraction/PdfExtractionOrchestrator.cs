@@ -315,7 +315,12 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // no Zenya attention-flag (StaleDocCount), no version data (MissingVersionCount -
     // nothing parses/populates Version for PDFs), and no folder/department concept
     // (MissingDepartmentCount).
+    //
+    // fileResults is threaded through (chunking-rewrite-plan.md item #1) so a later step
+    // can join Structure/SectionBreadcrumbs/NativeMetadata against cleanResult.Records by
+    // (BlobName, PageNumber) - not consumed yet, that join is item #2.
     private static ExtractionOutput BuildExtractionOutput(
+        IReadOnlyList<PDFExtractionResult> fileResults,
         PdfValidationReport                report,
         PdfCleanResult                      cleanResult,
         int                                 errors,
