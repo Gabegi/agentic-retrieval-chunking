@@ -120,7 +120,4 @@ public class ChunkingService : IChunkingService
         if (stats.DocsWithZeroChunks > 0)
             Instrumentation.DocsWithZeroChunks.Add(stats.DocsWithZeroChunks, strategyTag);
     }
-
-    private static DateTimeOffset? ParseDate(string? value) =>
-        DateTimeOffset.TryParse(value, out var result) ? result : null;
 }
