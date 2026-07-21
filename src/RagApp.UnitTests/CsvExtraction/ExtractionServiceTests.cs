@@ -9,14 +9,14 @@ namespace RagApp.UnitTests.CsvExtraction;
 [TestClass]
 public class ExtractionServiceTests
 {
-    private static ExtractionDocument Doc(string sourceId, string lastModified = "2024-01-01") => new(
+    private static ExtractionDocument Doc(string sourceId) => new(
         SourceId: sourceId,
         Ordinal:  0,
         Content:  "content",
-        Metadata: new Dictionary<string, string> { ["last_modified_date"] = lastModified });
+        Metadata: new Dictionary<string, string>());
 
-    private static ExtractionOutput BuildOutput(params ExtractionDocument[] docs) => new(
-        Docs:                   docs,
+    private static ExtractionOutput BuildOutput(IEnumerable<ExtractionDocument> docs) => new(
+        Docs:                   docs.ToList(),
         ValidationErrors:       0,
         ValidationWarnings:     0,
         ReconciliationProblems: 0,
@@ -31,11 +31,35 @@ public class ExtractionServiceTests
         RedFlags:               [],
         SpotCheckSample:        []);
 
-    private static Mock<IExtractionOrchestrator> MockExtractor(ExtractionOutput output, string source = "csv")
+    // sourceListing models the cheap pre-extraction listing (id + LastModified, no content).
+    // ExtractDocumentsAsync is stubbed to mirror what a real orchestrator does - it only
+    // returns ExtractionDocuments for whichever ids ExtractionService actually asked it to
+    // process, so tests exercise the same pre-extraction-diff contract the real pipeline relies on.
+    private static Mock<IExtractionOrchestrator> MockExtractor(
+        Dictionary<string, DateTimeOffset> sourceListing, string source = "csv")
     {
+        var caseInsensitiveListing = new Dictionary<string, DateTimeOffset>(sourceListing, StringComparer.OrdinalIgnoreCase);
         var mock = new Mock<IExtractionOrchestrator>();
         mock.SetupGet(m => m.Source).Returns(source);
-        mock.Setup(m => m.ExtractDocumentsAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>())).ReturnsAsync(output);
+        mock.Setup(m => m.ListSourceDocumentsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<string, DateTimeOffset>)caseInsensitiveListing);
+        mock.Setup(m => m.ExtractDocumentsAsync(It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlySet<string> ids, CancellationToken _) => BuildOutput(ids.Select(Doc)));
+        return mock;
+    }
+
+    // Variant for tests that need a fixed ExtractionOutput (e.g. asserting validation
+    // fields propagate) rather than one derived from whatever ids got requested.
+    private static Mock<IExtractionOrchestrator> MockExtractorWithFixedOutput(
+        Dictionary<string, DateTimeOffset> sourceListing, ExtractionOutput output, string source = "csv")
+    {
+        var caseInsensitiveListing = new Dictionary<string, DateTimeOffset>(sourceListing, StringComparer.OrdinalIgnoreCase);
+        var mock = new Mock<IExtractionOrchestrator>();
+        mock.SetupGet(m => m.Source).Returns(source);
+        mock.Setup(m => m.ListSourceDocumentsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<string, DateTimeOffset>)caseInsensitiveListing);
+        mock.Setup(m => m.ExtractDocumentsAsync(It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(output);
         return mock;
     }
 
@@ -66,7 +90,7 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task NewDocument_NotYetIndexed_IsCountedAsNewAndProcessed()
     {
-        var extractor    = MockExtractor(BuildOutput(Doc("doc1")));
+        var extractor    = MockExtractor(new() { ["doc1"] = DateTimeOffset.Parse("2024-01-01") });
         var indexService = MockIndexService([]);
         var service      = BuildService(extractor, indexService, MockReportWriter(isEnabled: false));
 
@@ -85,8 +109,10 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task UnmodifiedDocument_AlreadyIndexed_IsSkipped()
     {
-        // Indexed AFTER the doc's last_modified_date - nothing new to do.
-        var extractor    = MockExtractor(BuildOutput(Doc("doc1", lastModified: "2024-01-01")));
+        // Indexed AFTER the doc's last_modified_date - nothing new to do. Because it's
+        // skipped in the pre-extraction diff, ExtractDocumentsAsync is never even asked
+        // for it - docs.Count stays 0, proving the paid extraction call was avoided.
+        var extractor    = MockExtractor(new() { ["doc1"] = DateTimeOffset.Parse("2024-01-01") });
         var indexService = MockIndexService(new() { ["doc1"] = DateTimeOffset.Parse("2024-06-01") });
         var service      = BuildService(extractor, indexService, MockReportWriter(isEnabled: false));
 
@@ -102,7 +128,7 @@ public class ExtractionServiceTests
     public async Task ModifiedDocument_AlreadyIndexed_IsCountedAsUpdatedAndMarkedStale()
     {
         // Indexed BEFORE the doc's last_modified_date - stale, needs reprocessing.
-        var extractor    = MockExtractor(BuildOutput(Doc("doc1", lastModified: "2024-06-01")));
+        var extractor    = MockExtractor(new() { ["doc1"] = DateTimeOffset.Parse("2024-06-01") });
         var indexService = MockIndexService(new() { ["doc1"] = DateTimeOffset.Parse("2024-01-01") });
         var service      = BuildService(extractor, indexService, MockReportWriter(isEnabled: false));
 
@@ -118,7 +144,7 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task ForceReindex_ReprocessesEvenAnUnmodifiedDocument()
     {
-        var extractor    = MockExtractor(BuildOutput(Doc("doc1", lastModified: "2024-01-01")));
+        var extractor    = MockExtractor(new() { ["doc1"] = DateTimeOffset.Parse("2024-01-01") });
         var indexService = MockIndexService(new() { ["doc1"] = DateTimeOffset.Parse("2024-06-01") }); // would normally skip
         var service      = BuildService(extractor, indexService, MockReportWriter(isEnabled: false));
 
@@ -132,8 +158,8 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task DocumentRemovedFromSource_IsCountedAsDeletedAndMarkedStale()
     {
-        // doc2 was previously indexed but the extractor no longer returns it - withdrawn upstream.
-        var extractor    = MockExtractor(BuildOutput(Doc("doc1")));
+        // doc2 was previously indexed but no longer appears in the source listing at all - withdrawn upstream.
+        var extractor    = MockExtractor(new() { ["doc1"] = DateTimeOffset.Parse("2024-01-01") });
         var indexService = MockIndexService(new() { ["doc2"] = DateTimeOffset.UtcNow });
         var service      = BuildService(extractor, indexService, MockReportWriter(isEnabled: false));
 
@@ -149,9 +175,9 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task SourceIdMatching_IsCaseInsensitive()
     {
-        // Extracted as "DOC1", indexed as "doc1" - same document, must not be treated as
+        // Listed as "DOC1", indexed as "doc1" - same document, must not be treated as
         // both a new doc AND a removed one.
-        var extractor    = MockExtractor(BuildOutput(Doc("DOC1", lastModified: "2024-01-01")));
+        var extractor    = MockExtractor(new() { ["DOC1"] = DateTimeOffset.Parse("2024-01-01") });
         var indexService = MockIndexService(new() { ["doc1"] = DateTimeOffset.Parse("2024-06-01") });
         var service      = BuildService(extractor, indexService, MockReportWriter(isEnabled: false));
 
@@ -180,7 +206,7 @@ public class ExtractionServiceTests
             Issues:                 [],
             RedFlags:               ["some flag"],
             SpotCheckSample:        []);
-        var extractor    = MockExtractor(output);
+        var extractor    = MockExtractorWithFixedOutput(new() { ["doc1"] = DateTimeOffset.Parse("2024-01-01") }, output);
         var indexService = MockIndexService([]);
         var service      = BuildService(extractor, indexService, MockReportWriter(isEnabled: false));
 
@@ -202,7 +228,7 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task ReportWriterEnabled_WritesDiffReportBlob()
     {
-        var extractor    = MockExtractor(BuildOutput(Doc("doc1")));
+        var extractor    = MockExtractor(new() { ["doc1"] = DateTimeOffset.Parse("2024-01-01") });
         var indexService = MockIndexService([]);
         var reportWriter = MockReportWriter(isEnabled: true);
         var service      = BuildService(extractor, indexService, reportWriter);
@@ -216,7 +242,7 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task ReportWriterDisabled_NoDiffReportWritten()
     {
-        var extractor    = MockExtractor(BuildOutput(Doc("doc1")));
+        var extractor    = MockExtractor(new() { ["doc1"] = DateTimeOffset.Parse("2024-01-01") });
         var indexService = MockIndexService([]);
         var reportWriter = MockReportWriter(isEnabled: false);
         var service      = BuildService(extractor, indexService, reportWriter);
