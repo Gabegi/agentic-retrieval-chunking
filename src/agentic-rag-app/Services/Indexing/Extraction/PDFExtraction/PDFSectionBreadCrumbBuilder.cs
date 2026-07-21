@@ -1,6 +1,6 @@
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Converts a PDF's flat bookmark/outline list into one breadcrumb string per page, e.g.
 // "Chapter 3 > 3.2 Dosage" - the deepest section active on that page, plus its parents.

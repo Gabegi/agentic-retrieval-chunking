@@ -5,8 +5,8 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.AI;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Services;
+using AgenticRag.Configuration;
+using AgenticRag.Services;
 using RagApp.Evaluation.Tests.Evaluation;
 using RagApp.Evaluation.Tests.Models;
 

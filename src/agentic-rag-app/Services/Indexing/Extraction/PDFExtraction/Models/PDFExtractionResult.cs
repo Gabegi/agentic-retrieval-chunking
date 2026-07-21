@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 // One PDF file's complete extraction outcome - everything every step of the pipeline
 // (PdfDocumentValidator, PdfNativeMetadataExtractor, PDFDocumentAnalyzer) produced for

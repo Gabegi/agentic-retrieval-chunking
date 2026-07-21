@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 // Mirrors CSV's ValidationReport. Drops StaleDocCount — Zenya's check_date_exceeded
 // attention flag has no PDF equivalent (no attention-flags data source for PDFs).

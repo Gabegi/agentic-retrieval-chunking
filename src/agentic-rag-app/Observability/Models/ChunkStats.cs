@@ -1,6 +1,6 @@
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Observability.Reports;
+namespace AgenticRag.Observability.Reports;
 
 public sealed record ChunkingResults(
     int    ChunksProduced,

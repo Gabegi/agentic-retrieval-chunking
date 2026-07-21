@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace ProtocolsIndexer.Utils;
+namespace AgenticRag.Utils;
 
 public static class ChunkingUtils
 {

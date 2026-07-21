@@ -1,7 +1,7 @@
 using Azure.Search.Documents.KnowledgeBases.Models;
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Converts knowledge-base references into RetrievedChunk records the rest of the
 // querying pipeline works with. SourceData values are BinaryData (raw JSON), so

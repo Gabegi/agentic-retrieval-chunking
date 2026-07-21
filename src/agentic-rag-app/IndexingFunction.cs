@@ -7,12 +7,12 @@ using Microsoft.DurableTask;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
-using ProtocolsIndexer.Observability.Reports;
-using ProtocolsIndexer.Services;
+using AgenticRag.Models;
+using AgenticRag.Observability;
+using AgenticRag.Observability.Reports;
+using AgenticRag.Services;
 
-namespace ProtocolsIndexer;
+namespace AgenticRag;
 
 // Generic indexing entrypoint. Exactly one IExtractionOrchestrator is registered in program.cs
 // at a time (currently CsvExtractionOrchestrator) - the pipeline steps here don't know or care

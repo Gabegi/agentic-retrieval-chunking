@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 // One node from a PDF's outline/bookmark tree, as read by PdfNativeMetadataExtractor.
 // PageNumber is null when the node's destination couldn't be resolved to a page in

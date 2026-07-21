@@ -7,8 +7,8 @@ namespace IndexingShared.Observability;
 // eventually PdfIndexing), so it must be visible across assembly boundaries.
 public static class Instrumentation
 {
-    internal const string ActivitySourceName = "ProtocolsIndexer";
-    internal const string MeterName          = "ProtocolsIndexer";
+    internal const string ActivitySourceName = "AgenticRag";
+    internal const string MeterName          = "AgenticRag";
 
     internal static readonly ActivitySource ActivitySource = new(ActivitySourceName, "1.0.0");
     internal static readonly Meter          Meter          = new(MeterName, "1.0.0");

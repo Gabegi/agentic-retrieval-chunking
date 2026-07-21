@@ -2,9 +2,9 @@ using Azure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Services;
+using AgenticRag.Configuration;
+using AgenticRag.Models;
+using AgenticRag.Services;
 
 namespace RagApp.UnitTests.Indexing;
 

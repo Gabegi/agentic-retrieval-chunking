@@ -1,6 +1,6 @@
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Any extractor (CSV, PDF, …) implements this and declares its source key.
 // Register multiple implementations in DI — IndexingPipelineOrchestrator resolves by Source at runtime.

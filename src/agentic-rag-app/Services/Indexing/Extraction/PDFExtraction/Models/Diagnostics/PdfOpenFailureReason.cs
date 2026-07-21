@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 // Structured category for a file-level PDF open/parse failure, set by
 // PdfDocumentValidator.TryOpenAndValidate. Lets PdfValidationReport break down

@@ -1,6 +1,6 @@
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Strategy 1 — Sentence-Aware Sliding Window
 //

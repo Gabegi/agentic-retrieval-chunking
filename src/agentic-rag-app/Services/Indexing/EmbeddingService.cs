@@ -3,11 +3,11 @@ using System.Net.Http;
 using Azure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
+using AgenticRag.Configuration;
+using AgenticRag.Models;
+using AgenticRag.Observability;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 public class EmbeddingService : IEmbeddingService
 {

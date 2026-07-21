@@ -1,7 +1,7 @@
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability.Reports;
+using AgenticRag.Models;
+using AgenticRag.Observability.Reports;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 public interface IExtractionService
 {

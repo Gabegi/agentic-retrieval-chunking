@@ -5,7 +5,7 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "agentic-rag-app", "agentic-rag-app", "{E6B091D0-3021-BD98-CFA0-BD3608D0E06E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProtocolsIndexer", "agentic-rag-app\ProtocolsIndexer.csproj", "{C5A3988A-FB04-41FD-B6A1-6F2D20429072}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRag", "agentic-rag-app\AgenticRag.csproj", "{C5A3988A-FB04-41FD-B6A1-6F2D20429072}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RagApp.Evaluation.Tests", "RagApp.Evaluation.Tests\RagApp.Evaluation.Tests.csproj", "{6B1F0AD6-0701-4F96-B7D4-50E890B0E813}"
 EndProject

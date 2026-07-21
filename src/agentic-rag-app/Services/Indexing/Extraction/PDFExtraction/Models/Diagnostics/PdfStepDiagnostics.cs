@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 // One pipeline step's non-fatal findings for one PDF file (PdfDocumentValidator,
 // PdfNativeMetadataExtractor, PdfDocumentAnalyzer, PdfSectionBreadCrumbBuilder each

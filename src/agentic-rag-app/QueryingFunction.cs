@@ -3,10 +3,10 @@ using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Observability.Reports;
-using ProtocolsIndexer.Services;
+using AgenticRag.Observability.Reports;
+using AgenticRag.Services;
 
-namespace ProtocolsIndexer;
+namespace AgenticRag;
 
 public class QueryingFunction
 {

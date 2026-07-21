@@ -17,10 +17,10 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Observability;
-using ProtocolsIndexer.Observability.Reports;
-using ProtocolsIndexer.Services;
+using AgenticRag.Configuration;
+using AgenticRag.Observability;
+using AgenticRag.Observability.Reports;
+using AgenticRag.Services;
 using System.Text;
 
 // Required for PdfCleaner's Windows-1252 mojibake repair (Encoding.GetEncoding(1252)) -

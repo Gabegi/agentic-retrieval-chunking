@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 // One page's raw extracted content from a single PDF file — mirrors CSV's PageRecord.
 // PageContent is already markdown-flavored ("## " headings, pipe-row tables) by the

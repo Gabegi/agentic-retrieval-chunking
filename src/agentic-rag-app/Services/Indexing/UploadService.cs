@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
+using AgenticRag.Models;
+using AgenticRag.Observability;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Owns the upload half of the indexing pipeline: upserts embedded ProtocolDocuments
 // into Azure AI Search and takes a post-upload index stats/drift snapshot.

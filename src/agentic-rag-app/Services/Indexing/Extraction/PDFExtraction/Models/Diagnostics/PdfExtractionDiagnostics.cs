@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 // Snapshot of what each extraction step actually produced for one PDF. Currently always
 // null on every PdfFileExtraction - the only producer was the PdfPig backend, which has

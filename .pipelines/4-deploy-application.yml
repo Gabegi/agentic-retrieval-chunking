@@ -39,7 +39,7 @@ stages:
               version: '10.0.x'
 
           - script: |
-              dotnet publish src/agentic-rag-app/ProtocolsIndexer.csproj -c Release -o $(Build.ArtifactStagingDirectory)/publish
+              dotnet publish src/agentic-rag-app/AgenticRag.csproj -c Release -o $(Build.ArtifactStagingDirectory)/publish
             displayName: 'Publish'
 
           - script: |

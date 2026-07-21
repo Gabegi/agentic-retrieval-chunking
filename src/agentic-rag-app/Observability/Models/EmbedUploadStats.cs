@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Observability.Reports;
+namespace AgenticRag.Observability.Reports;
 
 public record EmbedUploadingResults(
     int   DocsUploaded,

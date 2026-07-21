@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Configuration;
+namespace AgenticRag.Configuration;
 
 public class IndexerConfig
 {

@@ -1,11 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Exceptions;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Local, free structural gates run before/around opening a PDF, ahead of any paid
 // Document Intelligence call. IsPDFValid is the entry point: pre-open size check

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 public class ProtocolDocument
 {

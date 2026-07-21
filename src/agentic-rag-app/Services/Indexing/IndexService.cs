@@ -3,9 +3,9 @@ using Azure.Core;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Configuration;
+using AgenticRag.Configuration;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Manages the Azure AI Search index lifecycle: creates the index on first run (skips if already present),
 // and defines the full schema — fields, HNSW vector search, and semantic ranking configuration.

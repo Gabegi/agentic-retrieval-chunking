@@ -6,11 +6,11 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
-using ProtocolsIndexer.Observability.Reports;
+using AgenticRag.Models;
+using AgenticRag.Observability;
+using AgenticRag.Observability.Reports;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // PDF implementation of IExtractionOrchestrator — mirrors CsvExtractionOrchestrator's
 // shape (download -> extract -> clean -> validate -> report -> diff-ready output),

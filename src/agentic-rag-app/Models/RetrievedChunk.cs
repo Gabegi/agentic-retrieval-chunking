@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 public sealed record RetrievedChunk(
     string Id, string DocumentId, int Page, int ChunkIndex,

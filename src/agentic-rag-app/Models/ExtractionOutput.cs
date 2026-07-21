@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 public record ExtractionOutput(
     IReadOnlyList<ExtractionDocument>  Docs,

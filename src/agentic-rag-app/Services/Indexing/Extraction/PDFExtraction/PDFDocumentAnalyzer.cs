@@ -5,10 +5,10 @@ using System.Text.RegularExpressions;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
+using AgenticRag.Models;
+using AgenticRag.Observability;
 
-namespace ProtocolsIndexer.Services
+namespace AgenticRag.Services
 {
     // Handles everything Document Intelligence (DI) needs for one PDF, except preflight
     // checks and PdfPig-native reads:

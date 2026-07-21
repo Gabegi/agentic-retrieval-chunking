@@ -2,8 +2,8 @@ using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Moq;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Services;
+using AgenticRag.Models;
+using AgenticRag.Services;
 
 namespace RagApp.UnitTests.Querying;
 

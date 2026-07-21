@@ -1,6 +1,6 @@
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Observability.Reports;
+namespace AgenticRag.Observability.Reports;
 
 public record ExtractionResults(
     // Which extractor ran (IExtractionOrchestrator.Source, e.g. "csv") - reported here rather

@@ -4,9 +4,9 @@ using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Configuration;
+using AgenticRag.Configuration;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 public class KnowledgeService : IKnowledgeService
 {

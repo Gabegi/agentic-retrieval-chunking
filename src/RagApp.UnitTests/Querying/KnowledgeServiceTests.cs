@@ -7,8 +7,8 @@ using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Services;
+using AgenticRag.Configuration;
+using AgenticRag.Services;
 
 namespace RagApp.UnitTests.Querying;
 

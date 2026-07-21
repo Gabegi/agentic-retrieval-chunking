@@ -3,7 +3,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Hosting;
 using Moq;
-using ProtocolsIndexer.Observability.Reports;
+using AgenticRag.Observability.Reports;
 
 namespace RagApp.UnitTests.Observability;
 

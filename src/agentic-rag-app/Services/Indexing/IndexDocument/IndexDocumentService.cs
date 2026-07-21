@@ -3,12 +3,12 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
 using Azure.Core;
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
-using ProtocolsIndexer.Observability.Reports;
+using AgenticRag.Configuration;
+using AgenticRag.Models;
+using AgenticRag.Observability;
+using AgenticRag.Observability.Reports;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Handles document-level CRUD operations against the Azure AI Search index, plus the
 // data-volume monitoring (stats + drift) that rides along with it.

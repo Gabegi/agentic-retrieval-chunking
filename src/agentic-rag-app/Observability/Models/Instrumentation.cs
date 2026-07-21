@@ -1,12 +1,12 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace ProtocolsIndexer.Observability;
+namespace AgenticRag.Observability;
 
 internal static class Instrumentation
 {
-    internal const string ActivitySourceName = "ProtocolsIndexer";
-    internal const string MeterName          = "ProtocolsIndexer";
+    internal const string ActivitySourceName = "AgenticRag";
+    internal const string MeterName          = "AgenticRag";
 
     internal static readonly ActivitySource ActivitySource = new(ActivitySourceName, "1.0.0");
     internal static readonly Meter          Meter          = new(MeterName, "1.0.0");

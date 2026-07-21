@@ -3,8 +3,8 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.AI;
 using Moq;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Services;
+using AgenticRag.Configuration;
+using AgenticRag.Services;
 
 namespace RagApp.UnitTests.Querying;
 

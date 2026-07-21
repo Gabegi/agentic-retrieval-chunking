@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability.Reports;
-using ProtocolsIndexer.Services;
+using AgenticRag.Models;
+using AgenticRag.Observability.Reports;
+using AgenticRag.Services;
 
 namespace RagApp.UnitTests.CsvExtraction;
 

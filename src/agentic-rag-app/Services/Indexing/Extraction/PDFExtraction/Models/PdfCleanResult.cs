@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Models;
+namespace AgenticRag.Models;
 
 // Mirrors CSV's CleanResult. Reuses the existing (source-agnostic) CleaningError/
 // CleaningWarning types rather than Pdf-prefixed duplicates.

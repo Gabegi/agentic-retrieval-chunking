@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Quality gate between extraction and the index. Mirrors PipelineValidator.cs's checks
 // and pass/fail algorithm, adapted to the PDF models.

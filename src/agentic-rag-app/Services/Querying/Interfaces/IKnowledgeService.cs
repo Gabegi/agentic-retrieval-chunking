@@ -1,4 +1,4 @@
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 public interface IKnowledgeService
 {

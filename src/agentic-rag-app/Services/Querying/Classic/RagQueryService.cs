@@ -2,10 +2,10 @@ using System.Diagnostics;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.AI;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Models;
+using AgenticRag.Configuration;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 public class RagQueryService : IRagQueryService
 {

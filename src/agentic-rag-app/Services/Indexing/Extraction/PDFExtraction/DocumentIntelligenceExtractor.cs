@@ -1,9 +1,9 @@
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Azure Document Intelligence ("prebuilt-layout") PDF extraction backend, ported
 // from the comparison spike's DocumentIntelligenceExtractionService, with chunking

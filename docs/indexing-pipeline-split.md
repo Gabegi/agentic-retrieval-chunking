@@ -6,7 +6,7 @@ picked up without re-deriving it.
 
 ## Why
 
-Today `src/agentic-rag-app` (`ProtocolsIndexer.csproj`) holds everything: the
+Today `src/agentic-rag-app` (`AgenticRag.csproj`) holds everything: the
 Azure Functions/Durable Functions entrypoints *and* all the pipeline logic
 (extraction, chunking, embedding, indexing, upload) for both CSV and PDF,
 under one shared `IndexingFunction.cs` and one shared `IExtractionOrchestrator`
@@ -25,7 +25,7 @@ pipeline at all, not just the extraction step.
 
 ```
 src/
-  agentic-rag-app/                         (ProtocolsIndexer.csproj — Functions host, thin)
+  agentic-rag-app/                         (AgenticRag.csproj — Functions host, thin)
     Functions/
       PdfIndexingFunction.cs               ← StartIndexing HTTP trigger, PdfIndexingOrchestrator,
                                               ExtractActivity/ChunkActivity/EmbedAndUploadActivity/

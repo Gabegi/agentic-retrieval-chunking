@@ -1,8 +1,8 @@
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Answers regularly continue on the next page of the same document ("op de volgende
 // pagina staat hoe je een moreel beraad aanvraagt") — but only the page with query-term

@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // Strategy 2 — Table-Aware Sentence Sliding Window
 //

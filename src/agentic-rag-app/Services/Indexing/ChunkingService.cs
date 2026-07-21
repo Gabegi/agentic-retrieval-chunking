@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Observability;
-using ProtocolsIndexer.Observability.Reports;
-using ProtocolsIndexer.Utils;
+using AgenticRag.Models;
+using AgenticRag.Observability;
+using AgenticRag.Observability.Reports;
+using AgenticRag.Utils;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 public class ChunkingService : IChunkingService
 {

@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Outline;
 
-namespace ProtocolsIndexer.Services
+namespace AgenticRag.Services
 {
     // The PDF's own Info-dictionary + bookmark tree, read via PdfPig.
     internal static class PdfNativeMetadataExtractor

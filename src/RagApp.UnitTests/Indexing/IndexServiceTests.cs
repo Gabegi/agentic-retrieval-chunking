@@ -5,8 +5,8 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using ProtocolsIndexer.Configuration;
-using ProtocolsIndexer.Services;
+using AgenticRag.Configuration;
+using AgenticRag.Services;
 
 namespace RagApp.UnitTests.Indexing;
 

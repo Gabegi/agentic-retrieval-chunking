@@ -2,7 +2,7 @@ using System.Text.Json;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Hosting;
 
-namespace ProtocolsIndexer.Observability.Reports;
+namespace AgenticRag.Observability.Reports;
 
 public class RunReportWriter : IRunReportWriter
 {

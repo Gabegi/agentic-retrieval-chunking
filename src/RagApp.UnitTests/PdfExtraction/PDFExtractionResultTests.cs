@@ -1,5 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
 namespace RagApp.UnitTests.PdfExtraction;
 

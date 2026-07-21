@@ -1,6 +1,6 @@
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Observability.Reports;
+namespace AgenticRag.Observability.Reports;
 
 // Written to blob after every development indexing run.
 // Path: telemetry-reports/indexing/{yyyy}/{MM}/{dd}/{instanceId}.json

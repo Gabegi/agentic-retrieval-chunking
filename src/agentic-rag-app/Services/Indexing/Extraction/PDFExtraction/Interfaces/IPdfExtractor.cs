@@ -1,6 +1,6 @@
-using ProtocolsIndexer.Models;
+using AgenticRag.Models;
 
-namespace ProtocolsIndexer.Services;
+namespace AgenticRag.Services;
 
 // A PDF extraction backend (Document Intelligence) implements this. Unlike
 // ICsvExtractor's two file-shaped calls, a PDF has one file per document, so a single

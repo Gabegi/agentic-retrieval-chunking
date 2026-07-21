@@ -1,6 +1,6 @@
 using Azure.AI.DocumentIntelligence;
 
-namespace ProtocolsIndexer.Models
+namespace AgenticRag.Models
 {
     // Return types used by PDFDocumentAnalyzer's Get* methods:
     // - Each record below matches one Get* method one-to-one.

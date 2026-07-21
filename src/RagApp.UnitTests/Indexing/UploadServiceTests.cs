@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using ProtocolsIndexer.Models;
-using ProtocolsIndexer.Services;
+using AgenticRag.Models;
+using AgenticRag.Services;
 
 namespace RagApp.UnitTests.Indexing;
 
