@@ -15,13 +15,15 @@ public class SearchDocumentStore : ISearchDocumentStore
         _logger = logger;
     }
 
-    public async Task<(int Succeeded, int Failed)> UpsertDocumentsAsync<T>(IEnumerable<T> documents, CancellationToken ct = default)
+    public async Task<(int Succeeded, int Failed, int Batches)> UpsertDocumentsAsync<T>(IEnumerable<T> documents, CancellationToken ct = default)
     {
         var succeeded = 0;
         var failed    = 0;
+        var batches   = 0;
 
         foreach (var batch in documents.ToList().Chunk(1000))
         {
+            batches++;
             var response = await _client.UploadDocumentsAsync(batch, cancellationToken: ct);
             foreach (var result in response.Value.Results)
             {
@@ -37,7 +39,7 @@ public class SearchDocumentStore : ISearchDocumentStore
             }
         }
 
-        return (succeeded, failed);
+        return (succeeded, failed, batches);
     }
 
     public async Task<Dictionary<string, DateTimeOffset>> GetCurrentIndexedDocumentDatesAsync(CancellationToken ct = default)

@@ -1,6 +1,6 @@
 using Azure.Search.Documents.KnowledgeBases.Models;
 
-namespace AgenticRagApp.Infrastructure.Clients.KnowledgeBase;
+namespace AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
 
 // Generic wrapper around KnowledgeBaseRetrievalClient (query-time retrieval — distinct
 // from ISearchIndexStore's knowledge source/base *admin* methods, which are a different

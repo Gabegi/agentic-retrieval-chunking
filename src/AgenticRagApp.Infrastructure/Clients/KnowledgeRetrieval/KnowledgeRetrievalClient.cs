@@ -1,7 +1,7 @@
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 
-namespace AgenticRagApp.Infrastructure.Clients.KnowledgeBase;
+namespace AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
 
 public class KnowledgeRetrievalClient : IKnowledgeRetrievalClient
 {

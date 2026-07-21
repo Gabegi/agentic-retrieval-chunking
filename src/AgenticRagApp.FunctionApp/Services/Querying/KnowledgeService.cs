@@ -1,26 +1,25 @@
-using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
-using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
 
 namespace AgenticRagApp.Services;
 
 public class KnowledgeService : IKnowledgeService
 {
-    private readonly SearchIndexClient        _indexClient;
+    private readonly ISearchIndexStore        _indexStore;
     private readonly IndexerConfig            _config;
     private readonly ILogger<KnowledgeService> _logger;
 
     public KnowledgeService(
         IndexerConfig              config,
-        SearchIndexClient          indexClient,
+        ISearchIndexStore          indexStore,
         ILogger<KnowledgeService>  logger)
     {
-        _indexClient = indexClient;
-        _config      = config;
-        _logger      = logger;
+        _indexStore = indexStore;
+        _config     = config;
+        _logger     = logger;
     }
 
     public async Task EnsureKnowledgeSourceAsync(CancellationToken ct = default)
@@ -65,7 +64,7 @@ public class KnowledgeService : IKnowledgeService
             Description = "Knowledge source for Zenya corporate document index"
         };
 
-        await _indexClient.CreateOrUpdateKnowledgeSourceAsync(knowledgeSource, onlyIfUnchanged: false, ct);
+        await _indexStore.CreateOrUpdateKnowledgeSourceAsync(knowledgeSource, ct);
         _logger.LogInformation("Knowledge source '{Name}' created or updated", _config.KnowledgeSourceName);
     }
 
@@ -104,7 +103,7 @@ public class KnowledgeService : IKnowledgeService
             Models                   = { new KnowledgeBaseAzureOpenAIModel(aoaiParams) }
         };
 
-        await _indexClient.CreateOrUpdateKnowledgeBaseAsync(knowledgeBase, onlyIfUnchanged: false, ct);
+        await _indexStore.CreateOrUpdateKnowledgeBaseAsync(knowledgeBase, ct);
         _logger.LogInformation("Knowledge base '{Name}' created or updated", _config.KnowledgeBaseName);
     }
 }

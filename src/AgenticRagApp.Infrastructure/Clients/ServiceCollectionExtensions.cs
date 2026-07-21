@@ -10,6 +10,11 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using AgenticRagApp.Infrastructure.Configuration;
+using AgenticRagApp.Infrastructure.Clients.Blob;
+using AgenticRagApp.Infrastructure.Clients.Search;
+using AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
+using AgenticRagApp.Infrastructure.Clients.DocumentIntelligence;
+using AgenticRagApp.Infrastructure.Clients.Embedding;
 
 namespace AgenticRagApp.Infrastructure;
 
@@ -112,7 +117,16 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(_ =>
                 new DocumentIntelligenceClient(new Uri(config.DocumentIntelligenceEndpoint), credential));
+            services.AddSingleton<IDocumentAnalysisClient, DocumentAnalysisClient>();
         }
+
+        // Generic wrappers — every raw client above is only ever consumed through one of
+        // these from here on. No caller outside this project holds a raw SDK client.
+        services.AddSingleton<IBlobStore, BlobStore>();
+        services.AddSingleton<ISearchIndexStore, SearchIndexStore>();
+        services.AddSingleton<ISearchDocumentStore, SearchDocumentStore>();
+        services.AddSingleton<IKnowledgeRetrievalClient, KnowledgeRetrievalClient>();
+        services.AddSingleton<IEmbeddingClient, EmbeddingClient>();
 
         return config;
     }

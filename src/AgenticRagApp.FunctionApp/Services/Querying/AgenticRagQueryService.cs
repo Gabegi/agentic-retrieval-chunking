@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
+using AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Models;
 
@@ -15,13 +15,13 @@ namespace AgenticRagApp.Services;
 // orchestrates the call and assembles the result.
 public class AgenticRagQueryService : IRagQueryService
 {
-    private readonly KnowledgeBaseRetrievalClient _client;
-    private readonly ChunkNeighborExpander        _neighborExpander;
-    private readonly IndexerConfig                _config;
+    private readonly IKnowledgeRetrievalClient _client;
+    private readonly ChunkNeighborExpander     _neighborExpander;
+    private readonly IndexerConfig             _config;
 
     public AgenticRagQueryService(
         IndexerConfig                  config,
-        KnowledgeBaseRetrievalClient   client,
+        IKnowledgeRetrievalClient      client,
         ChunkNeighborExpander          neighborExpander)
     {
         _client           = client;
@@ -44,9 +44,8 @@ public class AgenticRagQueryService : IRagQueryService
             IncludeActivity = true,
         };
 
-        var sw       = Stopwatch.StartNew();
-        var response = await _client.RetrieveAsync(request, cancellationToken: ct);
-        var result   = response.Value;
+        var sw     = Stopwatch.StartNew();
+        var result = await _client.RetrieveAsync(request, ct);
 
         var initialChunks = KnowledgeBaseReferenceMapper.Map(result.References);
         var chunks         = await _neighborExpander.ExpandAsync(initialChunks, ct);

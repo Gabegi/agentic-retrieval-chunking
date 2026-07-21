@@ -1,7 +1,6 @@
-using Azure;
-using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
 
 namespace AgenticRagApp.Services;
@@ -17,32 +16,24 @@ namespace AgenticRagApp.Services;
 // claimed) - adding one is only worth doing once there's a real index to update against.
 public class IndexService : IIndexService
 {
-    private readonly SearchIndexClient _indexClient;
-    private readonly IndexerConfig _config;
+    private readonly ISearchIndexStore     _indexStore;
+    private readonly IndexerConfig         _config;
     private readonly ILogger<IndexService> _logger;
 
-    public IndexService(IndexerConfig config, SearchIndexClient indexClient, ILogger<IndexService> logger)
+    public IndexService(IndexerConfig config, ISearchIndexStore indexStore, ILogger<IndexService> logger)
     {
-        _config      = config;
-        _indexClient = indexClient;
-        _logger      = logger;
+        _config     = config;
+        _indexStore = indexStore;
+        _logger     = logger;
     }
 
     // Creates the index on first run. Skips if it already exists - see the class comment
     // above for why.
     public async Task EnsureIndexAsync()
     {
-        try
-        {
-            await _indexClient.GetIndexAsync(_config.SearchIndexName);
-            _logger.LogInformation("Index '{Name}' already exists — skipping creation", _config.SearchIndexName);
-            return;
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404) { }
-
-        var index = BuildIndexDefinition(BuildVectorSearch(), BuildSemanticSearch());
-        await _indexClient.CreateOrUpdateIndexAsync(index);
-        _logger.LogInformation("Index '{Name}' created", _config.SearchIndexName);
+        var index   = BuildIndexDefinition(BuildVectorSearch(), BuildSemanticSearch());
+        var created = await _indexStore.EnsureIndexAsync(index);
+        _logger.LogInformation(created ? "Index '{Name}' created" : "Index '{Name}' already exists — skipping creation", _config.SearchIndexName);
     }
 
     // Assembles the full index schema: fields, vector search config, and semantic search config.

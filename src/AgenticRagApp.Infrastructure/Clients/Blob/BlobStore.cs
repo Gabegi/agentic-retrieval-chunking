@@ -42,7 +42,7 @@ public class BlobStore : IBlobStore
     public async Task<T> DownloadJsonAsync<T>(BlobContainerClient container, string blobName, CancellationToken ct = default)
     {
         var download = await container.GetBlobClient(blobName).DownloadContentAsync(ct);
-        return download.Value.Content.ToObjectFromJson<T>();
+        return download.Value.Content.ToObjectFromJson<T>()!;
     }
 
     public async Task UploadJsonAsync<T>(BlobContainerClient container, string blobName, T value, CancellationToken ct = default)
