@@ -15,7 +15,9 @@ supposed to unify them, instead growing its own duplicate local copies of
 `Configuration`/`Observability`/`Models`.
 
 This plan was requested as a 5-point vertical-slicing instruction from the user:
-1. Rename `agentic-rag-app` → `AgenticRagApp`.
+1. Rename `agentic-rag-app` → `AgenticRagApp.FunctionApp` (host project name refined
+   from the original bare `AgenticRagApp` during Phase 0 execution — see "Resolved
+   decisions" #1).
 2. Create `Infrastructure` project, move all Azure SDK clients into it under a
    `Clients` folder.
 3. Give each indexing flow its own project (`Indexing.Csv`, `Indexing.Pdf`).
