@@ -207,7 +207,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         var lastModified = new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
 
 
-        var blobs = await _blobStore.ListBlobsAsync(_container, ct);
+        var blobs = await _blobStore.ListBlobsAsync(_container, ct: ct);
 
         // Iterates through items in the container, for each one runs the download-and-extract
         await Parallel.ForEachAsync(

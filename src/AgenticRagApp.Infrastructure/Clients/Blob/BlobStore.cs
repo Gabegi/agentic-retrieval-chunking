@@ -34,10 +34,10 @@ public class BlobStore : IBlobStore
         await container.GetBlobClient(blobName).DeleteIfExistsAsync(cancellationToken: ct);
 
     public async Task<IReadOnlyList<(string Name, DateTimeOffset? LastModified, long? ContentLength)>> ListBlobsAsync(
-        BlobContainerClient container, CancellationToken ct = default)
+        BlobContainerClient container, string? prefix = null, CancellationToken ct = default)
     {
         var result = new List<(string, DateTimeOffset?, long?)>();
-        await foreach (var item in container.GetBlobsAsync(cancellationToken: ct))
+        await foreach (var item in container.GetBlobsAsync(prefix: prefix, cancellationToken: ct))
             result.Add((item.Name, item.Properties.LastModified, item.Properties.ContentLength));
         return result;
     }
