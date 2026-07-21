@@ -67,12 +67,17 @@ setup-index endpoint" points at something that isn't actually implemented).
 So anything that stays inside *existing* fields ships now; anything new is
 Tier 2.
 
-1. `PdfExtractionOrchestrator.ExtractDocumentsAsync` → pass `fileResults`
+1. ✅ `PdfExtractionOrchestrator.ExtractDocumentsAsync` → pass `fileResults`
    into `BuildExtractionOutput`.
-2. `BuildExtractionOutput`: build a per-blob `(PageNumber → context)` lookup
-   from `fileResults` (`SectionBreadcrumbs`, `Structure.Headings` filtered by
-   page, `NativeMetadata`), join it against `cleanResult.Records` by
-   `(BlobName, PageNumber)`.
+2. ✅ `BuildExtractionOutput`: two lookups built from `fileResults` —
+   `BuildNativeMetadataLookup` (Author/CreatedAt, per blob) and
+   `BuildPageContextLookup` (Breadcrumb from the bookmark outline via
+   `SectionBreadcrumbs`, Heading from `Structure.Headings` filtered to
+   title/sectionHeading roles per page — sparse by design, only pages with
+   one or the other get an entry). Joined into `ExtractionDocument.Metadata`
+   as `breadcrumb`/`heading`/`author`/`created_date`, alongside the existing
+   `title`/`last_modified_date`. Stayed string-only on purpose — no
+   typed-fields decision needed yet, that's item #3.
 3. Reshape `ExtractionDocument`: keep `Metadata: Dictionary<string,string>`
    for plain scalars (title, author, breadcrumb/heading text), but add typed
    fields directly for structured/numeric data (`int TableCount`,

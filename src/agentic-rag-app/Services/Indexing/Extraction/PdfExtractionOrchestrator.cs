@@ -316,12 +316,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // nothing parses/populates Version for PDFs), and no folder/department concept
     // (MissingDepartmentCount).
     //
-    // fileResults (chunking-rewrite-plan.md item #1) feeds the two lookups below (item #2)
-    // so real section breadcrumbs / DI-detected headings / native Author+CreatedAt reach
-    // ExtractionDocument.Metadata instead of being discarded after validation reads them.
-    // Numeric/structured data from Structure (tables, page quality, figures) is item #3 -
-    // deliberately not here, since that needs the typed-fields-vs-Metadata-strings decision
-    // this string-only join doesn't.
+    // fileResults (chunking-rewrite-plan.md item #1) feeds the two lookups below (item #2
+    // + item #3) so real section breadcrumbs / DI-detected headings / native Author+CreatedAt
+    // / table counts / OCR confidence / figure captions reach ExtractionDocument as typed
+    // fields, instead of being discarded after validation reads Structure for its own checks.
     private static ExtractionOutput BuildExtractionOutput(
         IReadOnlyList<PDFExtractionResult> fileResults,
         PdfValidationReport                report,
@@ -338,34 +336,21 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             .Select(r =>
             {
                 var nativeMetadata = nativeMetadataByBlob.GetValueOrDefault(r.BlobName);
-                var pageContext    = pageContextByKey.GetValueOrDefault((r.BlobName, r.PageNumber));
-
-                var metadata = new Dictionary<string, string>
-                {
-                    ["title"]              = r.Title,
-                    // Diff-relevant timestamp: the blob's own storage LastModified.
-                    ["last_modified_date"] = lastModifiedByBlob.TryGetValue(r.BlobName, out var lm)
-                        ? lm.ToString("yyyy-MM-dd")
-                        : "",
-                };
-
-                // Real section context for this page, when the PDF has it - "breadcrumb"
-                // (from the bookmark outline) is preferred when present since it's
-                // hierarchical ("Chapter 3 > 3.2 Dosage"); "heading" (DI-detected, works
-                // even without an outline) is the fallback. Neither key is added when
-                // there's nothing for this page - ChunkingService (item #4) decides how
-                // to fall back, not this join.
-                if (pageContext?.Breadcrumb is { } breadcrumb) metadata["breadcrumb"] = breadcrumb;
-                if (pageContext?.Heading    is { } heading)    metadata["heading"]    = heading;
-
-                if (nativeMetadata?.Author is { } author)         metadata["author"]       = author;
-                if (nativeMetadata?.CreatedAt is { } createdAt)   metadata["created_date"] = createdAt.ToString("yyyy-MM-dd");
+                var pageContext    = pageContextByKey.GetValueOrDefault((r.BlobName, r.PageNumber)) ?? PdfPageContext.Empty;
 
                 return new ExtractionDocument(
-                    SourceId: r.BlobName,
-                    Ordinal:  r.PageNumber,
-                    Content:  r.PageContent,
-                    Metadata: metadata);
+                    SourceId:              r.BlobName,
+                    Ordinal:               r.PageNumber,
+                    Content:               r.PageContent,
+                    Title:                 r.Title,
+                    LastModifiedDate:      lastModifiedByBlob.TryGetValue(r.BlobName, out var lm) ? lm : null,
+                    Breadcrumb:            pageContext.Breadcrumb,
+                    Heading:               pageContext.Heading,
+                    Author:                nativeMetadata?.Author,
+                    CreatedAt:             nativeMetadata?.CreatedAt,
+                    TableCount:            pageContext.TableCount,
+                    AverageWordConfidence: pageContext.AverageWordConfidence,
+                    FigureCaptions:        pageContext.FigureCaptions);
             })
             .ToList();
 
@@ -396,6 +381,46 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             Issues:                 issues,
             RedFlags:               report.RedFlags.ToList(),
             SpotCheckSample:        spotCheck);
+    }
+
+    // File-level native PDF facts (Author, CreatedAt) - same value applies to every page
+    // of that file, so this is a per-blob lookup, not per-page like PdfPageContext below.
+    private static Dictionary<string, DocMetadata> BuildNativeMetadataLookup(
+        IReadOnlyList<PDFExtractionResult> fileResults) =>
+        fileResults
+            .Where(f => f.Ok && f.NativeMetadata is not null)
+            .ToDictionary(f => f.BlobName, f => f.NativeMetadata!, StringComparer.OrdinalIgnoreCase);
+
+    // Section context for one page: Breadcrumb comes from the bookmark outline
+    // (PDFSectionBreadCrumbBuilder, hierarchical - "Chapter 3 > 3.2 Dosage"); Heading comes
+    // from Document Intelligence's own title/sectionHeading-role paragraph detection, which
+    // works even when the PDF has no outline at all. Deliberately just these two strings -
+    // Structure's numeric/list data (Tables, PageQuality, Figures) is item #3, not this.
+    private sealed record PdfPageContext(string? Breadcrumb, string? Heading);
+
+    // Sparse by design: only pages that actually have a breadcrumb or a detected heading
+    // get an entry. Most pages won't, and that's a legitimate "nothing to attach" case for
+    // the caller to fall back on - not a lookup miss to work around.
+    private static Dictionary<(string BlobName, int PageNumber), PdfPageContext> BuildPageContextLookup(
+        IReadOnlyList<PDFExtractionResult> fileResults)
+    {
+        var lookup = new Dictionary<(string, int), PdfPageContext>();
+
+        foreach (var file in fileResults.Where(f => f.Ok))
+        {
+            // First detected heading wins per page - good enough for "is there a heading
+            // on this page at all", which is all a page-level (not chunk-level) join needs.
+            var headingsByPage = (file.Structure?.Headings ?? [])
+                .GroupBy(h => h.PageNumber)
+                .ToDictionary(g => g.Key, g => g.First().Content);
+
+            foreach (var pageNumber in file.SectionBreadcrumbs.Keys.Concat(headingsByPage.Keys).Distinct())
+                lookup[(file.BlobName, pageNumber)] = new PdfPageContext(
+                    Breadcrumb: file.SectionBreadcrumbs.GetValueOrDefault(pageNumber),
+                    Heading:    headingsByPage.GetValueOrDefault(pageNumber));
+        }
+
+        return lookup;
     }
 
     // Pure counts derived from the report/cleanResult — no side effects, safe to compute
