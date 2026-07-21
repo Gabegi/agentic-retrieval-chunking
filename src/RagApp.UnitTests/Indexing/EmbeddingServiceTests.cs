@@ -127,8 +127,11 @@ public class EmbeddingServiceTests
     }
 
     [TestMethod]
-    public async Task EmbedDocumentsAsync_EmbeddingTextIncludesSummary_WhenPresent()
+    public async Task EmbedDocumentsAsync_EmbeddingTextIsContent()
     {
+        // Title/Breadcrumb are already prepended into Content by ChunkingService before
+        // EmbeddingService ever sees a chunk - EmbeddingText is just Content directly now
+        // (no separate Summary fold-in - that field no longer exists).
         string[]? capturedTexts = null;
         var generator = MockGenerator();
         generator
@@ -139,11 +142,11 @@ public class EmbeddingServiceTests
                 return Embeddings(capturedTexts.Length);
             });
         var service = BuildService(generator);
-        var docs = new[] { Document("d1", "body", summary: "curated summary") };
+        var docs = new[] { Document("d1", "My Title\n\nbody") };
 
         await service.EmbedDocumentsAsync(docs);
 
-        Assert.AreEqual("curated summary\n\nbody", capturedTexts![0]);
+        Assert.AreEqual("My Title\n\nbody", capturedTexts![0]);
     }
 
     [TestMethod]
