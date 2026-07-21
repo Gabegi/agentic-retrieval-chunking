@@ -40,12 +40,32 @@ public class DocumentChunk
     [JsonPropertyName("content_vector")]
     public float[]? ContentVector { get; set; }
 
+    // ── Derived Search-indexed fields (Tier 2) ──────────────────────────────
+    // Computed from the raw structural fields below, the same way TokenEstimate/IsEmpty
+    // etc. further down are computed from Content - simple scalars/collections Search can
+    // actually store, derived from the richer objects Search can't.
+
+    [JsonPropertyName("table_count")]
+    public int TableCount => Tables.Count;
+
+    [JsonPropertyName("has_table")]
+    public bool HasTable => Tables.Count > 0;
+
+    [JsonPropertyName("page_quality")]
+    public double? PageQuality => AverageWordConfidence;
+
+    [JsonPropertyName("figure_captions")]
+    public IReadOnlyList<string> FigureCaptions => Figures
+        .Where(f => !string.IsNullOrWhiteSpace(f.Caption))
+        .Select(f => f.Caption!)
+        .ToList();
+
     // ── Everything else extraction produced ─────────────────────────────────
-    // Not in the Search schema yet - adding a field requires the schema-migration
-    // mechanism that doesn't exist yet (see docs/chunking-rewrite-plan.md's Tier 2).
+    // Not in the Search schema (no simple/collection field shape fits these - nested
+    // objects like TableInfo's cells, or file-level data like Bookmarks/Sections).
     // [JsonIgnore] so upload never sends an unknown field to Search. Still carried through
     // in full so it's not silently dropped - available in the Stage 2 archive today, and
-    // ready to promote to real schema fields once Tier 2 lands.
+    // the source of truth the derived fields above are computed from.
 
     [JsonIgnore] public string?         Author { get; set; }
     [JsonIgnore] public DateTimeOffset? CreatedAt { get; set; }
