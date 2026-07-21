@@ -86,9 +86,9 @@ public class IndexingFunction
 
         try
         {
-            extractResults = await context.CallActivityAsync<ExtractionResults>("ExtractActivity",        new ExtractRequest(input.ForceReindex, docsBlob));
-            chunkResults   = await context.CallActivityAsync<ChunkingResults>("ChunkActivity",               new ChunkRequest(docsBlob, chunksBlob));
-            embedResults   = await context.CallActivityAsync<EmbedUploadingResults>("EmbedAndUploadActivity", new EmbedUploadRequest(chunksBlob, extractResults.StaleDocumentIds));
+            extractResults = await context.CallActivityAsync<ExtractionResults>("ExtractActivity",        new ExtractRequest(input.ForceReindex, docsBlob, context.InstanceId));
+            chunkResults   = await context.CallActivityAsync<ChunkingResults>("ChunkActivity",               new ChunkRequest(docsBlob, chunksBlob, context.InstanceId));
+            embedResults   = await context.CallActivityAsync<EmbedUploadingResults>("EmbedAndUploadActivity", new EmbedUploadRequest(chunksBlob, extractResults.StaleDocumentIds, context.InstanceId));
             success      = true;
         }
         catch (Exception ex)
@@ -298,6 +298,6 @@ public class IndexingFunction
 }
 
 public record IndexRequest(bool ForceReindex);
-public record ExtractRequest(bool ForceReindex, string OutputBlob);
-public record ChunkRequest(string InputBlob, string OutputBlob);
-public record EmbedUploadRequest(string ChunksBlob, IReadOnlyList<string> StaleDocumentIds);
+public record ExtractRequest(bool ForceReindex, string OutputBlob, string InstanceId);
+public record ChunkRequest(string InputBlob, string OutputBlob, string InstanceId);
+public record EmbedUploadRequest(string ChunksBlob, IReadOnlyList<string> StaleDocumentIds, string InstanceId);
