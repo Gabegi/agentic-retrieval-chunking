@@ -287,6 +287,7 @@ public class IndexingFunction
             CoherentChunks:          chunk?.CoherentChunks        ?? 0,
             HeadingsDetected:        chunk?.HeadingsDetected      ?? 0,
             ChunksTruncated:         embed?.ChunksTruncated       ?? 0,
+            VectorCacheHits:         embed?.VectorCacheHits       ?? 0,
             EmbeddingRetries:        embed?.EmbeddingRetries      ?? 0,
             VectorDimErrors:         embed?.VectorDimErrors       ?? 0,
             TotalEmbeddingDurationMs: embed?.TotalEmbeddingDurationMs ?? 0,
