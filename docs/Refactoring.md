@@ -170,6 +170,10 @@ both decision #5 (abstract, extensible) and #7 (never mixed) at once. Any other
 candidate for `Domain` gets decided file-by-file during Phase 1, not assumed up
 front.
 
+`Domain` also owns the `IArtifactStore` port (see dependency-direction note above) —
+this is a deliberate, narrow addition to Domain's scope to keep `Observability`
+Azure-SDK-free, not a general invitation to put infrastructure abstractions there.
+
 ### Open item to confirm before Phase 5 (CSV wiring)
 
 The target shape above includes `CsvIndexingFunction.cs` — actually wiring CSV into a
