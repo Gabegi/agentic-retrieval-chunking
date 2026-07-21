@@ -4,8 +4,13 @@ using System.Text.Json.Serialization;
 
 namespace AgenticRag.Models;
 
+// One chunk of a PDF page, embedded and uploaded to Azure AI Search. Renamed from
+// ProtocolDocument - that name was Zenya/CSV-era ("care protocols" specifically); this
+// project only ever handles PDFs now (see docs/plan210726.md's "no generic" note).
 public class DocumentChunk
 {
+    // ── Search-indexed fields (IndexService's schema) ───────────────────────
+
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
 
@@ -15,30 +20,14 @@ public class DocumentChunk
     [JsonPropertyName("title")]
     public string? Title { get; set; }
 
-    [JsonPropertyName("department")]
-    public string? Department { get; set; }
-
-    [JsonPropertyName("quick_code")]
-    public string? QuickCode { get; set; }
-
-    [JsonPropertyName("relative_path")]
-    public string? RelativePath { get; set; }
-
     [JsonPropertyName("last_modified_date")]
     public DateTimeOffset? LastModifiedDate { get; set; }
-
-    [JsonPropertyName("check_date")]
-    public DateTimeOffset? CheckDate { get; set; }
-
-    [JsonPropertyName("version")]
-    public string? Version { get; set; }
 
     [JsonPropertyName("content")]
     public string Content { get; set; } = "";
 
-    [JsonPropertyName("summary")]
-    public string? Summary { get; set; }
-
+    // Real content now (Breadcrumb, or the first DI-detected heading) - previously always
+    // null, since nothing ever set TextChunk.Heading. See ChunkingService.
     [JsonPropertyName("heading")]
     public string? Heading { get; set; }
 
@@ -51,6 +40,29 @@ public class DocumentChunk
     [JsonPropertyName("content_vector")]
     public float[]? ContentVector { get; set; }
 
+    // ── Everything else extraction produced ─────────────────────────────────
+    // Not in the Search schema yet - adding a field requires the schema-migration
+    // mechanism that doesn't exist yet (see docs/chunking-rewrite-plan.md's Tier 2).
+    // [JsonIgnore] so upload never sends an unknown field to Search. Still carried through
+    // in full so it's not silently dropped - available in the Stage 2 archive today, and
+    // ready to promote to real schema fields once Tier 2 lands.
+
+    [JsonIgnore] public string?         Author { get; set; }
+    [JsonIgnore] public DateTimeOffset? CreatedAt { get; set; }
+    [JsonIgnore] public int?            PageCount { get; set; }
+    [JsonIgnore] public IReadOnlyList<Bookmark>    Bookmarks { get; set; } = [];
+    [JsonIgnore] public IReadOnlyList<SectionInfo> Sections  { get; set; } = [];
+
+    [JsonIgnore] public string? Breadcrumb { get; set; }
+    [JsonIgnore] public IReadOnlyList<Heading>           Headings       { get; set; } = [];
+    [JsonIgnore] public IReadOnlyList<Heading>           Boilerplate    { get; set; } = [];
+    [JsonIgnore] public IReadOnlyList<TableInfo>         Tables         { get; set; } = [];
+    [JsonIgnore] public PageDimensions?                  Dimensions     { get; set; }
+    [JsonIgnore] public IReadOnlyList<SelectionMarkInfo> SelectionMarks { get; set; } = [];
+    [JsonIgnore] public IReadOnlyList<FigureInfo>        Figures        { get; set; } = [];
+    [JsonIgnore] public IReadOnlyList<LineInfo>          Lines          { get; set; } = [];
+    [JsonIgnore] public double?                          AverageWordConfidence { get; set; }
+
     [JsonIgnore] public int  TokenEstimate => Content.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
     [JsonIgnore] public bool IsEmpty       => string.IsNullOrWhiteSpace(Content);
     [JsonIgnore] public bool IsOversized   => TokenEstimate > 1024;
@@ -61,18 +73,16 @@ public class DocumentChunk
     [JsonIgnore] public bool EndsClean   => Content.Length > 0 && ".!?:)\"'".Contains(Content[^1]);
     [JsonIgnore] public bool IsCoherent  => StartsClean && EndsClean;
 
-    // Content already includes the section heading (prepended by extraction services),
-    // so keyword and vector signals are aligned. Summary lives in its own searchable/
-    // semantic field (not in Content) so it doesn't repeat inside the stored text, but it's
-    // folded in here so the vector embedding still carries that curated signal too — the
-    // same benefit the summary field gives BM25/semantic ranking.
-    [JsonIgnore] public string EmbeddingText =>
-        string.IsNullOrWhiteSpace(Summary) ? Content : $"{Summary}\n\n{Content}";
+    // Title and Breadcrumb/Heading are already prepended into Content by ChunkingService,
+    // so this is just Content - kept as a named property (rather than every caller reading
+    // Content directly) so "what gets embedded" and "what gets stored/searched" stay two
+    // separately named concepts, even though they're identical today.
+    [JsonIgnore] public string EmbeddingText => Content;
 
     // Hash of the exact text sent to the embedding API - a match means the embedding would
     // come back byte-identical, so EmbeddingService can skip the call and reuse the cached
-    // vector instead. [JsonIgnore] because the Search index has no content_hash field
-    // (upload would fail on an unknown field) - see VectorCache, which keys entirely off this.
+    // vector instead. [JsonIgnore] for the same reason as the fields above - no matching
+    // Search schema field.
     [JsonIgnore] public string ContentHash =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(EmbeddingText)));
 }
