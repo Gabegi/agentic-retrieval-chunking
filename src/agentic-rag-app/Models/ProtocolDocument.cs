@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
 
 namespace AgenticRag.Models;
@@ -66,4 +68,11 @@ public class ProtocolDocument
     // same benefit the summary field gives BM25/semantic ranking.
     [JsonIgnore] public string EmbeddingText =>
         string.IsNullOrWhiteSpace(Summary) ? Content : $"{Summary}\n\n{Content}";
+
+    // Hash of the exact text sent to the embedding API - a match means the embedding would
+    // come back byte-identical, so EmbeddingService can skip the call and reuse the cached
+    // vector instead. [JsonIgnore] because the Search index has no content_hash field
+    // (upload would fail on an unknown field) - see VectorCache, which keys entirely off this.
+    [JsonIgnore] public string ContentHash =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(EmbeddingText)));
 }
