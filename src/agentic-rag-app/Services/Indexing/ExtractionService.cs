@@ -29,84 +29,93 @@ public class ExtractionService : IExtractionService
         _logger                = logger;
     }
 
-    // Orchestrates the whole step: extract, diff against the current index state,
-    // emit telemetry, and assemble the stats returned to the caller.
+    // Orchestrates the whole step: cheaply list what's available, diff against the current
+    // index state BEFORE paying for extraction, extract only what's new/changed, emit
+    // telemetry, and assemble the stats returned to the caller.
     public async Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionResults Stats)> ExtractAsync(
-        bool forceReindex, bool overrideMagnitudeCheck = false, CancellationToken ct = default)
+        bool forceReindex, CancellationToken ct = default)
     {
-        // fetch all documents to process
-        var extractionOutput = await _extractor.ExtractDocumentsAsync(overrideMagnitudeCheck, ct);
+        // Cheap: source id (blob name) + LastModified only, no download/extraction.
+        var sourceListing = await _extractor.ListSourceDocumentsAsync(ct);
 
         // check what documents we have in the index already (sourceId + last-indexed)
         var indexedDates = await _indexDocumentService.GetCurrentIndexedDocumentDatesAsync(ct);
 
-        var (toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped) =
-            CompareNewDocsNCurrentIndex(extractionOutput.Docs, indexedDates, forceReindex);
+        var (sourceIdsToProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped) =
+            CompareSourceListingToIndex(sourceListing, indexedDates, forceReindex);
 
         _logger.LogInformation(
-            "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped",
-            _extractor.Source, newCount, updated, removedSourceIds.Count, skipped);
+            "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped (of {Total} available)",
+            _extractor.Source, newCount, updated, removedSourceIds.Count, skipped, sourceListing.Count);
 
-        var diff = new DiffResult(_extractor.Source, extractionOutput, toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
+        // Only pays for extraction (Document Intelligence, etc.) on what's actually new/updated.
+        var extractionOutput = await _extractor.ExtractDocumentsAsync(sourceIdsToProcess, ct);
+
+        var diff = new DiffResult(
+            _extractor.Source, extractionOutput, extractionOutput.Docs.ToList(), removedSourceIds, toDeleteChunks, newCount, updated, skipped);
 
         await EmitMetricsAndBuildReport(diff, ct);
 
         return (diff.ToProcess, BuildStats(diff));
     }
 
-    // Compares freshly extracted documents against what's already indexed:
+    // Compares the cheap source listing (id + LastModified, no content) against what's
+    // already indexed - BEFORE any extraction happens, so a doc that's unchanged never
+    // costs a paid extraction call:
     // - not in the index yet                              -> new, process
     // - in the index, forceReindex or newer last_modified  -> updated, process, delete old chunks
     // - in the index, not newer and not forceReindex       -> skip
-    // - in the index, but absent from this extraction      -> removed, delete chunks
-    private static (List<ExtractionDocument> ToProcess, List<string> RemovedSourceIds, List<string> ToDeleteChunks,
-        int NewCount, int Updated, int Skipped) CompareNewDocsNCurrentIndex(
-            IReadOnlyList<ExtractionDocument>      docs,
-            Dictionary<string, DateTimeOffset>     indexedDates,
-            bool                                   forceReindex)
+    // - in the index, but absent from this listing         -> removed, delete chunks
+    // Because "removed" is now judged against the full listing (every source id that
+    // exists, regardless of whether it needed re-extraction) rather than against what
+    // successfully extracted, a doc that merely fails extraction this run is never
+    // mistaken for one withdrawn from the source.
+    private static (HashSet<string> SourceIdsToProcess, List<string> RemovedSourceIds, List<string> ToDeleteChunks,
+        int NewCount, int Updated, int Skipped) CompareSourceListingToIndex(
+            IReadOnlyDictionary<string, DateTimeOffset> sourceListing,
+            Dictionary<string, DateTimeOffset>          indexedDates,
+            bool                                        forceReindex)
     {
-        var toProcess      = new List<ExtractionDocument>();
-        var toDeleteChunks = new List<string>();
-        var seenSourceIds  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var newCount       = 0;
-        var updated        = 0;
-        var skipped        = 0;
+        var sourceIdsToProcess = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var toDeleteChunks     = new List<string>();
+        var newCount           = 0;
+        var updated            = 0;
+        var skipped            = 0;
 
-        // Grouped by SourceId = document, one document can have multiple pages
-        foreach (var group in docs.GroupBy(d => d.SourceId, StringComparer.OrdinalIgnoreCase))
+        foreach (var (sourceId, lastModified) in sourceListing)
         {
-            var sourceId = group.Key;
-            seenSourceIds.Add(sourceId);
-
             // checks if document ID is already indexed
             if (!indexedDates.TryGetValue(sourceId, out var indexedDate))
             {
-                toProcess.AddRange(group);
+                sourceIdsToProcess.Add(sourceId);
                 newCount++;
                 continue;
             }
 
-            // if document is already indexed, skip adding it to the index
-            if (!forceReindex)
+            // Indexed last_modified_date is stored date-only (see
+            // PdfExtractionOrchestrator.BuildExtractionOutput) - truncating lastModified the
+            // same way here keeps this comparison consistent with what's actually indexed;
+            // comparing full blob-timestamp precision against a date-truncated indexed value
+            // would make every unchanged doc look "updated" on every run.
+            var lastModifiedDate = DateTimeOffset.Parse(lastModified.ToString("yyyy-MM-dd"));
+
+            // if document is already indexed and not newer, skip adding it to the index
+            if (!forceReindex && lastModifiedDate <= indexedDate)
             {
-                var modifiedStr = group.First().Metadata.GetValueOrDefault("last_modified_date");
-                if (DateTimeOffset.TryParse(modifiedStr, out var modifiedDate) && modifiedDate <= indexedDate)
-                {
-                    skipped++;
-                    continue;
-                }
+                skipped++;
+                continue;
             }
 
             toDeleteChunks.Add(sourceId);
-            toProcess.AddRange(group);
+            sourceIdsToProcess.Add(sourceId);
             updated++;
         }
 
-        // Docs that were previously indexed but no longer appear in the source
-        var removedSourceIds = indexedDates.Keys.Where(id => !seenSourceIds.Contains(id)).ToList();
+        // Docs that were previously indexed but no longer appear in the source listing at all
+        var removedSourceIds = indexedDates.Keys.Where(id => !sourceListing.ContainsKey(id)).ToList();
         toDeleteChunks.AddRange(removedSourceIds);
 
-        return (toProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
+        return (sourceIdsToProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
     }
 
     // Emit instrumentation metrics from the diff result, and (dev-only) write a

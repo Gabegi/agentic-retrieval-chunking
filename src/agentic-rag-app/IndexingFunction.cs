@@ -61,14 +61,10 @@ public class IndexingFunction
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index")] HttpRequestData req,
         [DurableClient] DurableTaskClient client)
     {
-        var forceReindex           = req.Query["force"] == "true";
-        // Bypasses ONLY the magnitude-shift validation gate - never error-rate/reconciliation
-        // checks. Use after confirming in the logs that a large record-count shift is
-        // legitimate (e.g. a genuinely large import), not a broken/truncated export.
-        var overrideMagnitudeCheck = req.Query["overrideMagnitudeCheck"] == "true";
+        var forceReindex = req.Query["force"] == "true";
 
         var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
-            "IndexingOrchestrator", new IndexRequest(forceReindex, overrideMagnitudeCheck));
+            "IndexingOrchestrator", new IndexRequest(forceReindex));
         _logger.LogInformation("Indexing started — instance {InstanceId}", instanceId);
         return client.CreateCheckStatusResponse(req, instanceId);
     }
