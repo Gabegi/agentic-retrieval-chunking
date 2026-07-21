@@ -215,17 +215,16 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                 // Skips any blob item whose name doesn't end in .pdf (case-insensitive), so non-PDF files in the container are ignored.
                 if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
 
-                // Already up to date in the index (per ExtractionService's pre-extraction
-                // diff against ListSourceDocumentsAsync) - skip the paid download +
-                // Document Intelligence call entirely.
+                // Already up to date in the index (per ExtractionService's own pre-extraction
+                // blob listing/diff) - skip the paid download + Document Intelligence call entirely.
                 if (!sourceIdsToProcess.Contains(blobItem.Name)) return;
 
                 // we need a lastmodified date to tell new/updated docs apart from unchanged ones.
                 // Recorded here, before the try block below, so failed downloads/extractions
                 // still get an entry. This dictionary only covers sourceIdsToProcess (the
-                // pre-extraction skip already happened above via ListSourceDocumentsAsync),
-                // so a failed file here simply produces no cleaned record and gets retried
-                // next run - its index last_modified_date never advances.
+                // pre-extraction skip already happened above, in ExtractionService), so a
+                // failed file here simply produces no cleaned record and gets retried next
+                // run - its index last_modified_date never advances.
                 if (blobItem.Properties.LastModified is { } modified)
                 {
                     lastModified[blobItem.Name] = modified;
