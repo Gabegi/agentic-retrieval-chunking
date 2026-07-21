@@ -22,6 +22,10 @@ namespace AgenticRagApp;
 // travels through Durable Table Storage, avoiding the 64KB row-size limit.
 public class IndexingFunction
 {
+    // Scopes the rolling snapshot and drift baseline to this doc-type - PDF and CSV must
+    // never share or merge either one.
+    private const string Source = "pdf";
+
     private readonly IExtractionService        _extractionService;
     private readonly IChunkingService          _chunkingService;
     private readonly IEmbeddingService         _embeddingService;
@@ -33,6 +37,7 @@ public class IndexingFunction
     private readonly IRunReportWriter          _reportWriter;
     private readonly IPipelineArtifactWriter   _artifactWriter;
     private readonly ISnapshotService          _snapshotService;
+    private readonly IVectorCache              _vectorCache;
     private readonly ILogger<IndexingFunction> _logger;
 
     public IndexingFunction(
@@ -47,6 +52,7 @@ public class IndexingFunction
         IRunReportWriter          reportWriter,
         IPipelineArtifactWriter   artifactWriter,
         ISnapshotService          snapshotService,
+        IVectorCache              vectorCache,
         ILogger<IndexingFunction> logger)
     {
         _extractionService = extractionService;
@@ -60,6 +66,7 @@ public class IndexingFunction
         _reportWriter      = reportWriter;
         _artifactWriter    = artifactWriter;
         _snapshotService   = snapshotService;
+        _vectorCache       = vectorCache;
         _logger            = logger;
     }
 

@@ -47,6 +47,7 @@ var host = new HostBuilder()
 
         services.AddSingleton<IRunReportWriter>(sp =>
             new RunReportWriter(
+                sp.GetRequiredService<IBlobStore>(),
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-reports"),
                 sp.GetRequiredService<IHostEnvironment>()));
 
@@ -54,6 +55,7 @@ var host = new HostBuilder()
         // always on (not gated by environment or a config flag - see IPipelineArtifactWriter).
         services.AddSingleton<IPipelineArtifactWriter>(sp =>
             new PipelineArtifactWriter(
+                sp.GetRequiredService<IBlobStore>(),
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts")));
 
         // Content-hash-keyed embedding vector cache - same "pipeline-artifacts" container as
@@ -62,12 +64,14 @@ var host = new HostBuilder()
             new VectorCache(
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts")));
 
-        // Rolling full-corpus snapshot + the vector-cache eviction that rides along with it -
-        // same "pipeline-artifacts" container, under its own snapshots/ path prefix.
+        // Rolling full-corpus snapshot (source-scoped, never merged across doc types) - same
+        // "pipeline-artifacts" container, under its own snapshots/{source}/ path prefix.
+        // Vector-cache eviction is done by the caller (IndexingFunction), not here - see
+        // ISnapshotService's own comment for why.
         services.AddSingleton<ISnapshotService>(sp =>
             new SnapshotService(
+                sp.GetRequiredService<IBlobStore>(),
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts"),
-                sp.GetRequiredService<IVectorCache>(),
                 sp.GetRequiredService<ILogger<SnapshotService>>()));
 
         services.AddSingleton(sp =>

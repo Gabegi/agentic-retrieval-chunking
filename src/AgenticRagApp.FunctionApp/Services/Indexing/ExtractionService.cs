@@ -78,7 +78,7 @@ public class ExtractionService : IExtractionService
     private async Task<Dictionary<string, DateTimeOffset>> ListDocumentsInBlobAsync(CancellationToken ct)
     {
         var result = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
-        var blobs  = await _blobStore.ListBlobsAsync(_container, ct);
+        var blobs  = await _blobStore.ListBlobsAsync(_container, ct: ct);
 
         foreach (var (name, lastModified, _) in blobs)
         {

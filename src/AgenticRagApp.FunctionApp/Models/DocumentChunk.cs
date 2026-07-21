@@ -1,13 +1,18 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
+using AgenticRagApp.Observability.Reports;
 
 namespace AgenticRagApp.Models;
 
 // One chunk of a PDF page, embedded and uploaded to Azure AI Search. Renamed from
 // ProtocolDocument - that name was Zenya/CSV-era ("care protocols" specifically); this
 // project only ever handles PDFs now (see docs/plan210726.md's "no generic" note).
-public class DocumentChunk
+//
+// Implements ISnapshotSource/IChunkStatsSource so Observability's SnapshotService and
+// ChunkingResults.Compute can work generically without referencing this (or any other
+// doc-type's) chunk type directly - see docs/260721 for why.
+public class DocumentChunk : ISnapshotSource, IChunkStatsSource
 {
     // ── Search-indexed fields (IndexService's schema) ───────────────────────
 

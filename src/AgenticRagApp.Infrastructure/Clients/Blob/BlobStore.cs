@@ -37,7 +37,7 @@ public class BlobStore : IBlobStore
         BlobContainerClient container, string? prefix = null, CancellationToken ct = default)
     {
         var result = new List<(string, DateTimeOffset?, long?)>();
-        await foreach (var item in container.GetBlobsAsync(prefix: prefix, cancellationToken: ct))
+        await foreach (var item in container.GetBlobsAsync(BlobTraits.None, BlobStates.None, prefix, ct))
             result.Add((item.Name, item.Properties.LastModified, item.Properties.ContentLength));
         return result;
     }
