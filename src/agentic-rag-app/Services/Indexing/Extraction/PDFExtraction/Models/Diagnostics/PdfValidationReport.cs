@@ -9,10 +9,6 @@ public class PdfValidationReport
     public int      PagesExtracted        { get; init; }
     public int      CleanedRecords        { get; init; }
     public bool     Passed                { get; init; }
-    // Same rationale as CSV's ValidationReport.PassedExcludingMagnitude — lets a
-    // caller allow an operator override past the magnitude gate only, never past
-    // error-rate/reconciliation.
-    public bool     PassedExcludingMagnitude { get; init; }
 
     public IReadOnlyList<ValidationIssue>      Issues                           { get; init; } = [];
     public IReadOnlyList<string>               ReconciliationProblems           { get; init; } = [];
