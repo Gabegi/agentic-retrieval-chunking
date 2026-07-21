@@ -155,7 +155,7 @@ var host = new HostBuilder()
         services.AddSingleton<IRagQueryService, AgenticRagQueryService>();
 
         // Chunking
-        services.AddSingleton<IChunkingStrategy, ChunkingStrategy1>();
+        services.AddSingleton<IChunkingStrategy, PdfChunkingStrategy1>();
         services.AddSingleton<IChunkingService, ChunkingService>();
 
         // PDF extraction backend — only registered when Document Intelligence is
