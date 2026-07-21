@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RagApp.UnitTests", "RagApp.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IndexingShared", "IndexingShared\IndexingShared.csproj", "{EADF56C2-D145-4FBC-A482-C3DFDB46E827}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Infrastructure", "AgenticRagApp.Infrastructure\AgenticRagApp.Infrastructure.csproj", "{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CsvIndexing", "CsvIndexing\CsvIndexing.csproj", "{CDFD1749-189C-4F64-B5D7-E159455336E5}"
 EndProject
 Global
@@ -83,6 +85,18 @@ Global
 		{CDFD1749-189C-4F64-B5D7-E159455336E5}.Release|x64.Build.0 = Release|Any CPU
 		{CDFD1749-189C-4F64-B5D7-E159455336E5}.Release|x86.ActiveCfg = Release|Any CPU
 		{CDFD1749-189C-4F64-B5D7-E159455336E5}.Release|x86.Build.0 = Release|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Debug|x64.Build.0 = Debug|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Debug|x86.Build.0 = Debug|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Release|x64.ActiveCfg = Release|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Release|x64.Build.0 = Release|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Release|x86.ActiveCfg = Release|Any CPU
+		{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

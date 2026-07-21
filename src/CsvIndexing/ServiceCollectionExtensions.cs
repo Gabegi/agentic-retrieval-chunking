@@ -5,12 +5,14 @@ using IndexingShared.Observability.Reports;
 namespace CsvIndexing;
 
 // All of CSV's DI registrations live here, self-contained, so the Functions host
-// (agentic-rag-app/Program.cs) only ever needs one line — services.AddCsvIndexing() —
-// to wire the whole pipeline in. Not called from Program.cs yet: CSV has no active
-// Durable flow today (see IndexingShared for the cross-cutting infra/seam types this
-// assumes are already registered by the host — BlobServiceClient, TokenCredential,
-// IndexerConfig, the "pipeline-temp" keyed BlobContainerClient, IRunReportWriter,
-// IEmbeddingGenerator<string, Embedding<float>>).
+// (AgenticRagApp.FunctionApp/Program.cs) only ever needs one line —
+// services.AddCsvIndexing() — to wire the whole pipeline in. Not called from
+// Program.cs yet: CSV has no active Durable flow today. Assumes the host has already
+// called AgenticRagApp.Infrastructure's AddAgenticRagAppInfrastructure() (BlobServiceClient,
+// IndexerConfig, SearchClient/SearchIndexClient, the "pipeline-temp" keyed
+// BlobContainerClient, IEmbeddingGenerator<string, Embedding<float>>) — see
+// IndexingShared for the remaining source-agnostic seam types (ExtractionDocument/
+// ExtractionOutput/etc.) and IRunReportWriter.
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCsvIndexing(this IServiceCollection services)

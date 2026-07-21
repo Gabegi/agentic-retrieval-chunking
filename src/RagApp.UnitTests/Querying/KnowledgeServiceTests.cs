@@ -1,32 +1,18 @@
-using System.Reflection;
 using Azure;
-using Azure.Core;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.Querying;
 
-// KnowledgeService builds its own SearchIndexClient internally from config + credential (no
-// constructor seam). The real client is constructed normally (harmless — no network call
-// happens until a method is invoked) and swapped for a mock via reflection on the private field.
 [TestClass]
 public class KnowledgeServiceTests
 {
-    private sealed class FakeCredential : TokenCredential
-    {
-        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
-            new(Guid.NewGuid().ToString(), DateTimeOffset.MaxValue);
-
-        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
-            new(GetToken(requestContext, cancellationToken));
-    }
-
     private static IndexerConfig Config() => new()
     {
         SearchEndpoint            = "https://search.example.com",
@@ -43,10 +29,8 @@ public class KnowledgeServiceTests
 
     private static (KnowledgeService Service, Mock<SearchIndexClient> Client) BuildService()
     {
-        var service = new KnowledgeService(Config(), new FakeCredential(), NullLogger<KnowledgeService>.Instance);
-        var client   = new Mock<SearchIndexClient>();
-        var field    = typeof(KnowledgeService).GetField("_indexClient", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        field.SetValue(service, client.Object);
+        var client  = new Mock<SearchIndexClient>();
+        var service = new KnowledgeService(Config(), client.Object, NullLogger<KnowledgeService>.Instance);
         return (service, client);
     }
 

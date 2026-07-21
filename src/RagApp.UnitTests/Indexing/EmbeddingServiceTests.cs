@@ -2,7 +2,7 @@ using Azure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Models;
 using AgenticRagApp.Services;
 

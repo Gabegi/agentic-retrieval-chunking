@@ -1,30 +1,16 @@
-using System.Reflection;
 using Azure;
-using Azure.Core;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.Indexing;
 
-// IndexService builds its own SearchIndexClient internally from config + credential (no
-// constructor seam). The real client is constructed normally (harmless — no network call
-// happens until a method is invoked) and swapped for a mock via reflection on the private field.
 [TestClass]
 public class IndexServiceTests
 {
-    private sealed class FakeCredential : TokenCredential
-    {
-        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
-            new(Guid.NewGuid().ToString(), DateTimeOffset.MaxValue);
-
-        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
-            new(GetToken(requestContext, cancellationToken));
-    }
-
     private static IndexerConfig Config() => new()
     {
         SearchEndpoint            = "https://search.example.com",
@@ -41,10 +27,8 @@ public class IndexServiceTests
 
     private static (IndexService Service, Mock<SearchIndexClient> Client) BuildService()
     {
-        var service = new IndexService(Config(), new FakeCredential(), NullLogger<IndexService>.Instance);
-        var client   = new Mock<SearchIndexClient>();
-        var field    = typeof(IndexService).GetField("_indexClient", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        field.SetValue(service, client.Object);
+        var client  = new Mock<SearchIndexClient>();
+        var service = new IndexService(Config(), client.Object, NullLogger<IndexService>.Instance);
         return (service, client);
     }
 

@@ -3,7 +3,7 @@ using System.Net.Http;
 using Azure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using IndexingShared.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using IndexingShared.Models;
 using IndexingShared.Observability;
 

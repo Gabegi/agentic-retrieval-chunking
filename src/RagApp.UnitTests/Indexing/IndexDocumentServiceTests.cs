@@ -1,33 +1,18 @@
-using System.Reflection;
 using Azure;
-using Azure.Core;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Observability.Reports;
 using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.Indexing;
 
-// IndexDocumentService builds its own SearchClient/SearchIndexClient internally from config +
-// credential (no constructor seam). Rather than changing production code for testability, the
-// real clients are constructed normally (harmless — no network call happens until a method is
-// invoked) and then swapped for mocks via reflection on the private fields.
 [TestClass]
 public class IndexDocumentServiceTests
 {
-    private sealed class FakeCredential : TokenCredential
-    {
-        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
-            new(Guid.NewGuid().ToString(), DateTimeOffset.MaxValue);
-
-        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
-            new(GetToken(requestContext, cancellationToken));
-    }
-
     private static IndexerConfig Config() => new()
     {
         SearchEndpoint            = "https://search.example.com",
@@ -42,23 +27,13 @@ public class IndexDocumentServiceTests
         OpenAiGptModelName        = "gpt-model",
     };
 
-    private static void SetField(object target, string fieldName, object value)
-    {
-        var field = target.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new InvalidOperationException($"Field '{fieldName}' not found on {target.GetType()}");
-        field.SetValue(target, value);
-    }
-
     private static (IndexDocumentService Service, Mock<SearchClient> Search, Mock<SearchIndexClient> Index, Mock<IRunReportWriter> ReportWriter)
         BuildService()
     {
         var reportWriter = new Mock<IRunReportWriter>();
-        var service = new IndexDocumentService(Config(), new FakeCredential(), reportWriter.Object, NullLogger<IndexDocumentService>.Instance);
-
         var searchClient = new Mock<SearchClient>();
         var indexClient  = new Mock<SearchIndexClient>();
-        SetField(service, "_searchClient", searchClient.Object);
-        SetField(service, "_indexClient", indexClient.Object);
+        var service = new IndexDocumentService(Config(), searchClient.Object, indexClient.Object, reportWriter.Object, NullLogger<IndexDocumentService>.Instance);
 
         return (service, searchClient, indexClient, reportWriter);
     }

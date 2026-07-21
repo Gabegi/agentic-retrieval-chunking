@@ -6,7 +6,7 @@ using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Azure.Search.Documents.Models;
 using Moq;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.Querying;

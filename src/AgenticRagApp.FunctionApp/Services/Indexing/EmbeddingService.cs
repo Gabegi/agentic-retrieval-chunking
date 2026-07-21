@@ -4,7 +4,7 @@ using System.Net.Http;
 using Azure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Models;
 using AgenticRagApp.Observability;
 

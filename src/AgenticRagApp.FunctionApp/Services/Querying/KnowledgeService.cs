@@ -1,10 +1,9 @@
-using Azure.Core;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Microsoft.Extensions.Logging;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 
 namespace AgenticRagApp.Services;
 
@@ -16,10 +15,10 @@ public class KnowledgeService : IKnowledgeService
 
     public KnowledgeService(
         IndexerConfig              config,
-        TokenCredential            credential,
+        SearchIndexClient          indexClient,
         ILogger<KnowledgeService>  logger)
     {
-        _indexClient = new SearchIndexClient(new Uri(config.SearchEndpoint), credential);
+        _indexClient = indexClient;
         _config      = config;
         _logger      = logger;
     }

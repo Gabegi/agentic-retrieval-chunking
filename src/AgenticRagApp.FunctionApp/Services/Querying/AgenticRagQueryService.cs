@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Models;
 
 namespace AgenticRagApp.Services;

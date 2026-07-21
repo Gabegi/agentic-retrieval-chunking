@@ -1,4 +1,4 @@
-namespace IndexingShared.Configuration;
+namespace AgenticRagApp.Infrastructure.Configuration;
 
 public class IndexerConfig
 {

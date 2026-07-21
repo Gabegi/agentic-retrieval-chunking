@@ -1,9 +1,8 @@
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
-using Azure.Core;
 using Microsoft.Extensions.Logging;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
@@ -26,10 +25,10 @@ public class IndexDocumentService : IIndexDocumentService
     private readonly ILogger<IndexDocumentService>  _logger;
 
     public IndexDocumentService(
-        IndexerConfig config, TokenCredential credential, IRunReportWriter reportWriter, ILogger<IndexDocumentService> logger)
+        IndexerConfig config, SearchClient searchClient, SearchIndexClient indexClient, IRunReportWriter reportWriter, ILogger<IndexDocumentService> logger)
     {
-        _searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
-        _indexClient  = new SearchIndexClient(new Uri(config.SearchEndpoint), credential);
+        _searchClient = searchClient;
+        _indexClient  = indexClient;
         _config       = config;
         _reportWriter = reportWriter;
         _logger       = logger;

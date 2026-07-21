@@ -33,3 +33,9 @@ test
 | backendRgName | `cor-cap-cicd-dev-we-001` | `cor-cap-cicd-prd-we-001` |
 | backendStorageAccount | `corsttfcapdevwe` | `corsttfcapprdwe` |
 | backendContainer | `terraform-state` | `terraform-state` |
+
+## Debug Func app
+
+1. https://cor-func-idx-cap-dev-we-001.scm.azurewebsites.net
+2. Debug console → CMD
+3. Browse to D:\home\LogFiles\Application\Functions\Host\ and open the most recent .log file there — paste me what's in it (or at least the last exception/error block)

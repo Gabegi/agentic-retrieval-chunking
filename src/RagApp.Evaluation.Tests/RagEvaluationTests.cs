@@ -2,10 +2,11 @@ using System.Text.Json;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using Azure.Search.Documents;
+using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.AI;
-using AgenticRagApp.Configuration;
+using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Services;
 using RagApp.Evaluation.Tests.Evaluation;
 using RagApp.Evaluation.Tests.Models;
@@ -57,7 +58,8 @@ public class RagEvaluationTests
             .ConfigureOptions(o => o.MaxOutputTokens ??= 500)
             .Build();
 
-        var knowledgeService = new KnowledgeService(config, credential,
+        var indexClient = new SearchIndexClient(new Uri(config.SearchEndpoint), credential);
+        var knowledgeService = new KnowledgeService(config, indexClient,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<KnowledgeService>.Instance);
         await knowledgeService.EnsureKnowledgeSourceAsync();
         await knowledgeService.EnsureKnowledgeBaseAsync();
