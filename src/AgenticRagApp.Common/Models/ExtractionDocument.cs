@@ -1,4 +1,4 @@
-namespace IndexingShared.Models;
+namespace AgenticRagApp.Common.Models;
 
 // Extractor-agnostic document handed to the chunking and indexing pipeline.
 // SourceId is the chunking boundary — the chunker never blends chunks across different SourceIds.

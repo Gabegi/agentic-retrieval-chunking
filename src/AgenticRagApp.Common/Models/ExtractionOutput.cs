@@ -1,6 +1,6 @@
 using AgenticRagApp.Observability.Reports;
 
-namespace IndexingShared.Models;
+namespace AgenticRagApp.Common.Models;
 
 public record ExtractionOutput(
     IReadOnlyList<ExtractionDocument>  Docs,

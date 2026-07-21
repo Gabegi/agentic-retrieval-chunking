@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Indexing.Csv.Models;
 using AgenticRagApp.Indexing.Csv.Utils;
-using IndexingShared.Models;
+using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
 

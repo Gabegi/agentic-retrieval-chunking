@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using AgenticRagApp.Observability.Reports;
 
-namespace IndexingShared.Models;
+namespace AgenticRagApp.Common.Models;
 
 // Implements IChunkStatsSource so Observability's ChunkingResults.Compute can work
 // generically without referencing this (or any other doc-type's) chunk type directly -

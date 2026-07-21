@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.Embedding;
 using AgenticRagApp.Infrastructure.Configuration;
-using IndexingShared.Models;
+using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability;
 
 namespace AgenticRagApp.Indexing.Csv.Services;

@@ -12,7 +12,7 @@ using AgenticRagApp.Indexing.Csv.Services;
 using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
-using IndexingShared.Models;
+using AgenticRagApp.Common.Models;
 
 namespace AgenticRagApp.Functions;
 

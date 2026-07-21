@@ -3,7 +3,7 @@ using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Indexing.Csv.Models;
-using IndexingShared.Models;
+using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
 

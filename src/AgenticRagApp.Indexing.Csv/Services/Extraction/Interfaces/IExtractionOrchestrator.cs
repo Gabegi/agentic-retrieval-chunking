@@ -1,11 +1,11 @@
-using IndexingShared.Models;
+using AgenticRagApp.Common.Models;
 
 namespace AgenticRagApp.Indexing.Csv.Services;
 
 // AgenticRagApp.Indexing.Csv's own copy of the extraction-orchestrator contract — CSV's pipeline is
 // fully self-contained, so this isn't shared with agentic-rag-app's PDF pipeline
 // (which has its own identical-shaped copy). Both return the source-agnostic
-// IndexingShared.Models.ExtractionOutput.
+// AgenticRagApp.Common.Models.ExtractionOutput.
 public interface IExtractionOrchestrator
 {
     string Source { get; }  // e.g. "csv", "pdf"

@@ -1,4 +1,4 @@
-using IndexingShared.Models;
+using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability.Reports;
 
 namespace AgenticRagApp.Indexing.Csv.Services;
