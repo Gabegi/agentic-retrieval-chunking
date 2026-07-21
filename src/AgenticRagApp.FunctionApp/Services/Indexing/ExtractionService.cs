@@ -1,5 +1,6 @@
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
@@ -9,6 +10,7 @@ namespace AgenticRagApp.Services;
 public class ExtractionService : IExtractionService
 {
     private readonly BlobContainerClient        _container;
+    private readonly IBlobStore                 _blobStore;
     private readonly IExtractionOrchestrator    _extractor;
     private readonly IIndexDocumentService      _indexDocumentService;
     private readonly IRunReportWriter           _reportWriter;
@@ -18,13 +20,15 @@ public class ExtractionService : IExtractionService
 
     public ExtractionService(
         BlobContainerClient        container,
+        IBlobStore                 blobStore,
         IExtractionOrchestrator    extractor,
         IIndexDocumentService      indexDocumentService,
         IRunReportWriter           reportWriter,
         ILogger<ExtractionService> logger)
     {
         _container             = container;
-        _extractor             = extractor;
+        _blobStore              = blobStore;
+        _extractor              = extractor;
         _indexDocumentService  = indexDocumentService;
         _reportWriter          = reportWriter;
         _logger                = logger;
