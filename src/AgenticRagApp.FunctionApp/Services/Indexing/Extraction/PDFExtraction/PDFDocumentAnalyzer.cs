@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.DocumentIntelligence;
 using AgenticRagApp.Models;
 using AgenticRagApp.Observability;
 
@@ -35,10 +36,10 @@ namespace AgenticRagApp.Services
         // BackoffDelays, which only applies after a 429.
         private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(2);
 
-        private readonly DocumentIntelligenceClient _diClient;
+        private readonly IDocumentAnalysisClient _diClient;
         private readonly ILogger _logger;
 
-        public PdfDocumentAnalyzer(DocumentIntelligenceClient diClient, ILogger<PdfDocumentAnalyzer> logger)
+        public PdfDocumentAnalyzer(IDocumentAnalysisClient diClient, ILogger<PdfDocumentAnalyzer> logger)
         {
             _diClient = diClient;
             _logger = logger;
