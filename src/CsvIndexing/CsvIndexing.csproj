@@ -11,5 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="..\IndexingShared\IndexingShared.csproj" />
     <ProjectReference Include="..\AgenticRagApp.Infrastructure\AgenticRagApp.Infrastructure.csproj" />
+    <ProjectReference Include="..\AgenticRagApp.Observability\AgenticRagApp.Observability.csproj" />
   </ItemGroup>
 </Project>

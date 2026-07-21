@@ -211,12 +211,17 @@ public class IndexingFunction
                 embeddedDocs, req.StaleDocumentIds, context.CancellationToken);
             LogProcessMemory("upload complete", chunks.Count);
 
-            // Rolling full-corpus snapshot + the vector-cache eviction that rides along with
-            // it. Best-effort against uploadResult.DocsFailed - a chunk that failed to upsert
-            // is still folded into the snapshot as if it succeeded (UploadService doesn't
-            // report which specific chunks failed, only the count) - rare, self-corrects
-            // whenever that document is next reprocessed.
-            await _snapshotService.UpdateAsync(embeddedDocs, req.StaleDocumentIds, req.InstanceId, context.CancellationToken);
+            // Rolling full-corpus snapshot (source-scoped) + the vector-cache eviction that
+            // rides along with it. Best-effort against uploadResult.DocsFailed - a chunk that
+            // failed to upsert is still folded into the snapshot as if it succeeded
+            // (UploadService doesn't report which specific chunks failed, only the count) -
+            // rare, self-corrects whenever that document is next reprocessed.
+            var liveHashes = await _snapshotService.UpdateAsync(
+                Source, embeddedDocs, req.StaleDocumentIds, req.InstanceId, context.CancellationToken);
+            var evictedCount = await _vectorCache.EvictOrphanedAsync(liveHashes, context.CancellationToken);
+            if (evictedCount > 0)
+                _logger.LogInformation("Vector cache eviction — {Count} orphaned entr{Suffix} deleted",
+                    evictedCount, evictedCount == 1 ? "y" : "ies");
 
             await DeleteBlobAsync(req.ChunksBlob, context.CancellationToken);
 
@@ -241,7 +246,7 @@ public class IndexingFunction
     }
 
     [Function("SaveIndexReportActivity")]
-    public async Task SaveIndexReportActivity([ActivityTrigger] IndexRunReport report, FunctionContext context)
+    public async Task SaveIndexReportActivity([ActivityTrigger] PdfIndexRunReport report, FunctionContext context)
     {
         if (!_reportWriter.IsEnabled) return;
 
@@ -265,7 +270,7 @@ public class IndexingFunction
         return response;
     }
 
-    private static IndexRunReport BuildReport(
+    private static PdfIndexRunReport BuildReport(
         TaskOrchestrationContext context,
         DateTimeOffset           startedAt,
         IndexRequest             input,
@@ -277,7 +282,6 @@ public class IndexingFunction
             InstanceId:              context.InstanceId,
             StartedAt:               startedAt,
             FinishedAt:              context.CurrentUtcDateTime,
-            Source:                  ext?.Source ?? "unknown",
             ForceReindex:            input.ForceReindex,
             Success:                 success,
             ErrorMessage:            error,
@@ -290,13 +294,10 @@ public class IndexingFunction
             ValidationErrors:        ext?.ValidationErrors        ?? 0,
             ValidationWarnings:      ext?.ValidationWarnings      ?? 0,
             ReconciliationProblems:  ext?.ReconciliationProblems  ?? 0,
-            StaleDocCount:           ext?.StaleDocCount,
             MojibakeRepairedPages:   ext?.MojibakeRepairedPages   ?? 0,
             DetectedTableCount:      ext?.DetectedTableCount      ?? 0,
             DocsWithoutHeadings:     ext?.DocsWithoutHeadings     ?? 0,
             MissingTitleCount:       ext?.MissingTitleCount       ?? 0,
-            MissingVersionCount:     ext?.MissingVersionCount,
-            MissingDepartmentCount:  ext?.MissingDepartmentCount,
             ChunksProduced:          chunk?.ChunksProduced        ?? 0,
             DocsWithZeroChunks:      chunk?.DocsWithZeroChunks    ?? 0,
             DuplicateChunks:         chunk?.DuplicateChunks       ?? 0,
