@@ -8,14 +8,17 @@ namespace AgenticRag.Services;
 // and pass/fail algorithm, adapted to the PDF models.
 //
 // The checks fall into three tiers — the tier decides where a finding lands:
-//   HARD GATES  (-> ReconciliationProblems / MagnitudeWarnings; fail the run):
+//   HARD GATES  (-> ReconciliationProblems; fail the run):
 //     pipeline invariants and corpus-level sanity. These exist because the diff step
 //     downstream DELETES whatever is missing from a passed run — a bad run that
 //     passes doesn't just index garbage, it removes good documents from the index.
 //   QUALITY ISSUES (-> Issues; gate only via the aggregate error-rate threshold):
 //     per-page signals (encoding corruption, malformed tables).
-//   ADVISORY (-> RedFlags / report fields; never gate):
+//   ADVISORY (-> RedFlags / MagnitudeWarnings / report fields; never gate):
 //     trends and chunking hints (table counts, heading coverage, spot-check sample).
+//     MagnitudeWarnings (run-over-run record-count shift) lives here too — it's noisy
+//     against a corpus that's mostly stable extraction-skip runs, so it's surfaced for
+//     a human to read, not enforced.
 //
 // Differences from CSV's validator:
 //   - No CheckDateExceeded red flag — no attention-flags data source for PDFs.
