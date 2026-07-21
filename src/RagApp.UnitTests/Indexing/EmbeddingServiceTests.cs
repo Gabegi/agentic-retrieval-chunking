@@ -214,6 +214,65 @@ public class EmbeddingServiceTests
     }
 
     [TestMethod]
+    public async Task EmbedDocumentsAsync_CacheHit_SkipsEmbeddingAndReusesVector()
+    {
+        var cachedVector = new float[] { 1, 2, 3, 4 };
+        var vectorCache  = new Mock<IVectorCache>();
+        vectorCache.Setup(c => c.TryGetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(cachedVector);
+        var generator = MockGenerator();
+        var service   = BuildService(generator, vectorCache: vectorCache);
+        var docs      = new[] { Document("d1", "content one") };
+
+        var result = await service.EmbedDocumentsAsync(docs);
+
+        Assert.AreEqual(1, result.CacheHits);
+        CollectionAssert.AreEqual(cachedVector, result.Documents.Single().ContentVector);
+        generator.Verify(
+            g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task EmbedDocumentsAsync_CacheMiss_EmbedsAndWritesResultToCache()
+    {
+        var vectorCache = MockVectorCache();
+        var generator   = MockGenerator();
+        generator
+            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) => Embeddings(values.Count()));
+        var service = BuildService(generator, vectorCache: vectorCache);
+        var docs    = new[] { Document("d1", "content one") };
+
+        var result = await service.EmbedDocumentsAsync(docs);
+
+        Assert.AreEqual(0, result.CacheHits);
+        vectorCache.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<float[]>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task EmbedDocumentsAsync_CachedVectorWrongDimensions_TreatedAsMissAndReEmbedded()
+    {
+        // Cached under an older embedding config (2 dims); current config expects 4 -
+        // must not be trusted blindly, has to fall back to a real embedding call.
+        var vectorCache = new Mock<IVectorCache>();
+        vectorCache.Setup(c => c.TryGetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new float[] { 1, 2 });
+        vectorCache.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<float[]>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var generator = MockGenerator();
+        generator
+            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) => Embeddings(values.Count(), dims: 4));
+        var service = BuildService(generator, Config(dims: 4), vectorCache);
+        var docs    = new[] { Document("d1", "content one") };
+
+        var result = await service.EmbedDocumentsAsync(docs);
+
+        Assert.AreEqual(0, result.CacheHits);
+        generator.Verify(
+            g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
     public async Task EmbedDocumentsAsync_NoDocuments_ReturnsEmptyResultWithoutCallingGenerator()
     {
         var generator = MockGenerator();
