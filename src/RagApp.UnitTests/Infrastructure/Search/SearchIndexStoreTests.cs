@@ -2,6 +2,7 @@ using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
+using Azure.Search.Documents.Models;
 using Moq;
 using AgenticRagApp.Infrastructure.Clients.Search;
 
