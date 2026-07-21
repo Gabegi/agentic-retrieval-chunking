@@ -67,6 +67,23 @@ public class ExtractionService : IExtractionService
         return (diff.ToProcess, BuildStats(diff));
     }
 
+    // Cheap listing of every PDF blob's name + LastModified only — no download, no
+    // Document Intelligence call. This is the "source" side of the diff in ExtractAsync;
+    // PdfExtractionOrchestrator's ExtractDocumentsAsync does the expensive download +
+    // extraction, only for whatever CompareSourceListingToIndex decides is actually needed.
+    private async Task<Dictionary<string, DateTimeOffset>> ListDocumentsInBlobAsync(CancellationToken ct)
+    {
+        var result = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+
+        await foreach (var blobItem in _container.GetBlobsAsync(cancellationToken: ct))
+        {
+            if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+            result[blobItem.Name] = blobItem.Properties.LastModified ?? DateTimeOffset.MinValue;
+        }
+
+        return result;
+    }
+
     // Compares the cheap source listing (id + LastModified, no content) against what's
     // already indexed - BEFORE any extraction happens, so a doc that's unchanged never
     // costs a paid extraction call:
