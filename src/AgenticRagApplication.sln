@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.FunctionApp",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RagApp.Evaluation.Tests", "RagApp.Evaluation.Tests\RagApp.Evaluation.Tests.csproj", "{6B1F0AD6-0701-4F96-B7D4-50E890B0E813}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IndexingShared", "IndexingShared\IndexingShared.csproj", "{EADF56C2-D145-4FBC-A482-C3DFDB46E827}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Common", "AgenticRagApp.Common\AgenticRagApp.Common.csproj", "{EADF56C2-D145-4FBC-A482-C3DFDB46E827}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Infrastructure", "AgenticRagApp.Infrastructure\AgenticRagApp.Infrastructure.csproj", "{3F2E1D0C-9B8A-47C6-9E5D-2A1B3C4D5E6F}"
 EndProject
