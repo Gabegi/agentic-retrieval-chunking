@@ -1,8 +1,7 @@
-using Azure;
-using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Services;
 
@@ -25,52 +24,38 @@ public class IndexServiceTests
         OpenAiGptModelName        = "gpt-model",
     };
 
-    private static (IndexService Service, Mock<SearchIndexClient> Client) BuildService()
+    private static (IndexService Service, Mock<ISearchIndexStore> Store) BuildService()
     {
-        var client  = new Mock<SearchIndexClient>();
-        var service = new IndexService(Config(), client.Object, NullLogger<IndexService>.Instance);
-        return (service, client);
+        var store   = new Mock<ISearchIndexStore>();
+        var service = new IndexService(Config(), store.Object, NullLogger<IndexService>.Instance);
+        return (service, store);
     }
 
     [TestMethod]
-    public async Task EnsureIndexAsync_IndexAlreadyExists_DoesNotCreateOrUpdate()
+    public async Task EnsureIndexAsync_BuildsIndexForConfiguredNameAndDelegatesToStore()
     {
-        var (service, client) = BuildService();
-        client.Setup(c => c.GetIndexAsync("my-index", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(new SearchIndex("my-index"), Mock.Of<Response>()));
+        var (service, store) = BuildService();
+        store.Setup(s => s.EnsureIndexAsync(It.IsAny<SearchIndex>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         await service.EnsureIndexAsync();
 
-        client.Verify(c => c.CreateOrUpdateIndexAsync(
-            It.IsAny<SearchIndex>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        store.Verify(s => s.EnsureIndexAsync(
+            It.Is<SearchIndex>(i => i.Name == "my-index"), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
-    public async Task EnsureIndexAsync_IndexMissing_CreatesIt()
+    public async Task EnsureIndexAsync_IncludesTheContentVectorFieldSizedToConfiguredDimensions()
     {
-        var (service, client) = BuildService();
-        client.Setup(c => c.GetIndexAsync("my-index", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new RequestFailedException(404, "not found"));
-        client.Setup(c => c.CreateOrUpdateIndexAsync(
-                It.IsAny<SearchIndex>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(new SearchIndex("my-index"), Mock.Of<Response>()));
+        var (service, store) = BuildService();
+        SearchIndex? captured = null;
+        store.Setup(s => s.EnsureIndexAsync(It.IsAny<SearchIndex>(), It.IsAny<CancellationToken>()))
+            .Callback<SearchIndex, CancellationToken>((i, _) => captured = i)
+            .ReturnsAsync(true);
 
         await service.EnsureIndexAsync();
 
-        client.Verify(c => c.CreateOrUpdateIndexAsync(
-            It.Is<SearchIndex>(i => i.Name == "my-index"), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [TestMethod]
-    public async Task EnsureIndexAsync_UnexpectedFailureCheckingExistence_PropagatesWithoutCreating()
-    {
-        var (service, client) = BuildService();
-        client.Setup(c => c.GetIndexAsync("my-index", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new RequestFailedException(500, "server error"));
-
-        await Assert.ThrowsExceptionAsync<RequestFailedException>(() => service.EnsureIndexAsync());
-
-        client.Verify(c => c.CreateOrUpdateIndexAsync(
-            It.IsAny<SearchIndex>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.IsNotNull(captured);
+        var vectorField = captured!.Fields.Single(f => f.Name == "content_vector");
+        Assert.AreEqual(3072, vectorField.VectorSearchDimensions);
     }
 }

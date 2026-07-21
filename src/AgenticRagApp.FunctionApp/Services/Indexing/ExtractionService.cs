@@ -78,11 +78,12 @@ public class ExtractionService : IExtractionService
     private async Task<Dictionary<string, DateTimeOffset>> ListDocumentsInBlobAsync(CancellationToken ct)
     {
         var result = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        var blobs  = await _blobStore.ListBlobsAsync(_container, ct);
 
-        await foreach (var blobItem in _container.GetBlobsAsync(cancellationToken: ct))
+        foreach (var (name, lastModified, _) in blobs)
         {
-            if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
-            result[blobItem.Name] = blobItem.Properties.LastModified ?? DateTimeOffset.MinValue;
+            if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+            result[name] = lastModified ?? DateTimeOffset.MinValue;
         }
 
         return result;

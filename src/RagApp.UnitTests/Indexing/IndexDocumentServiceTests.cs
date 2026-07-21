@@ -1,9 +1,6 @@
-using Azure;
-using Azure.Search.Documents;
-using Azure.Search.Documents.Indexes;
-using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Observability.Reports;
 using AgenticRagApp.Services;
@@ -27,134 +24,51 @@ public class IndexDocumentServiceTests
         OpenAiGptModelName        = "gpt-model",
     };
 
-    private static (IndexDocumentService Service, Mock<SearchClient> Search, Mock<SearchIndexClient> Index, Mock<IRunReportWriter> ReportWriter)
+    private static (IndexDocumentService Service, Mock<ISearchDocumentStore> DocumentStore, Mock<ISearchIndexStore> IndexStore, Mock<IRunReportWriter> ReportWriter)
         BuildService()
     {
-        var reportWriter = new Mock<IRunReportWriter>();
-        var searchClient = new Mock<SearchClient>();
-        var indexClient  = new Mock<SearchIndexClient>();
-        var service = new IndexDocumentService(Config(), searchClient.Object, indexClient.Object, reportWriter.Object, NullLogger<IndexDocumentService>.Instance);
+        var documentStore = new Mock<ISearchDocumentStore>();
+        var indexStore    = new Mock<ISearchIndexStore>();
+        var reportWriter  = new Mock<IRunReportWriter>();
+        var service = new IndexDocumentService(Config(), documentStore.Object, indexStore.Object, reportWriter.Object, NullLogger<IndexDocumentService>.Instance);
 
-        return (service, searchClient, indexClient, reportWriter);
-    }
-
-    private static Response<IndexDocumentsResult> UploadResponse(params (string Key, bool Succeeded)[] results)
-    {
-        var indexingResults = results.Select(r => SearchModelFactory.IndexingResult(r.Key, r.Succeeded ? null : "failed", r.Succeeded, r.Succeeded ? 200 : 400)).ToList();
-        return Response.FromValue(SearchModelFactory.IndexDocumentsResult(indexingResults), Mock.Of<Response>());
-    }
-
-    private static SearchDocument DateDoc(string documentId, DateTimeOffset lastModified) => new()
-    {
-        ["document_id"]        = documentId,
-        ["last_modified_date"] = lastModified,
-    };
-
-    private static SearchDocument IdDoc(string id) => new() { ["id"] = id };
-
-    private static Response<SearchResults<SearchDocument>> SearchResponse(params SearchDocument[] docs)
-    {
-        var results = SearchModelFactory.SearchResults(
-            values: docs.Select(d => SearchModelFactory.SearchResult(d, 0.0, null)).ToList(),
-            totalCount: (long)docs.Length,
-            facets: null,
-            coverage: null,
-            rawResponse: Mock.Of<Response>());
-        return Response.FromValue(results, Mock.Of<Response>());
+        return (service, documentStore, indexStore, reportWriter);
     }
 
     [TestMethod]
-    public async Task UpsertDocumentsAsync_CountsSucceededAndFailedFromResponse()
+    public async Task UpsertDocumentsAsync_MapsDocumentChunksAndDelegatesToStore()
     {
-        var (service, search, _, _) = BuildService();
-        search.Setup(s => s.UploadDocumentsAsync(It.IsAny<IEnumerable<object>>(), It.IsAny<IndexDocumentsOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(UploadResponse(("c1", true), ("c2", false)));
+        var (service, documentStore, _, _) = BuildService();
+        documentStore
+            .Setup(s => s.UpsertDocumentsAsync(It.IsAny<IEnumerable<AgenticRagApp.Models.SearchUploadChunk>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((3, 1, 1));
 
-        var (succeeded, failed) = await service.UpsertDocumentsAsync([new AgenticRagApp.Models.DocumentChunk { Id = "c1" }, new AgenticRagApp.Models.DocumentChunk { Id = "c2" }]);
+        var (succeeded, failed) = await service.UpsertDocumentsAsync([
+            new AgenticRagApp.Models.DocumentChunk { Id = "c1" },
+            new AgenticRagApp.Models.DocumentChunk { Id = "c2" },
+        ]);
 
-        Assert.AreEqual(1, succeeded);
+        Assert.AreEqual(3, succeeded);
         Assert.AreEqual(1, failed);
     }
 
     [TestMethod]
-    public async Task GetCurrentIndexedDocumentDatesAsync_DeduplicatesByDocumentId_KeepingFirstOccurrence()
+    public async Task GetCurrentIndexedDocumentDatesAsync_DelegatesToStore()
     {
-        var (service, search, _, _) = BuildService();
-        var first  = DateTimeOffset.Parse("2024-01-01T00:00:00Z");
-        var second = DateTimeOffset.Parse("2024-06-01T00:00:00Z");
-        search.Setup(s => s.SearchAsync<SearchDocument>(It.IsAny<string>(), It.IsAny<SearchOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(SearchResponse(DateDoc("doc1", first), DateDoc("doc1", second)));
+        var (service, documentStore, _, _) = BuildService();
+        var expected = new Dictionary<string, DateTimeOffset> { ["doc1"] = DateTimeOffset.UtcNow };
+        documentStore.Setup(s => s.GetCurrentIndexedDocumentDatesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(expected);
 
         var result = await service.GetCurrentIndexedDocumentDatesAsync();
 
-        Assert.AreEqual(1, result.Count);
-        Assert.AreEqual(first, result["doc1"]);
+        Assert.AreSame(expected, result);
     }
 
     [TestMethod]
-    public async Task GetCurrentIndexedDocumentDatesAsync_KeyLookupIsCaseInsensitive()
+    public async Task GetStatisticsAsync_DelegatesToIndexStoreWithConfiguredIndexName()
     {
-        var (service, search, _, _) = BuildService();
-        search.Setup(s => s.SearchAsync<SearchDocument>(It.IsAny<string>(), It.IsAny<SearchOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(SearchResponse(DateDoc("DOC1", DateTimeOffset.UtcNow)));
-
-        var result = await service.GetCurrentIndexedDocumentDatesAsync();
-
-        Assert.IsTrue(result.ContainsKey("doc1"));
-    }
-
-    [TestMethod]
-    public async Task GetChunkIdsForDocumentsAsync_NoDocumentIds_ReturnsEmptyWithoutSearching()
-    {
-        var (service, search, _, _) = BuildService();
-
-        var result = await service.GetChunkIdsForDocumentsAsync([]);
-
-        Assert.AreEqual(0, result.Count);
-        search.Verify(s => s.SearchAsync<SearchDocument>(It.IsAny<string>(), It.IsAny<SearchOptions>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [TestMethod]
-    public async Task GetChunkIdsForDocumentsAsync_ReturnsIdsFromSearchResults()
-    {
-        var (service, search, _, _) = BuildService();
-        search.Setup(s => s.SearchAsync<SearchDocument>(It.IsAny<string>(), It.IsAny<SearchOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(SearchResponse(IdDoc("chunk1"), IdDoc("chunk2")));
-
-        var result = await service.GetChunkIdsForDocumentsAsync(["doc1"]);
-
-        CollectionAssert.AreEquivalent(new[] { "chunk1", "chunk2" }, result.ToList());
-    }
-
-    [TestMethod]
-    public async Task DeleteChunksByIdAsync_NoIds_ReturnsZeroWithoutCallingSearchClient()
-    {
-        var (service, search, _, _) = BuildService();
-
-        var result = await service.DeleteChunksByIdAsync([]);
-
-        Assert.AreEqual(0, result);
-        search.Verify(s => s.IndexDocumentsAsync(It.IsAny<IndexDocumentsBatch<object>>(), It.IsAny<IndexDocumentsOptions>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [TestMethod]
-    public async Task DeleteChunksByIdAsync_ReturnsCountOfIdsRequested()
-    {
-        var (service, search, _, _) = BuildService();
-        search.Setup(s => s.IndexDocumentsAsync(It.IsAny<IndexDocumentsBatch<object>>(), It.IsAny<IndexDocumentsOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(UploadResponse(("c1", true), ("c2", true)));
-
-        var result = await service.DeleteChunksByIdAsync(["c1", "c2"]);
-
-        Assert.AreEqual(2, result);
-    }
-
-    [TestMethod]
-    public async Task GetStatisticsAsync_ReturnsDocumentCountAndStorageSize()
-    {
-        var (service, _, indexClient, _) = BuildService();
-        indexClient.Setup(c => c.GetIndexStatisticsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(SearchModelFactory.SearchIndexStatistics(100, 2048), Mock.Of<Response>()));
+        var (service, _, indexStore, _) = BuildService();
+        indexStore.Setup(s => s.GetStatisticsAsync("index", It.IsAny<CancellationToken>())).ReturnsAsync((100L, 2048L));
 
         var (docCount, storageBytes) = await service.GetStatisticsAsync();
 

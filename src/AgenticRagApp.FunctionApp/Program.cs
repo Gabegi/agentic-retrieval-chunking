@@ -11,6 +11,7 @@ using OpenTelemetry.Trace;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
 using AgenticRagApp.Services;
@@ -97,6 +98,7 @@ var host = new HostBuilder()
         services.AddSingleton<IExtractionOrchestrator>(sp => new PdfExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
+            sp.GetRequiredService<IBlobStore>(),
             sp.GetRequiredService<IRunReportWriter>(),
             sp.GetServices<IPdfExtractor>().Single(e => e.Name == "DocumentIntelligence"),
             sp.GetRequiredService<IPdfCleaner>(),
@@ -107,6 +109,7 @@ var host = new HostBuilder()
         // RAG pipeline
         services.AddSingleton<IExtractionService>(sp => new ExtractionService(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
+            sp.GetRequiredService<IBlobStore>(),
             sp.GetRequiredService<IExtractionOrchestrator>(),
             sp.GetRequiredService<IIndexDocumentService>(),
             sp.GetRequiredService<IRunReportWriter>(),

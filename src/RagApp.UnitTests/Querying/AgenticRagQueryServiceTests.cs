@@ -2,10 +2,10 @@ using System.ClientModel.Primitives;
 using System.Text.Json;
 using Azure;
 using Azure.Search.Documents;
-using Azure.Search.Documents.KnowledgeBases;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using Azure.Search.Documents.Models;
 using Moq;
+using AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Services;
 
@@ -54,18 +54,18 @@ public class AgenticRagQueryServiceTests
         return mock;
     }
 
-    private static Mock<KnowledgeBaseRetrievalClient> MockRetrievalClient(
+    private static Mock<IKnowledgeRetrievalClient> MockRetrievalClient(
         IEnumerable<Dictionary<string, object?>> referenceSourceData, string answerText)
     {
         var response = RetrievalResponse(referenceSourceData, answerText);
-        var mock = new Mock<KnowledgeBaseRetrievalClient>();
-        mock.Setup(c => c.RetrieveAsync(It.IsAny<KnowledgeBaseRetrievalRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(response, Mock.Of<Response>()));
+        var mock = new Mock<IKnowledgeRetrievalClient>();
+        mock.Setup(c => c.RetrieveAsync(It.IsAny<KnowledgeBaseRetrievalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(response);
         return mock;
     }
 
     private static AgenticRagQueryService BuildService(
-        Mock<KnowledgeBaseRetrievalClient> client, Mock<SearchClient>? searchClient = null) =>
+        Mock<IKnowledgeRetrievalClient> client, Mock<SearchClient>? searchClient = null) =>
         new(Config(), client.Object, new ChunkNeighborExpander((searchClient ?? MockSearchClientWithNoNeighbors()).Object));
 
     [TestMethod]
