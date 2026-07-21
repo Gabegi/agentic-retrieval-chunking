@@ -63,23 +63,12 @@ public class IndexService : IIndexService
                 new SimpleField("document_id",        SearchFieldDataType.String)         { IsFilterable = true },
                 new SearchableField("title")                                               { IsFilterable = true, IsFacetable = true },
                 new SearchableField("content")                                             { AnalyzerName = "nl.microsoft" },
-                // Curated "what is this document for" line from Zenya's SUMMARY column —
-                // prime semantic-ranking material, kept out of "content" so it doesn't repeat once per chunk.
-                new SearchableField("summary")                                             { AnalyzerName = "nl.microsoft" },
+                // Breadcrumb (from the PDF's bookmark outline) or DI-detected heading for
+                // this page - see ChunkingService. Was always null before the chunking
+                // rewrite (docs/chunking-rewrite-plan.md), when nothing ever set it.
                 new SearchableField("heading")                                             { IsFilterable = true, IsFacetable = true, AnalyzerName = "nl.microsoft" },
-                // From FOLDER_MINI_FULL_PATH — bounded set of department/category values (HR, Kwaliteit, Facilitaire zaken, ...).
-                new SearchableField("department")                                          { IsFilterable = true, IsFacetable = true },
-                // From QUICK_CODE — Cordaan's internal document code; useful for exact-match lookups and citing source docs.
-                new SimpleField("quick_code",         SearchFieldDataType.String)         { IsFilterable = true },
-                // From RELATIVE_PATH — path back to the original PDF (e.g. "Cordaan/Zorg inhoud/Kwaliteit/{id}_{ts}.pdf").
-                // Structured provenance metadata, not free-text search material — not searchable, just citable.
-                new SimpleField("relative_path",      SearchFieldDataType.String)         { IsFilterable = true },
-                // From LAST_MODIFIED_DATETIME. Renamed from publication_date (no true pub date exists) and retyped to enable date filtering/sorting.
+                // The blob's own storage LastModified.
                 new SimpleField("last_modified_date", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
-                // From CHECK_DATE — the next review/expiry date. Lets the RAG layer flag or exclude stale protocols.
-                new SimpleField("check_date",         SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
-                // Populated as VERSION.REVISION (e.g. "7.0") by CsvExtractor.FormatVersion.
-                new SimpleField("version",            SearchFieldDataType.String)         { IsFilterable = true },
                 new SimpleField("page_number",        SearchFieldDataType.Int32),
                 new SimpleField("chunk_index",        SearchFieldDataType.Int32),
                 new VectorSearchField("content_vector", _config.OpenAiEmbeddingDimensions, "vector-profile") { IsHidden = true, IsStored = false }
