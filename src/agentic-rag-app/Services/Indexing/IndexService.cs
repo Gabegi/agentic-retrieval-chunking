@@ -71,6 +71,15 @@ public class IndexService : IIndexService
                 new SimpleField("last_modified_date", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
                 new SimpleField("page_number",        SearchFieldDataType.Int32),
                 new SimpleField("chunk_index",        SearchFieldDataType.Int32),
+
+                // Document Intelligence structural signals (docs/chunking-rewrite-plan.md's
+                // Tier 2) - derived on DocumentChunk from the raw Tables/Figures/
+                // AverageWordConfidence fields already carried through from extraction.
+                new SimpleField("table_count",        SearchFieldDataType.Int32)          { IsFilterable = true },
+                new SimpleField("has_table",          SearchFieldDataType.Boolean)        { IsFilterable = true, IsFacetable = true },
+                new SimpleField("page_quality",       SearchFieldDataType.Double)         { IsFilterable = true, IsSortable = true },
+                new SearchableField("figure_captions", collection: true)                   { AnalyzerName = "nl.microsoft" },
+
                 new VectorSearchField("content_vector", _config.OpenAiEmbeddingDimensions, "vector-profile") { IsHidden = true, IsStored = false }
             }
         };
