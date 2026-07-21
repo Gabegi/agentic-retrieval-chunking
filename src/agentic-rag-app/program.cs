@@ -126,6 +126,12 @@ var host = new HostBuilder()
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("telemetry-reports"),
                 sp.GetRequiredService<IHostEnvironment>()));
 
+        // Persistent full-content archive - separate container from telemetry-reports above,
+        // always on (not gated by environment or a config flag - see IPipelineArtifactWriter).
+        services.AddSingleton<IPipelineArtifactWriter>(sp =>
+            new PipelineArtifactWriter(
+                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("indexing-artifacts")));
+
         services.AddSingleton(_ =>
             new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential));
         services.AddSingleton(_ =>
