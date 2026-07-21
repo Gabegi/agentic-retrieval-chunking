@@ -7,7 +7,7 @@ using Azure.Search.Documents.Models;
 using Moq;
 using AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
 using AgenticRagApp.Infrastructure.Configuration;
-using AgenticRagApp.Services;
+using AgenticRagApp.Querying.Services;
 
 namespace RagApp.UnitTests.Querying;
 

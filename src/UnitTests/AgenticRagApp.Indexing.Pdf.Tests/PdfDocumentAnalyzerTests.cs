@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using AgenticRagApp.Infrastructure.Clients.DocumentIntelligence;
-using AgenticRagApp.Models;
-using AgenticRagApp.Services;
+using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Indexing.Pdf.Services;
 
 namespace RagApp.UnitTests.PdfExtraction;
 

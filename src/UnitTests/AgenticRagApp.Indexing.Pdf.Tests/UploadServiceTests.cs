@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using AgenticRagApp.Models;
-using AgenticRagApp.Services;
+using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Indexing.Pdf.Services;
+using AgenticRagApp.Infrastructure.Clients.Search;
+using AgenticRagApp.Observability.Reports;
 
 namespace RagApp.UnitTests.Indexing;
 
@@ -15,11 +17,10 @@ public class UploadServiceTests
         IReadOnlyList<string>? existingChunkIds = null,
         int deletedCount = 0,
         (long DocCount, long StorageBytes)? stats = null,
-        IReadOnlyList<string>? driftRedFlags = null,
         Exception? statsException = null)
     {
         var mock = new Mock<IIndexDocumentService>();
-        mock.Setup(m => m.UpsertDocumentsAsync(It.IsAny<IEnumerable<DocumentChunk>>(), It.IsAny<CancellationToken>()))
+        mock.Setup(m => m.UpsertDocumentsAsync(It.IsAny<IEnumerable<SearchUploadChunk>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((succeeded, failed));
         mock.Setup(m => m.GetChunkIdsForDocumentsAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingChunkIds ?? []);
@@ -31,14 +32,20 @@ public class UploadServiceTests
         else
             mock.Setup(m => m.GetStatisticsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(stats ?? (0L, 0L));
 
-        mock.Setup(m => m.CheckDriftAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(driftRedFlags ?? []);
-
         return mock;
     }
 
-    private static UploadService BuildService(Mock<IIndexDocumentService> indexDocumentService) =>
-        new(indexDocumentService.Object, NullLogger<UploadService>.Instance);
+    private static Mock<IIndexStatsMonitor> MockIndexStatsMonitor(IReadOnlyList<string>? driftRedFlags = null)
+    {
+        var mock = new Mock<IIndexStatsMonitor>();
+        mock.Setup(m => m.RecordAndCheckDriftAsync(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(driftRedFlags ?? []);
+        return mock;
+    }
+
+    private static UploadService BuildService(
+        Mock<IIndexDocumentService> indexDocumentService, Mock<IIndexStatsMonitor>? indexStatsMonitor = null) =>
+        new(indexDocumentService.Object, (indexStatsMonitor ?? MockIndexStatsMonitor()).Object, NullLogger<UploadService>.Instance);
 
     [TestMethod]
     public async Task UploadDocumentsAsync_ReturnsSucceededAndFailedCountsFromIndexService()
@@ -100,11 +107,9 @@ public class UploadServiceTests
     [TestMethod]
     public async Task UploadDocumentsAsync_StatsSnapshotSucceeds_PopulatesSnapshotAndRedFlags()
     {
-        var indexService = MockIndexDocumentService(
-            succeeded: 1, failed: 0,
-            stats: (100L, 2048L),
-            driftRedFlags: ["index_doc_count_drift:+50.0% (50 -> 100)"]);
-        var service = BuildService(indexService);
+        var indexService     = MockIndexDocumentService(succeeded: 1, failed: 0, stats: (100L, 2048L));
+        var indexStatsMonitor = MockIndexStatsMonitor(driftRedFlags: ["index_doc_count_drift:+50.0% (50 -> 100)"]);
+        var service = BuildService(indexService, indexStatsMonitor);
 
         var result = await service.UploadDocumentsAsync([Document("d1")], staleDocumentIds: []);
 

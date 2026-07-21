@@ -1,8 +1,8 @@
 using Azure;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Hosting;
 using Moq;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Observability.Reports;
 
 namespace RagApp.UnitTests.Observability;
@@ -17,30 +17,15 @@ public class RunReportWriterTests
         return mock;
     }
 
-    private static (Mock<BlobContainerClient> Container, Mock<BlobClient> Blob) MockContainer()
-    {
-        var blob = new Mock<BlobClient>();
-        blob.Setup(b => b.UploadAsync(It.IsAny<Stream>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(
-                BlobsModelFactory.BlobContentInfo(
-                    eTag: new ETag("etag"), lastModified: DateTimeOffset.UtcNow, contentHash: [],
-                    encryptionKeySha256: "", encryptionScope: "", blobSequenceNumber: 0, versionId: ""),
-                Mock.Of<Response>()));
+    private static Mock<IBlobStore> MockBlobStore() => new();
 
-        var container = new Mock<BlobContainerClient>();
-        container.Setup(c => c.CreateIfNotExistsAsync(
-                It.IsAny<PublicAccessType>(), It.IsAny<IDictionary<string, string>>(), It.IsAny<BlobContainerEncryptionScopeOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Response<BlobContainerInfo>)null!);
-        container.Setup(c => c.GetBlobClient(It.IsAny<string>())).Returns(blob.Object);
-
-        return (container, blob);
-    }
+    private static RunReportWriter BuildWriter(Mock<IBlobStore> blobStore, bool isDevelopment = true) =>
+        new(blobStore.Object, new Mock<BlobContainerClient>().Object, MockEnvironment(isDevelopment).Object);
 
     [TestMethod]
     public void IsEnabled_TrueInDevelopment()
     {
-        var (container, _) = MockContainer();
-        var writer = new RunReportWriter(container.Object, MockEnvironment(isDevelopment: true).Object);
+        var writer = BuildWriter(MockBlobStore(), isDevelopment: true);
 
         Assert.IsTrue(writer.IsEnabled);
     }
@@ -48,8 +33,7 @@ public class RunReportWriterTests
     [TestMethod]
     public void IsEnabled_FalseOutsideDevelopment()
     {
-        var (container, _) = MockContainer();
-        var writer = new RunReportWriter(container.Object, MockEnvironment(isDevelopment: false).Object);
+        var writer = BuildWriter(MockBlobStore(), isDevelopment: false);
 
         Assert.IsFalse(writer.IsEnabled);
     }
@@ -57,72 +41,51 @@ public class RunReportWriterTests
     [TestMethod]
     public async Task WriteReportAsync_UploadsSerializedReportToTheGivenPath()
     {
-        var (container, blob) = MockContainer();
-        var writer = new RunReportWriter(container.Object, MockEnvironment(isDevelopment: true).Object);
+        var blobStore = MockBlobStore();
+        var writer    = BuildWriter(blobStore);
 
         await writer.WriteReportAsync("some/path.json", new { Foo = "bar" });
 
-        container.Verify(c => c.GetBlobClient("some/path.json"), Times.Once);
-        blob.Verify(b => b.UploadAsync(It.IsAny<Stream>(), true, It.IsAny<CancellationToken>()), Times.Once);
+        blobStore.Verify(s => s.UploadAsync(
+            It.IsAny<BlobContainerClient>(), "some/path.json", It.IsAny<BinaryData>(), true, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
-    public async Task GetLastIndexStatsAsync_BlobDoesNotExist_ReturnsNull()
+    public async Task GetLastIndexStatsAsync_NoBaselineBlobYet_ReturnsNullRatherThanThrowing()
     {
-        var (container, blob) = MockContainer();
-        blob.Setup(b => b.ExistsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(false, Mock.Of<Response>()));
-        var writer = new RunReportWriter(container.Object, MockEnvironment(isDevelopment: true).Object);
+        // No IBlobStore setup at all - Moq's default for an unconfigured generic call
+        // returns default(T) (a null value tuple), mirroring "no baseline blob exists yet".
+        var writer = BuildWriter(MockBlobStore());
 
-        var stats = await writer.GetLastIndexStatsAsync();
+        var stats = await writer.GetLastIndexStatsAsync("pdf");
 
         Assert.IsNull(stats);
     }
 
     [TestMethod]
-    public async Task GetLastIndexStatsAsync_BlobExists_ReturnsDeserializedStats()
+    public async Task SaveLastIndexStatsAsync_UploadsToTheSourceScopedPath()
     {
-        var (container, blob) = MockContainer();
-        var json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { DocumentCount = 100L, StorageSizeBytes = 2048L });
-        blob.Setup(b => b.ExistsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(true, Mock.Of<Response>()));
-        blob.Setup(b => b.DownloadContentAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(
-                BlobsModelFactory.BlobDownloadResult(content: BinaryData.FromBytes(json)),
-                Mock.Of<Response>()));
-        var writer = new RunReportWriter(container.Object, MockEnvironment(isDevelopment: true).Object);
+        var blobStore = MockBlobStore();
+        var writer    = BuildWriter(blobStore);
 
-        var stats = await writer.GetLastIndexStatsAsync();
+        await writer.SaveLastIndexStatsAsync("pdf", 100, 2048);
 
-        Assert.IsNotNull(stats);
-        Assert.AreEqual(100L, stats.Value.DocumentCount);
-        Assert.AreEqual(2048L, stats.Value.StorageSizeBytes);
+        blobStore.Verify(s => s.UploadAsync(
+            It.IsAny<BlobContainerClient>(), "indexing/_last-stats-pdf.json", It.IsAny<BinaryData>(), true, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
-    public async Task GetLastIndexStatsAsync_CorruptBlob_ReturnsNullRatherThanThrowing()
+    public async Task SaveLastIndexStatsAsync_ScopesPathPerSource_PdfAndCsvNeverShareABaseline()
     {
-        var (container, blob) = MockContainer();
-        blob.Setup(b => b.ExistsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(true, Mock.Of<Response>()));
-        blob.Setup(b => b.DownloadContentAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new RequestFailedException(500, "corrupt"));
-        var writer = new RunReportWriter(container.Object, MockEnvironment(isDevelopment: true).Object);
+        var blobStore = MockBlobStore();
+        var writer    = BuildWriter(blobStore);
 
-        var stats = await writer.GetLastIndexStatsAsync();
+        await writer.SaveLastIndexStatsAsync("pdf", 100, 2048);
+        await writer.SaveLastIndexStatsAsync("csv", 50, 1024);
 
-        Assert.IsNull(stats);
-    }
-
-    [TestMethod]
-    public async Task SaveLastIndexStatsAsync_UploadsToTheWellKnownPath()
-    {
-        var (container, blob) = MockContainer();
-        var writer = new RunReportWriter(container.Object, MockEnvironment(isDevelopment: true).Object);
-
-        await writer.SaveLastIndexStatsAsync(100, 2048);
-
-        container.Verify(c => c.GetBlobClient("indexing/_last-stats.json"), Times.Once);
-        blob.Verify(b => b.UploadAsync(It.IsAny<Stream>(), true, It.IsAny<CancellationToken>()), Times.Once);
+        blobStore.Verify(s => s.UploadAsync(
+            It.IsAny<BlobContainerClient>(), "indexing/_last-stats-pdf.json", It.IsAny<BinaryData>(), true, It.IsAny<CancellationToken>()), Times.Once);
+        blobStore.Verify(s => s.UploadAsync(
+            It.IsAny<BlobContainerClient>(), "indexing/_last-stats-csv.json", It.IsAny<BinaryData>(), true, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

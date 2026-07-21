@@ -1,6 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using CsvIndexing.Models;
-using CsvIndexing.Services;
+using AgenticRagApp.Indexing.Csv.Models;
+using AgenticRagApp.Indexing.Csv.Services;
 
 namespace RagApp.UnitTests.CsvExtraction;
 

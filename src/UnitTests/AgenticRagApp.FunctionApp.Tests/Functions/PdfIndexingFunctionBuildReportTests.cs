@@ -1,21 +1,20 @@
 using System.Reflection;
 using Microsoft.DurableTask;
 using Moq;
-using AgenticRagApp;
-using AgenticRagApp.Models;
+using AgenticRagApp.Functions;
 using AgenticRagApp.Observability.Reports;
 
 namespace RagApp.UnitTests.Functions;
 
-// IndexingFunction.BuildReport is a private static method - the single biggest risk hotspot
+// PdfIndexingFunction.BuildReport is a private static method - the single biggest risk hotspot
 // in the assembly (highest cyclomatic complexity, all null-coalescing over the three stage
 // results). It's pure data assembly with no I/O, so it's invoked directly via reflection
 // rather than exercising it indirectly through the orchestrator.
 [TestClass]
-public class IndexingFunctionBuildReportTests
+public class PdfIndexingFunctionBuildReportTests
 {
     private static readonly MethodInfo BuildReportMethod =
-        typeof(IndexingFunction).GetMethod("BuildReport", BindingFlags.NonPublic | BindingFlags.Static)!;
+        typeof(PdfIndexingFunction).GetMethod("BuildReport", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static Mock<TaskOrchestrationContext> MockContext(string instanceId, DateTime finishedAt)
     {
@@ -25,15 +24,14 @@ public class IndexingFunctionBuildReportTests
         return mock;
     }
 
-    private static IndexRunReport Invoke(
+    private static PdfIndexRunReport Invoke(
         TaskOrchestrationContext context, DateTimeOffset startedAt, IndexRequest input,
         ExtractionResults? ext, ChunkingResults? chunk, EmbedUploadingResults? embed,
         bool success, string? error) =>
-        (IndexRunReport)BuildReportMethod.Invoke(null, [context, startedAt, input, ext, chunk, embed, success, error])!;
+        (PdfIndexRunReport)BuildReportMethod.Invoke(null, [context, startedAt, input, ext, chunk, embed, success, error])!;
 
-    private static ExtractionResults Extraction(
-        string source = "csv", int docsNew = 1, IReadOnlyList<string>? staleIds = null, IReadOnlyList<string>? redFlags = null) => new(
-        Source:                 source,
+    private static ExtractionResults Extraction(int docsNew = 1, IReadOnlyList<string>? staleIds = null, IReadOnlyList<string>? redFlags = null) => new(
+        Source:                 "pdf",
         DocsToProcess:          1,
         DocsSkipped:            2,
         DocsNew:                docsNew,
@@ -43,13 +41,13 @@ public class IndexingFunctionBuildReportTests
         ValidationErrors:       5,
         ValidationWarnings:     6,
         ReconciliationProblems: 7,
-        StaleDocCount:          8,
+        StaleDocCount:          null,
         MojibakeRepairedPages:  13,
         DetectedTableCount:     14,
         DocsWithoutHeadings:    9,
         MissingTitleCount:      10,
-        MissingVersionCount:    11,
-        MissingDepartmentCount: 12,
+        MissingVersionCount:    null,
+        MissingDepartmentCount: null,
         Issues:                 [new ValidationIssueEntry("Extract", "Error", "doc1", "bad row")],
         RedFlags:               redFlags ?? ["extraction flag"],
         SpotCheckSample:        [new SpotCheckEntry("doc1", "Title", "preview...")]);
@@ -96,7 +94,6 @@ public class IndexingFunctionBuildReportTests
         Assert.AreEqual("instance-1", report.InstanceId);
         Assert.AreEqual(startedAt, report.StartedAt);
         Assert.AreEqual(finishedAt, report.FinishedAt);
-        Assert.AreEqual("csv", report.Source);
         Assert.IsTrue(report.ForceReindex);
         Assert.IsTrue(report.Success);
         Assert.IsNull(report.ErrorMessage);
@@ -117,7 +114,6 @@ public class IndexingFunctionBuildReportTests
         var report = Invoke(context.Object, DateTimeOffset.UtcNow, new IndexRequest(ForceReindex: false),
             ext: null, chunk: null, embed: null, success: false, error: "boom");
 
-        Assert.AreEqual("unknown", report.Source);
         Assert.IsFalse(report.Success);
         Assert.AreEqual("boom", report.ErrorMessage);
         Assert.AreEqual(0, report.DocsToProcess);
@@ -138,7 +134,6 @@ public class IndexingFunctionBuildReportTests
         var report = Invoke(context.Object, DateTimeOffset.UtcNow, new IndexRequest(ForceReindex: false),
             Extraction(), chunk: null, embed: null, success: false, error: "chunk activity failed");
 
-        Assert.AreEqual("csv", report.Source);
         Assert.AreEqual(1, report.DocsToProcess);
         Assert.AreEqual(0, report.ChunksProduced);
         Assert.AreEqual(0, report.DocsUploaded);

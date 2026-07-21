@@ -3,9 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
-using AgenticRagApp.Services;
 
-namespace RagApp.UnitTests.Indexing;
+namespace RagApp.UnitTests.Infrastructure.Search;
 
 [TestClass]
 public class IndexServiceTests

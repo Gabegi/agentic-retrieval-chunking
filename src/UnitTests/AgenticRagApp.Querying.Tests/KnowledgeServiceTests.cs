@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
-using AgenticRagApp.Services;
+using AgenticRagApp.Querying.Services;
 
 namespace RagApp.UnitTests.Querying;
 

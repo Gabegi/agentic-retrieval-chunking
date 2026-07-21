@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using CsvIndexing.Models;
-using CsvIndexing.Services;
+using AgenticRagApp.Indexing.Csv.Models;
+using AgenticRagApp.Indexing.Csv.Services;
 
 namespace RagApp.UnitTests.CsvExtraction;
 

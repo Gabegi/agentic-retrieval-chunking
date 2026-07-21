@@ -1,8 +1,8 @@
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using AgenticRagApp.Models;
-using AgenticRagApp.Services;
+using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Indexing.Pdf.Services;
 
 namespace RagApp.UnitTests.PdfExtraction;
 

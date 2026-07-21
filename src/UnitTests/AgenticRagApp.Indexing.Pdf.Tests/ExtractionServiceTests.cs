@@ -2,9 +2,10 @@ using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using AgenticRagApp.Infrastructure.Clients.Blob;
-using AgenticRagApp.Models;
+using AgenticRagApp.Infrastructure.Clients.Search;
+using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Observability.Reports;
-using AgenticRagApp.Services;
+using AgenticRagApp.Indexing.Pdf.Services;
 
 namespace RagApp.UnitTests.CsvExtraction;
 
@@ -54,7 +55,7 @@ public class ExtractionServiceTests
     private static Mock<IBlobStore> MockBlobStore(params (string Name, DateTimeOffset LastModified)[] blobs)
     {
         var store = new Mock<IBlobStore>();
-        store.Setup(s => s.ListBlobsAsync(It.IsAny<BlobContainerClient>(), It.IsAny<CancellationToken>()))
+        store.Setup(s => s.ListBlobsAsync(It.IsAny<BlobContainerClient>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(blobs.Select(b => (b.Name, (DateTimeOffset?)b.LastModified, (long?)null)).ToList());
         return store;
     }

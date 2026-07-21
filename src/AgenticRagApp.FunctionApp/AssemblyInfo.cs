@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("RagApp.UnitTests")]
+[assembly: InternalsVisibleTo("AgenticRagApp.FunctionApp.Tests")]

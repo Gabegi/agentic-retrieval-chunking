@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using AgenticRagApp.Models;
-using AgenticRagApp.Services;
-using AgenticRagApp.Utils;
+using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Indexing.Pdf.Services;
+using AgenticRagApp.Indexing.Pdf.Utils;
 
 namespace RagApp.UnitTests.Indexing;
 

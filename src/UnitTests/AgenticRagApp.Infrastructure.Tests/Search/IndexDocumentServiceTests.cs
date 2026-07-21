@@ -2,10 +2,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
-using AgenticRagApp.Observability.Reports;
-using AgenticRagApp.Services;
 
-namespace RagApp.UnitTests.Indexing;
+namespace RagApp.UnitTests.Infrastructure.Search;
 
 [TestClass]
 public class IndexDocumentServiceTests
@@ -24,28 +22,29 @@ public class IndexDocumentServiceTests
         OpenAiGptModelName        = "gpt-model",
     };
 
-    private static (IndexDocumentService Service, Mock<ISearchDocumentStore> DocumentStore, Mock<ISearchIndexStore> IndexStore, Mock<IRunReportWriter> ReportWriter)
+    private static (IndexDocumentService Service, Mock<ISearchDocumentStore> DocumentStore, Mock<ISearchIndexStore> IndexStore)
         BuildService()
     {
         var documentStore = new Mock<ISearchDocumentStore>();
         var indexStore    = new Mock<ISearchIndexStore>();
-        var reportWriter  = new Mock<IRunReportWriter>();
-        var service = new IndexDocumentService(Config(), documentStore.Object, indexStore.Object, reportWriter.Object, NullLogger<IndexDocumentService>.Instance);
+        var service = new IndexDocumentService(Config(), documentStore.Object, indexStore.Object, NullLogger<IndexDocumentService>.Instance);
 
-        return (service, documentStore, indexStore, reportWriter);
+        return (service, documentStore, indexStore);
     }
 
+    private sealed record FakeUploadChunk(string Id);
+
     [TestMethod]
-    public async Task UpsertDocumentsAsync_MapsDocumentChunksAndDelegatesToStore()
+    public async Task UpsertDocumentsAsync_DelegatesToStoreForWhateverDocumentTypeIsPassed()
     {
-        var (service, documentStore, _, _) = BuildService();
+        var (service, documentStore, _) = BuildService();
         documentStore
-            .Setup(s => s.UpsertDocumentsAsync(It.IsAny<IEnumerable<AgenticRagApp.Models.SearchUploadChunk>>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.UpsertDocumentsAsync(It.IsAny<IEnumerable<FakeUploadChunk>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((3, 1, 1));
 
         var (succeeded, failed) = await service.UpsertDocumentsAsync([
-            new AgenticRagApp.Models.DocumentChunk { Id = "c1" },
-            new AgenticRagApp.Models.DocumentChunk { Id = "c2" },
+            new FakeUploadChunk("c1"),
+            new FakeUploadChunk("c2"),
         ]);
 
         Assert.AreEqual(3, succeeded);
@@ -55,7 +54,7 @@ public class IndexDocumentServiceTests
     [TestMethod]
     public async Task GetCurrentIndexedDocumentDatesAsync_DelegatesToStore()
     {
-        var (service, documentStore, _, _) = BuildService();
+        var (service, documentStore, _) = BuildService();
         var expected = new Dictionary<string, DateTimeOffset> { ["doc1"] = DateTimeOffset.UtcNow };
         documentStore.Setup(s => s.GetCurrentIndexedDocumentDatesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(expected);
 
@@ -65,62 +64,37 @@ public class IndexDocumentServiceTests
     }
 
     [TestMethod]
+    public async Task GetChunkIdsForDocumentsAsync_DelegatesToStore()
+    {
+        var (service, documentStore, _) = BuildService();
+        documentStore.Setup(s => s.GetChunkIdsForDocumentsAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(["c1", "c2"]);
+
+        var result = await service.GetChunkIdsForDocumentsAsync(["doc1"]);
+
+        CollectionAssert.AreEqual(new[] { "c1", "c2" }, result.ToList());
+    }
+
+    [TestMethod]
+    public async Task DeleteChunksByIdAsync_DelegatesToStore()
+    {
+        var (service, documentStore, _) = BuildService();
+        documentStore.Setup(s => s.DeleteChunksByIdAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync(2);
+
+        var result = await service.DeleteChunksByIdAsync(["c1", "c2"]);
+
+        Assert.AreEqual(2, result);
+    }
+
+    [TestMethod]
     public async Task GetStatisticsAsync_DelegatesToIndexStoreWithConfiguredIndexName()
     {
-        var (service, _, indexStore, _) = BuildService();
+        var (service, _, indexStore) = BuildService();
         indexStore.Setup(s => s.GetStatisticsAsync("index", It.IsAny<CancellationToken>())).ReturnsAsync((100L, 2048L));
 
         var (docCount, storageBytes) = await service.GetStatisticsAsync();
 
         Assert.AreEqual(100L, docCount);
         Assert.AreEqual(2048L, storageBytes);
-    }
-
-    [TestMethod]
-    public async Task CheckDriftAsync_NoBaseline_NoRedFlagsButStillSavesNewBaseline()
-    {
-        var (service, _, _, reportWriter) = BuildService();
-        reportWriter.Setup(w => w.GetLastIndexStatsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(((long, long)?)null);
-
-        var redFlags = await service.CheckDriftAsync(100, 2048);
-
-        Assert.AreEqual(0, redFlags.Count);
-        reportWriter.Verify(w => w.SaveLastIndexStatsAsync(100, 2048, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [TestMethod]
-    public async Task CheckDriftAsync_WithinThreshold_NoRedFlags()
-    {
-        var (service, _, _, reportWriter) = BuildService();
-        reportWriter.Setup(w => w.GetLastIndexStatsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(((long DocumentCount, long StorageSizeBytes)?)(100L, 1000L));
-
-        // +10% - within the 15% threshold.
-        var redFlags = await service.CheckDriftAsync(110, 1000);
-
-        Assert.AreEqual(0, redFlags.Count);
-    }
-
-    [TestMethod]
-    public async Task CheckDriftAsync_BeyondThreshold_FlagsDrift()
-    {
-        var (service, _, _, reportWriter) = BuildService();
-        reportWriter.Setup(w => w.GetLastIndexStatsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(((long DocumentCount, long StorageSizeBytes)?)(100L, 1000L));
-
-        // -50% - well beyond the 15% threshold.
-        var redFlags = await service.CheckDriftAsync(50, 1000);
-
-        Assert.AreEqual(1, redFlags.Count);
-        Assert.IsTrue(redFlags[0].Contains("index_doc_count_drift"));
-    }
-
-    [TestMethod]
-    public async Task CheckDriftAsync_ZeroBaselineDocumentCount_SkipsComparisonToAvoidDivideByZero()
-    {
-        var (service, _, _, reportWriter) = BuildService();
-        reportWriter.Setup(w => w.GetLastIndexStatsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(((long DocumentCount, long StorageSizeBytes)?)(0L, 0L));
-
-        var redFlags = await service.CheckDriftAsync(1000, 2048);
-
-        Assert.AreEqual(0, redFlags.Count);
     }
 }

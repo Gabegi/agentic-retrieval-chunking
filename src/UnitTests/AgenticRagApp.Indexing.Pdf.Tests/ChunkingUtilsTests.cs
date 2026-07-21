@@ -1,4 +1,4 @@
-using AgenticRagApp.Utils;
+using AgenticRagApp.Indexing.Pdf.Utils;
 
 namespace RagApp.UnitTests.Indexing;
 
