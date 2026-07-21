@@ -4,7 +4,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Observability.Reports;
-using AgenticRagApp.Services;
+using AgenticRagApp.Querying.Services;
 
 namespace AgenticRagApp;
 
