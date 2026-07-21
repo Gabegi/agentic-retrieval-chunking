@@ -42,7 +42,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     // different reason (Durable Table Storage's 64KB row-size limit).
     private const int MaxLoggedIssues = 100;
 
-    private sealed record RunState(int CleanedRecords);
+    internal sealed record RunState(int CleanedRecords);
 
     public CsvExtractionOrchestrator(
         BlobContainerClient                container,

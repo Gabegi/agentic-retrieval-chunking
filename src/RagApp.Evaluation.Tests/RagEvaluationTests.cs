@@ -6,6 +6,8 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.KnowledgeBases;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.AI;
+using AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Services;
 using RagApp.Evaluation.Tests.Evaluation;
@@ -58,16 +60,16 @@ public class RagEvaluationTests
             .ConfigureOptions(o => o.MaxOutputTokens ??= 500)
             .Build();
 
-        var indexClient = new SearchIndexClient(new Uri(config.SearchEndpoint), credential);
-        var knowledgeService = new KnowledgeService(config, indexClient,
+        var indexStore = new SearchIndexStore(new SearchIndexClient(new Uri(config.SearchEndpoint), credential));
+        var knowledgeService = new KnowledgeService(config, indexStore,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<KnowledgeService>.Instance);
         await knowledgeService.EnsureKnowledgeSourceAsync();
         await knowledgeService.EnsureKnowledgeBaseAsync();
 
         var searchClient = new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential);
-        var kbClient = new KnowledgeBaseRetrievalClient(new Uri(config.SearchEndpoint), config.KnowledgeBaseName, credential);
+        var retrievalClient = new KnowledgeRetrievalClient(new KnowledgeBaseRetrievalClient(new Uri(config.SearchEndpoint), config.KnowledgeBaseName, credential));
         var neighborExpander = new ChunkNeighborExpander(searchClient);
-        _ragService = new AgenticRagQueryService(config, kbClient, neighborExpander);
+        _ragService = new AgenticRagQueryService(config, retrievalClient, neighborExpander);
         _evaluator = new RagEvaluator(judgeClient);
         _writer = new EvalResultWriter(container, executionId: $"{DateTime.UtcNow:yyyyMMddTHHmmss}");
     }

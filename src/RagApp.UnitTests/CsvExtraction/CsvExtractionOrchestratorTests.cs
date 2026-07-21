@@ -1,11 +1,10 @@
 using System.Text;
 using Azure;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using CsvIndexing.Services;
 using IndexingShared.Observability.Reports;
 
@@ -33,59 +32,29 @@ public class CsvExtractionOrchestratorTests
 
     private static Stream ToStream(string csv) => new MemoryStream(Encoding.UTF8.GetBytes(csv));
 
-    private static Mock<BlobClient> MockBlobClient()
+    // Mocks IBlobStore's stream reads for the two source blobs (pages.csv/index.csv) and
+    // the ETag-based read/write of the run-state blob - the orchestrator never touches
+    // BlobContainerClient/BlobClient directly anymore, everything funnels through this.
+    private static Mock<IBlobStore> MockBlobStore(
+        string pagesCsv, string indexCsv,
+        CsvExtractionOrchestrator.RunState? previousState = null, ETag? previousETag = null)
     {
-        var blob = new Mock<BlobClient>();
-        return blob;
-    }
+        var store = new Mock<IBlobStore>();
 
-    // Wires up GetBlobClient(name) on a container mock to hand back the given BlobClient mock.
-    private static Mock<BlobContainerClient> MockContainer(params (string Name, Mock<BlobClient> Client)[] blobs)
-    {
-        var container = new Mock<BlobContainerClient>();
-        foreach (var (name, client) in blobs)
-            container.Setup(c => c.GetBlobClient(name)).Returns(client.Object);
-        return container;
-    }
-
-    // Source container serving pages.csv/index.csv as readable streams, exactly like a real
-    // BlobClient.OpenReadAsync would once the download completes.
-    private static BlobContainerClient BuildSourceContainer(string pagesCsv, string indexCsv)
-    {
-        var pagesBlob = MockBlobClient();
-        pagesBlob.Setup(b => b.OpenReadAsync(It.IsAny<long>(), It.IsAny<int?>(), It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+        store.Setup(s => s.OpenReadAsync(It.IsAny<BlobContainerClient>(), PagesBlobName, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => ToStream(pagesCsv));
-
-        var indexBlob = MockBlobClient();
-        indexBlob.Setup(b => b.OpenReadAsync(It.IsAny<long>(), It.IsAny<int?>(), It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+        store.Setup(s => s.OpenReadAsync(It.IsAny<BlobContainerClient>(), IndexBlobName, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => ToStream(indexCsv));
 
-        return MockContainer((PagesBlobName, pagesBlob), (IndexBlobName, indexBlob)).Object;
-    }
+        store.Setup(s => s.TryReadJsonWithETagAsync<CsvExtractionOrchestrator.RunState>(
+                It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((previousState, previousETag));
 
-    // State container backing the run-state blob (previous cleaned-record baseline).
-    // existingContent == null means "blob doesn't exist yet" (first run).
-    private static (BlobContainerClient Container, Mock<BlobClient> StateBlob) BuildStateContainer(
-        string? existingContent, ETag? existingETag = null)
-    {
-        var stateBlob = MockBlobClient();
+        store.Setup(s => s.SaveJsonWithETagAsync(
+                It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<CsvExtractionOrchestrator.RunState>(), It.IsAny<ETag?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
-        stateBlob.Setup(b => b.ExistsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Response.FromValue(existingContent is not null, Mock.Of<Response>()));
-
-        if (existingContent is not null)
-        {
-            var details = BlobsModelFactory.BlobDownloadDetails(eTag: existingETag ?? new ETag("\"baseline\""));
-            var result  = BlobsModelFactory.BlobDownloadResult(content: BinaryData.FromString(existingContent), details: details);
-            stateBlob.Setup(b => b.DownloadContentAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Response.FromValue(result, Mock.Of<Response>()));
-        }
-
-        stateBlob.Setup(b => b.UploadAsync(It.IsAny<BinaryData>(), It.IsAny<BlobUploadOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Response<BlobContentInfo>)null!);
-
-        var container = MockContainer((StateBlobName, stateBlob));
-        return (container.Object, stateBlob);
+        return store;
     }
 
     private static Mock<IRunReportWriter> MockReportWriter(bool isEnabled = true)
@@ -98,9 +67,9 @@ public class CsvExtractionOrchestratorTests
     }
 
     private static CsvExtractionOrchestrator BuildOrchestrator(
-        BlobContainerClient container, BlobContainerClient stateContainer, IRunReportWriter reportWriter) =>
+        Mock<IBlobStore> blobStore, IRunReportWriter reportWriter) =>
         new(
-            container, stateContainer, reportWriter,
+            new Mock<BlobContainerClient>().Object, new Mock<BlobContainerClient>().Object, blobStore.Object, reportWriter,
             new CsvExtractor(NullLogger<CsvExtractor>.Instance),
             new CsvJoiner(),
             new DataCleaner(),
@@ -110,10 +79,9 @@ public class CsvExtractionOrchestratorTests
     [TestMethod]
     public async Task HappyPath_ReturnsDocsAndSavesStateUnconditionally()
     {
-        var container = BuildSourceContainer(OnePageCsv, OneIndexCsv);
-        var (stateContainer, stateBlob) = BuildStateContainer(existingContent: null); // first-ever run
+        var blobStore    = MockBlobStore(OnePageCsv, OneIndexCsv); // first-ever run, no previous state
         var reportWriter = MockReportWriter();
-        var orchestrator = BuildOrchestrator(container, stateContainer, reportWriter.Object);
+        var orchestrator = BuildOrchestrator(blobStore, reportWriter.Object);
 
         var output = await orchestrator.ExtractDocumentsAsync();
 
@@ -121,10 +89,9 @@ public class CsvExtractionOrchestratorTests
         Assert.AreEqual("doc1", output.Docs[0].SourceId);
         Assert.AreEqual(0, output.ValidationErrors);
 
-        stateBlob.Verify(b => b.UploadAsync(
-            It.IsAny<BinaryData>(),
-            It.Is<BlobUploadOptions>(o => o.Conditions!.IfNoneMatch == ETag.All),
-            It.IsAny<CancellationToken>()), Times.Once);
+        blobStore.Verify(s => s.SaveJsonWithETagAsync(
+            It.IsAny<BlobContainerClient>(), StateBlobName,
+            It.Is<CsvExtractionOrchestrator.RunState>(r => r.CleanedRecords == 1), null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -132,15 +99,14 @@ public class CsvExtractionOrchestratorTests
     {
         // Every row parses, but the sole document is inactive -> zero cleaned records ->
         // the reconciliation hard-gate should fail the run before state is ever saved.
-        var container = BuildSourceContainer(OnePageCsv, InactiveIndexCsv);
-        var (stateContainer, stateBlob) = BuildStateContainer(existingContent: null);
+        var blobStore    = MockBlobStore(OnePageCsv, InactiveIndexCsv);
         var reportWriter = MockReportWriter();
-        var orchestrator = BuildOrchestrator(container, stateContainer, reportWriter.Object);
+        var orchestrator = BuildOrchestrator(blobStore, reportWriter.Object);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => orchestrator.ExtractDocumentsAsync());
 
-        stateBlob.Verify(b => b.UploadAsync(
-            It.IsAny<BinaryData>(), It.IsAny<BlobUploadOptions>(), It.IsAny<CancellationToken>()), Times.Never);
+        blobStore.Verify(s => s.SaveJsonWithETagAsync(
+            It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<CsvExtractionOrchestrator.RunState>(), It.IsAny<ETag?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -148,26 +114,24 @@ public class CsvExtractionOrchestratorTests
     {
         // Previous run had 100 cleaned records; this run only has 1 - a -99% shift, well
         // past the 20% threshold PipelineValidator enforces.
-        var container = BuildSourceContainer(OnePageCsv, OneIndexCsv);
-        var (stateContainer, stateBlob) = BuildStateContainer(existingContent: "{\"CleanedRecords\":100}");
+        var blobStore    = MockBlobStore(OnePageCsv, OneIndexCsv, new CsvExtractionOrchestrator.RunState(100));
         var reportWriter = MockReportWriter();
-        var orchestrator = BuildOrchestrator(container, stateContainer, reportWriter.Object);
+        var orchestrator = BuildOrchestrator(blobStore, reportWriter.Object);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => orchestrator.ExtractDocumentsAsync(overrideMagnitudeCheck: false));
 
-        stateBlob.Verify(b => b.UploadAsync(
-            It.IsAny<BinaryData>(), It.IsAny<BlobUploadOptions>(), It.IsAny<CancellationToken>()), Times.Never);
+        blobStore.Verify(s => s.SaveJsonWithETagAsync(
+            It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<CsvExtractionOrchestrator.RunState>(), It.IsAny<ETag?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
     public async Task MagnitudeShiftWithOverride_ProceedsAndSavesStateConditionally()
     {
-        var etag = new ETag("\"baseline\"");
-        var container = BuildSourceContainer(OnePageCsv, OneIndexCsv);
-        var (stateContainer, stateBlob) = BuildStateContainer(existingContent: "{\"CleanedRecords\":100}", existingETag: etag);
+        var etag      = new ETag("\"baseline\"");
+        var blobStore = MockBlobStore(OnePageCsv, OneIndexCsv, new CsvExtractionOrchestrator.RunState(100), etag);
         var reportWriter = MockReportWriter();
-        var orchestrator = BuildOrchestrator(container, stateContainer, reportWriter.Object);
+        var orchestrator = BuildOrchestrator(blobStore, reportWriter.Object);
 
         var output = await orchestrator.ExtractDocumentsAsync(overrideMagnitudeCheck: true);
 
@@ -175,19 +139,20 @@ public class CsvExtractionOrchestratorTests
 
         // A conditional write against the baseline's own ETag, not an unconditional
         // "only if the blob doesn't exist yet" write - this run had a real baseline to race against.
-        stateBlob.Verify(b => b.UploadAsync(
-            It.IsAny<BinaryData>(),
-            It.Is<BlobUploadOptions>(o => o.Conditions!.IfMatch == etag),
-            It.IsAny<CancellationToken>()), Times.Once);
+        blobStore.Verify(s => s.SaveJsonWithETagAsync(
+            It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<CsvExtractionOrchestrator.RunState>(), etag, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
-    public async Task CorruptStateBlob_TreatedAsNoBaselineAndRunStillSucceeds()
+    public async Task NoBaseline_RunStillSucceeds()
     {
-        var container = BuildSourceContainer(OnePageCsv, OneIndexCsv);
-        var (stateContainer, _) = BuildStateContainer(existingContent: "not-json-at-all");
+        // Whether there's no baseline because the state blob never existed or because it
+        // was corrupt is normalized to (null, null) by IBlobStore before the orchestrator
+        // ever sees it (see BlobStoreTests for that specific behavior) - either way, the
+        // orchestrator just treats it as a first run.
+        var blobStore    = MockBlobStore(OnePageCsv, OneIndexCsv, previousState: null);
         var reportWriter = MockReportWriter();
-        var orchestrator = BuildOrchestrator(container, stateContainer, reportWriter.Object);
+        var orchestrator = BuildOrchestrator(blobStore, reportWriter.Object);
 
         var output = await orchestrator.ExtractDocumentsAsync();
 
@@ -198,10 +163,9 @@ public class CsvExtractionOrchestratorTests
     public async Task PagesParseError_WritesSingleValidationReportBlob()
     {
         var badPagesCsv = PagesHeader + "\n" + "doc1,Title,QC,Folder,20240101120000,not-a-number,Content,rel,nl-NL\n";
-        var container = BuildSourceContainer(badPagesCsv, OneIndexCsv);
-        var (stateContainer, _) = BuildStateContainer(existingContent: null);
+        var blobStore    = MockBlobStore(badPagesCsv, OneIndexCsv);
         var reportWriter = MockReportWriter();
-        var orchestrator = BuildOrchestrator(container, stateContainer, reportWriter.Object);
+        var orchestrator = BuildOrchestrator(blobStore, reportWriter.Object);
 
         // The page fails to parse, and doc1's index record then has zero matching pages,
         // which also fails validation (RowsAttempted denominator makes this a 100% error rate) -
@@ -216,10 +180,9 @@ public class CsvExtractionOrchestratorTests
     public async Task ReportWriterDisabled_NoBlobsWritten()
     {
         var badPagesCsv = PagesHeader + "\n" + "doc1,Title,QC,Folder,20240101120000,not-a-number,Content,rel,nl-NL\n";
-        var container = BuildSourceContainer(badPagesCsv, OneIndexCsv);
-        var (stateContainer, _) = BuildStateContainer(existingContent: null);
+        var blobStore    = MockBlobStore(badPagesCsv, OneIndexCsv);
         var reportWriter = MockReportWriter(isEnabled: false);
-        var orchestrator = BuildOrchestrator(container, stateContainer, reportWriter.Object);
+        var orchestrator = BuildOrchestrator(blobStore, reportWriter.Object);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => orchestrator.ExtractDocumentsAsync());
 

@@ -4,6 +4,7 @@ using Azure.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
+using AgenticRagApp.Infrastructure.Clients.DocumentIntelligence;
 using AgenticRagApp.Models;
 using AgenticRagApp.Services;
 
@@ -15,7 +16,7 @@ public class PdfDocumentAnalyzerTests
     // PdfDocumentAnalyzer.GetPages/GetPageQuality are instance methods (marked internal for
     // this test's benefit) but never touch _diClient - a Moq stub is enough, it's never invoked.
     private static PdfDocumentAnalyzer BuildAnalyzer() =>
-        new(new Mock<DocumentIntelligenceClient>().Object, NullLogger<PdfDocumentAnalyzer>.Instance);
+        new(new Mock<IDocumentAnalysisClient>().Object, NullLogger<PdfDocumentAnalyzer>.Instance);
 
     // Builds a real, single-page Azure.AI.DocumentIntelligence.AnalyzeResult from hand-written
     // JSON via ModelReaderWriter - the SDK's own supported construction path for exactly this

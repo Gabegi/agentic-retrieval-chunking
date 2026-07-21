@@ -1,8 +1,7 @@
-using Azure;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Models;
 using AgenticRagApp.Observability.Reports;
 using AgenticRagApp.Services;
@@ -49,25 +48,15 @@ public class ExtractionServiceTests
         RedFlags:               [],
         SpotCheckSample:        []);
 
-    // Fakes the "documents" blob container's listing - what ExtractionService's own
-    // ListDocumentsInBlobAsync reads to build the "source" side of the pre-extraction diff.
-    // Real BlobItem/AsyncPageable instances via Azure SDK's test factories, since listing
-    // isn't behind an interface anymore (this pipeline is PDF-only, nothing to swap it for).
-    private static BlobContainerClient MockContainer(params (string Name, DateTimeOffset LastModified)[] blobs)
+    // Fakes the "documents" container's listing - what ExtractionService's own
+    // ListDocumentsInBlobAsync reads (via IBlobStore) to build the "source" side of the
+    // pre-extraction diff.
+    private static Mock<IBlobStore> MockBlobStore(params (string Name, DateTimeOffset LastModified)[] blobs)
     {
-        var items = blobs
-            .Select(b => BlobsModelFactory.BlobItem(
-                name:       b.Name,
-                properties: BlobsModelFactory.BlobItemProperties(accessTierInferred: false, lastModified: b.LastModified)))
-            .ToList();
-        var page     = Page<BlobItem>.FromValues(items, null, Mock.Of<Response>());
-        var pageable = AsyncPageable<BlobItem>.FromPages([page]);
-
-        var container = new Mock<BlobContainerClient>();
-        container
-            .Setup(c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), It.IsAny<CancellationToken>()))
-            .Returns(pageable);
-        return container.Object;
+        var store = new Mock<IBlobStore>();
+        store.Setup(s => s.ListBlobsAsync(It.IsAny<BlobContainerClient>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blobs.Select(b => (b.Name, (DateTimeOffset?)b.LastModified, (long?)null)).ToList());
+        return store;
     }
 
     // ExtractDocumentsAsync is stubbed to mirror what the real PdfExtractionOrchestrator does -
@@ -114,17 +103,17 @@ public class ExtractionServiceTests
     }
 
     private static ExtractionService BuildService(
-        BlobContainerClient container, Mock<IExtractionOrchestrator> extractor,
+        Mock<IBlobStore> blobStore, Mock<IExtractionOrchestrator> extractor,
         Mock<IIndexDocumentService> indexService, Mock<IRunReportWriter> reportWriter) =>
-        new(container, extractor.Object, indexService.Object, reportWriter.Object, NullLogger<ExtractionService>.Instance);
+        new(new Mock<BlobContainerClient>().Object, blobStore.Object, extractor.Object, indexService.Object, reportWriter.Object, NullLogger<ExtractionService>.Instance);
 
     [TestMethod]
     public async Task NewDocument_NotYetIndexed_IsCountedAsNewAndProcessed()
     {
-        var container    = MockContainer(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService([]);
-        var service      = BuildService(container, extractor, indexService, MockReportWriter(isEnabled: false));
+        var service      = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
 
         var (docs, stats) = await service.ExtractAsync(forceReindex: false);
 
@@ -144,10 +133,10 @@ public class ExtractionServiceTests
         // Indexed AFTER the doc's LastModified - nothing new to do. Because it's skipped in
         // the pre-extraction diff, ExtractDocumentsAsync is never even asked for it -
         // docs.Count stays 0, proving the paid extraction call was avoided.
-        var container    = MockContainer(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService(new() { ["doc1.pdf"] = DateTimeOffset.Parse("2024-06-01") });
-        var service      = BuildService(container, extractor, indexService, MockReportWriter(isEnabled: false));
+        var service      = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
 
         var (docs, stats) = await service.ExtractAsync(forceReindex: false);
 
@@ -161,10 +150,10 @@ public class ExtractionServiceTests
     public async Task ModifiedDocument_AlreadyIndexed_IsCountedAsUpdatedAndMarkedStale()
     {
         // Indexed BEFORE the doc's LastModified - stale, needs reprocessing.
-        var container    = MockContainer(("doc1.pdf", DateTimeOffset.Parse("2024-06-01")));
+        var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-06-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService(new() { ["doc1.pdf"] = DateTimeOffset.Parse("2024-01-01") });
-        var service      = BuildService(container, extractor, indexService, MockReportWriter(isEnabled: false));
+        var service      = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
 
         var (docs, stats) = await service.ExtractAsync(forceReindex: false);
 
@@ -178,10 +167,10 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task ForceReindex_ReprocessesEvenAnUnmodifiedDocument()
     {
-        var container    = MockContainer(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService(new() { ["doc1.pdf"] = DateTimeOffset.Parse("2024-06-01") }); // would normally skip
-        var service      = BuildService(container, extractor, indexService, MockReportWriter(isEnabled: false));
+        var service      = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
 
         var (docs, stats) = await service.ExtractAsync(forceReindex: true);
 
@@ -194,10 +183,10 @@ public class ExtractionServiceTests
     public async Task DocumentRemovedFromSource_IsCountedAsDeletedAndMarkedStale()
     {
         // doc2.pdf was previously indexed but no longer appears in the blob listing at all - withdrawn upstream.
-        var container    = MockContainer(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService(new() { ["doc2.pdf"] = DateTimeOffset.UtcNow });
-        var service      = BuildService(container, extractor, indexService, MockReportWriter(isEnabled: false));
+        var service      = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
 
         var (docs, stats) = await service.ExtractAsync(forceReindex: false);
 
@@ -213,10 +202,10 @@ public class ExtractionServiceTests
     {
         // Blob named "DOC1.PDF", indexed as "doc1.pdf" - same document, must not be treated as
         // both a new doc AND a removed one.
-        var container    = MockContainer(("DOC1.PDF", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("DOC1.PDF", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService(new() { ["doc1.pdf"] = DateTimeOffset.Parse("2024-06-01") });
-        var service      = BuildService(container, extractor, indexService, MockReportWriter(isEnabled: false));
+        var service      = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
 
         var (_, stats) = await service.ExtractAsync(forceReindex: false);
 
@@ -230,10 +219,10 @@ public class ExtractionServiceTests
     {
         // A non-.pdf blob in the same container (e.g. a stray upload) must never be treated
         // as a source document - it's filtered out before the diff ever sees it.
-        var container    = MockContainer(("notes.txt", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("notes.txt", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService([]);
-        var service      = BuildService(container, extractor, indexService, MockReportWriter(isEnabled: false));
+        var service      = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
 
         var (docs, stats) = await service.ExtractAsync(forceReindex: false);
 
@@ -259,10 +248,10 @@ public class ExtractionServiceTests
             Issues:                 [],
             RedFlags:               ["some flag"],
             SpotCheckSample:        []);
-        var container    = MockContainer(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractorWithFixedOutput(output);
         var indexService = MockIndexService([]);
-        var service      = BuildService(container, extractor, indexService, MockReportWriter(isEnabled: false));
+        var service      = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
 
         var (_, stats) = await service.ExtractAsync(forceReindex: false);
 
@@ -282,11 +271,11 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task ReportWriterEnabled_WritesDiffReportBlob()
     {
-        var container    = MockContainer(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService([]);
         var reportWriter = MockReportWriter(isEnabled: true);
-        var service      = BuildService(container, extractor, indexService, reportWriter);
+        var service      = BuildService(blobStore, extractor, indexService, reportWriter);
 
         await service.ExtractAsync(forceReindex: false);
 
@@ -297,11 +286,11 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task ReportWriterDisabled_NoDiffReportWritten()
     {
-        var container    = MockContainer(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
+        var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractor();
         var indexService = MockIndexService([]);
         var reportWriter = MockReportWriter(isEnabled: false);
-        var service      = BuildService(container, extractor, indexService, reportWriter);
+        var service      = BuildService(blobStore, extractor, indexService, reportWriter);
 
         await service.ExtractAsync(forceReindex: false);
 
