@@ -1,3 +1,4 @@
+using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
 using AgenticRag.Models;
 using AgenticRag.Observability;
@@ -7,9 +8,7 @@ namespace AgenticRag.Services;
 
 public class ExtractionService : IExtractionService
 {
-    // Exactly one extractor is active at a time - see the registration comment in program.cs.
-    // Switching source (e.g. to a future PDF extractor) means replacing that registration, not
-    // adding branching here.
+    private readonly BlobContainerClient        _container;
     private readonly IExtractionOrchestrator    _extractor;
     private readonly IIndexDocumentService      _indexDocumentService;
     private readonly IRunReportWriter           _reportWriter;
@@ -18,11 +17,13 @@ public class ExtractionService : IExtractionService
     private const string ReportFolder = "indexing/extraction-diff";
 
     public ExtractionService(
+        BlobContainerClient        container,
         IExtractionOrchestrator    extractor,
         IIndexDocumentService      indexDocumentService,
         IRunReportWriter           reportWriter,
         ILogger<ExtractionService> logger)
     {
+        _container             = container;
         _extractor             = extractor;
         _indexDocumentService  = indexDocumentService;
         _reportWriter          = reportWriter;
@@ -37,7 +38,7 @@ public class ExtractionService : IExtractionService
     {
         // What documents exist in blob storage right now - id + LastModified only, no
         // download or content yet. This is the "source" side of the diff.
-        var sourceListing = await _extractor.ListDocumentsInBlobAsync(ct);
+        var sourceListing = await ListDocumentsInBlobAsync(ct);
 
         // What documents are already in the Search index - id + last-indexed date. This is
         // the "target" side. Diffing it against sourceListing below is what lets us skip
