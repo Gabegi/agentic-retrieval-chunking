@@ -22,8 +22,43 @@ public class ChunkingServiceTests
         new(strategy.Object, NullLogger<ChunkingService>.Instance);
 
     private static ExtractionDocument Doc(
-        string sourceId, int ordinal, string content, Dictionary<string, string>? metadata = null) =>
-        new(sourceId, ordinal, content, metadata ?? []);
+        string sourceId, int ordinal, string content,
+        string                  title            = "",
+        string?                 author           = null,
+        DateTimeOffset?         createdAt        = null,
+        int?                    pageCount        = null,
+        DateTimeOffset?         lastModifiedDate = null,
+        IReadOnlyList<Bookmark>? bookmarks       = null,
+        IReadOnlyList<SectionInfo>? sections     = null,
+        string?                 breadcrumb       = null,
+        IReadOnlyList<Heading>? headings         = null,
+        IReadOnlyList<Heading>? boilerplate      = null,
+        IReadOnlyList<TableInfo>? tables         = null,
+        PageDimensions?         dimensions       = null,
+        IReadOnlyList<SelectionMarkInfo>? selectionMarks = null,
+        IReadOnlyList<FigureInfo>? figures       = null,
+        IReadOnlyList<LineInfo>? lines           = null,
+        double?                 averageWordConfidence = null) =>
+        new(
+            SourceId:              sourceId,
+            Ordinal:               ordinal,
+            Content:               content,
+            Title:                 title,
+            Author:                author,
+            CreatedAt:             createdAt,
+            PageCount:             pageCount,
+            LastModifiedDate:      lastModifiedDate,
+            Bookmarks:             bookmarks ?? [],
+            Sections:              sections ?? [],
+            Breadcrumb:            breadcrumb,
+            Headings:              headings ?? [],
+            Boilerplate:           boilerplate ?? [],
+            Tables:                tables ?? [],
+            Dimensions:            dimensions,
+            SelectionMarks:        selectionMarks ?? [],
+            Figures:               figures ?? [],
+            Lines:                 lines ?? [],
+            AverageWordConfidence: averageWordConfidence);
 
     [TestMethod]
     public void Name_PassesThroughFromStrategy()
@@ -98,9 +133,8 @@ public class ChunkingServiceTests
     [TestMethod]
     public void ChunkDocuments_PrependsTitleToContent_WhenTitlePresent()
     {
-        var service  = BuildService(MockStrategy());
-        var metadata = new Dictionary<string, string> { ["title"] = "My Title" };
-        var doc      = Doc("doc1", 0, "body text", metadata);
+        var service = BuildService(MockStrategy());
+        var doc     = Doc("doc1", 0, "body text", title: "My Title");
 
         var (docs, _) = service.ChunkDocuments([doc]);
 
@@ -119,83 +153,68 @@ public class ChunkingServiceTests
     }
 
     [TestMethod]
-    public void ChunkDocuments_PrependsHeadingBeforeTitle_WhenChunkHasHeading()
+    public void ChunkDocuments_PrependsBreadcrumbBeforeTitle_WhenPresent()
     {
-        var strategy = MockStrategy(chunkFn: content => [new TextChunk(0, content, Heading: "Section 1")]);
-        var service  = BuildService(strategy);
-        var metadata = new Dictionary<string, string> { ["title"] = "My Title" };
-        var doc      = Doc("doc1", 0, "body text", metadata);
+        var service = BuildService(MockStrategy());
+        var doc     = Doc("doc1", 0, "body text", title: "My Title", breadcrumb: "_Section: Chapter 1_");
 
         var (docs, _) = service.ChunkDocuments([doc]);
 
-        Assert.AreEqual("My Title\n\nSection 1\n\nbody text", docs[0].Content);
-        Assert.AreEqual("Section 1", docs[0].Heading);
+        Assert.AreEqual("My Title\n\n_Section: Chapter 1_\n\nbody text", docs[0].Content);
+        Assert.AreEqual("_Section: Chapter 1_", docs[0].Heading);
     }
 
     [TestMethod]
-    public void ChunkDocuments_MapsMetadataFieldsOntoDocumentChunk()
+    public void ChunkDocuments_FallsBackToFirstDetectedHeading_WhenNoBreadcrumb()
     {
-        var service  = BuildService(MockStrategy());
-        var metadata = new Dictionary<string, string>
-        {
-            ["title"]               = "Title",
-            ["folder_path"]         = "HR/Policies",
-            ["quick_code"]          = "QC-1",
-            ["relative_path"]       = "a/b/c.pdf",
-            ["version"]             = "2.1",
-            ["last_modified_date"]  = "2024-05-01T00:00:00Z",
-            ["check_date"]          = "2025-01-01T00:00:00Z",
-        };
-        var doc = Doc("doc1", 0, "content", metadata);
+        var service = BuildService(MockStrategy());
+        var doc     = Doc("doc1", 0, "body text",
+            headings: [new Heading("Detected Heading", "sectionHeading", Offset: 0, PageNumber: 0)]);
+
+        var (docs, _) = service.ChunkDocuments([doc]);
+
+        Assert.AreEqual("Detected Heading", docs[0].Heading);
+        Assert.IsTrue(docs[0].Content.Contains("Detected Heading"));
+    }
+
+    [TestMethod]
+    public void ChunkDocuments_NoBreadcrumbOrHeadings_HeadingIsNull()
+    {
+        var service = BuildService(MockStrategy());
+        var doc     = Doc("doc1", 0, "body text");
+
+        var (docs, _) = service.ChunkDocuments([doc]);
+
+        Assert.IsNull(docs[0].Heading);
+        Assert.AreEqual("body text", docs[0].Content);
+    }
+
+    [TestMethod]
+    public void ChunkDocuments_MapsExtractionFieldsOntoDocumentChunk()
+    {
+        var service   = BuildService(MockStrategy());
+        var createdAt = DateTimeOffset.Parse("2020-01-01T00:00:00Z");
+        var lastMod   = DateTimeOffset.Parse("2024-05-01T00:00:00Z");
+        var table     = new TableInfo(2, 2, [], Offset: null, PageNumber: 0);
+        var doc       = Doc("doc1", 0, "content",
+            title:            "Title",
+            author:           "J. Doe",
+            createdAt:        createdAt,
+            pageCount:        12,
+            lastModifiedDate: lastMod,
+            tables:           [table],
+            averageWordConfidence: 0.97);
 
         var (docs, _) = service.ChunkDocuments([doc]);
 
         var result = docs[0];
         Assert.AreEqual("Title", result.Title);
-        Assert.AreEqual("HR/Policies", result.Department);
-        Assert.AreEqual("QC-1", result.QuickCode);
-        Assert.AreEqual("a/b/c.pdf", result.RelativePath);
-        Assert.AreEqual("2.1", result.Version);
-        Assert.AreEqual(DateTimeOffset.Parse("2024-05-01T00:00:00Z"), result.LastModifiedDate);
-        Assert.AreEqual(DateTimeOffset.Parse("2025-01-01T00:00:00Z"), result.CheckDate);
-    }
-
-    [TestMethod]
-    public void ChunkDocuments_UnparsableDate_ResultsInNullDate()
-    {
-        var service  = BuildService(MockStrategy());
-        var metadata = new Dictionary<string, string> { ["last_modified_date"] = "not-a-date" };
-        var doc      = Doc("doc1", 0, "content", metadata);
-
-        var (docs, _) = service.ChunkDocuments([doc]);
-
-        Assert.IsNull(docs[0].LastModifiedDate);
-    }
-
-    [TestMethod]
-    public void ChunkDocuments_SummaryPresent_AppliedToEveryChunkOfDocument()
-    {
-        var strategy = MockStrategy(chunkFn: _ => [new TextChunk(0, "part1"), new TextChunk(1, "part2")]);
-        var service  = BuildService(strategy);
-        var metadata = new Dictionary<string, string> { ["summary"] = "A curated summary" };
-        var doc      = Doc("doc1", 0, "long content", metadata);
-
-        var (docs, _) = service.ChunkDocuments([doc]);
-
-        Assert.AreEqual(2, docs.Count);
-        Assert.IsTrue(docs.All(d => d.Summary == "A curated summary"));
-    }
-
-    [TestMethod]
-    public void ChunkDocuments_BlankSummary_MapsToNull()
-    {
-        var service  = BuildService(MockStrategy());
-        var metadata = new Dictionary<string, string> { ["summary"] = "   " };
-        var doc      = Doc("doc1", 0, "content", metadata);
-
-        var (docs, _) = service.ChunkDocuments([doc]);
-
-        Assert.IsNull(docs[0].Summary);
+        Assert.AreEqual("J. Doe", result.Author);
+        Assert.AreEqual(createdAt, result.CreatedAt);
+        Assert.AreEqual(12, result.PageCount);
+        Assert.AreEqual(lastMod, result.LastModifiedDate);
+        Assert.AreEqual(1, result.Tables.Count);
+        Assert.AreEqual(0.97, result.AverageWordConfidence);
     }
 
     [TestMethod]
