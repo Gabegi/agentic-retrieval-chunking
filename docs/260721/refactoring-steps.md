@@ -76,6 +76,16 @@ That doc records two unscheduled backlog items, both folded into this plan:
 
 1. **Naming convention**: `AgenticRagApp.*` for every new project (not
    `Agentic.RagApp.*`, which appeared inconsistently in the original instruction).
+   The host project itself is named **`AgenticRagApp.FunctionApp`**, not bare
+   `AgenticRagApp` — a bare name reads ambiguously once five dotted siblings
+   (`.Domain`, `.Infrastructure`, `.Observability`, `.Indexing.Csv`, `.Indexing.Pdf`)
+   exist, and `.FunctionApp` matches the actual deployed Azure resource type
+   (`azurerm_windows_function_app`) exactly. Its **C# root namespace stays
+   `AgenticRagApp`** (set via `<RootNamespace>` if needed) rather than
+   `AgenticRagApp.FunctionApp` — the project/folder/csproj name disambiguates the
+   deployable in the solution explorer, but code inside it (`AgenticRagApp.Functions`,
+   `AgenticRagApp.Services.Querying`, ...) reads as the natural root of the whole
+   `AgenticRagApp.*` family, consistent with every other project's namespace.
 2. **"Each indexing flow is an App"** means a Clean-Architecture application-layer
    class library composed into the **one existing** Azure Function host via
    `AddPdfIndexing()`/`AddCsvIndexing()` extension methods (mirrors the pattern
@@ -104,7 +114,7 @@ That doc records two unscheduled backlog items, both folded into this plan:
 
 ```
 src/
-  AgenticRagApp/                    (host — thin: Functions, Querying, composition root)
+  AgenticRagApp.FunctionApp/         (host — thin: Functions, Querying, composition root; namespace root AgenticRagApp)
     Functions/
       PdfIndexingFunction.cs        ← StartIndexing HTTP trigger + Durable orchestrator + activities, delegates into Indexing.Pdf
       CsvIndexingFunction.cs        ← same shape, delegates into Indexing.Csv (see "CSV wiring" open item)
