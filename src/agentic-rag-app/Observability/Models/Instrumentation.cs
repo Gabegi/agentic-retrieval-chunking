@@ -115,6 +115,11 @@ internal static class Instrumentation
 
     // ── Embedding ────────────────────────────────────────────────────────────
 
+    // Chunks served from the vector cache instead of a paid embedding call — the whole
+    // point of Stage 3's hash-based dedup. High relative to total chunks means it's working.
+    internal static readonly Counter<long> VectorCacheHits =
+        Meter.CreateCounter<long>("indexer.vector_cache_hits", description: "Chunks whose vector was reused from the cache instead of re-embedded");
+
     // 429 throttle retries. A spike here means you are hitting OpenAI rate limits.
     internal static readonly Counter<long> EmbeddingRetries =
         Meter.CreateCounter<long>("indexer.embedding_retries", description: "OpenAI 429 throttle retries during embedding");

@@ -1,0 +1,48 @@
+using System.Text.Json;
+using Azure;
+using Azure.Storage.Blobs;
+
+namespace AgenticRag.Services;
+
+// One blob per content hash under indexing-artifacts/vector-cache/ - not one shared file,
+// so a read never races a concurrent write from another chunk and eviction (Stage 4) can
+// delete individual orphaned entries without touching the rest.
+public class VectorCache : IVectorCache
+{
+    private const string Prefix = "vector-cache";
+    private readonly BlobContainerClient _container;
+
+    public VectorCache(BlobContainerClient container)
+    {
+        _container = container;
+    }
+
+    public async Task<float[]?> TryGetAsync(string contentHash, CancellationToken ct = default)
+    {
+        var blob = _container.GetBlobClient($"{Prefix}/{contentHash}.json");
+
+        try
+        {
+            var download = await blob.DownloadContentAsync(ct);
+            return JsonSerializer.Deserialize<float[]>(download.Value.Content.ToMemory().Span);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            // Corrupt/partially-written entry - treat as a miss and let the caller re-embed
+            // and overwrite it, rather than failing the whole run over one bad cache blob.
+            return null;
+        }
+    }
+
+    public async Task SetAsync(string contentHash, float[] vector, CancellationToken ct = default)
+    {
+        await _container.CreateIfNotExistsAsync(cancellationToken: ct);
+        var json = JsonSerializer.SerializeToUtf8Bytes(vector);
+        using var ms = new MemoryStream(json);
+        await _container.GetBlobClient($"{Prefix}/{contentHash}.json").UploadAsync(ms, overwrite: true, cancellationToken: ct);
+    }
+}

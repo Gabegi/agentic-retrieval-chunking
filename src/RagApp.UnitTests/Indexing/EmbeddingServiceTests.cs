@@ -39,9 +39,22 @@ public class EmbeddingServiceTests
     private static Mock<IEmbeddingGenerator<string, Embedding<float>>> MockGenerator() =>
         new();
 
+    // Always-miss by default, matching the pre-cache behavior every existing test below
+    // already expects (every doc actually goes through the generator). Cache-specific
+    // tests build their own mock with a real hit configured.
+    private static Mock<IVectorCache> MockVectorCache()
+    {
+        var mock = new Mock<IVectorCache>();
+        mock.Setup(c => c.TryGetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((float[]?)null);
+        mock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<float[]>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        return mock;
+    }
+
     private static EmbeddingService BuildService(
-        Mock<IEmbeddingGenerator<string, Embedding<float>>> generator, IndexerConfig? config = null) =>
-        new(generator.Object, config ?? Config(), NullLogger<EmbeddingService>.Instance);
+        Mock<IEmbeddingGenerator<string, Embedding<float>>> generator,
+        IndexerConfig?    config      = null,
+        Mock<IVectorCache>? vectorCache = null) =>
+        new(generator.Object, (vectorCache ?? MockVectorCache()).Object, config ?? Config(), NullLogger<EmbeddingService>.Instance);
 
     [TestMethod]
     public async Task EmbedDocumentsAsync_AllDocumentsGetContentVectorSet()

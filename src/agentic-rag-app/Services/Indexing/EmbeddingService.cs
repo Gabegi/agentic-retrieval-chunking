@@ -1,4 +1,5 @@
 using System.ClientModel;
+using System.Collections.Concurrent;
 using System.Net.Http;
 using Azure;
 using Microsoft.Extensions.AI;
@@ -12,6 +13,7 @@ namespace AgenticRag.Services;
 public class EmbeddingService : IEmbeddingService
 {
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
+    private readonly IVectorCache                                  _vectorCache;
     private readonly IndexerConfig                                 _config;
     private readonly ILogger<EmbeddingService>                     _logger;
 
@@ -19,12 +21,19 @@ public class EmbeddingService : IEmbeddingService
     private const int BatchSize = 100;    // one request per batch instead of one per chunk
     private const int TruncationLimit = 24_000;
 
+    // Cache reads/writes are just blob GETs/PUTs, not paid API calls - bounded concurrency
+    // keeps them off the critical path without hammering the container. Same knob shape as
+    // PdfExtractionOrchestrator.MaxExtractionParallelism.
+    private const int MaxCacheParallelism = 8;
+
     public EmbeddingService(
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
+        IVectorCache                                  vectorCache,
         IndexerConfig                                 config,
         ILogger<EmbeddingService>                     logger)
     {
         _embeddingGenerator = embeddingGenerator;
+        _vectorCache        = vectorCache;
         _config             = config;
         _logger             = logger;
     }
@@ -33,23 +42,73 @@ public class EmbeddingService : IEmbeddingService
         IEnumerable<ProtocolDocument> documents,
         CancellationToken ct = default)
     {
-        var docList   = documents.ToList();
-        var semaphore = new SemaphoreSlim(MaxParallelism);
+        var docList = documents.ToList();
 
-        _logger.LogInformation("Embedding {Count} documents in batches of {BatchSize}", docList.Count, BatchSize);
+        // A chunk whose content hash is already cached gets its vector back for free - no
+        // embedding API call. Only genuinely new/changed chunks (within an updated document,
+        // typically just the pages that actually changed) go on to EmbedBatchAsync below.
+        var (cached, toEmbed) = await SplitByCacheAsync(docList, ct);
 
-        var tasks        = docList.Chunk(BatchSize).Select(batch => EmbedBatchAsync(batch, semaphore, ct)).ToList();
+        _logger.LogInformation(
+            "Embedding {ToEmbed} of {Total} documents in batches of {BatchSize} ({CacheHits} reused from vector cache)",
+            toEmbed.Count, docList.Count, BatchSize, cached.Count);
+
+        var semaphore    = new SemaphoreSlim(MaxParallelism);
+        var tasks        = toEmbed.Chunk(BatchSize).Select(batch => EmbedBatchAsync(batch, semaphore, ct)).ToList();
         var batchResults = await Task.WhenAll(tasks);
-        var results      = batchResults.SelectMany(b => b.Results).ToArray();
+        var freshResults = batchResults.SelectMany(b => b.Results).ToArray();
 
-        _logger.LogInformation("Embedding complete — {Count} embedded", results.Length);
+        await CacheFreshVectorsAsync(freshResults, ct);
+
+        _logger.LogInformation("Embedding complete — {Fresh} embedded, {Cached} reused", freshResults.Length, cached.Count);
 
         return new EmbeddingRunResult(
-            Documents:        results.Select(r => r.Document),
-            ChunksTruncated:  results.Count(r => r.Truncated),
+            Documents:        cached.Concat(freshResults.Select(r => r.Document)),
+            ChunksTruncated:  freshResults.Count(r => r.Truncated),
             EmbeddingRetries: batchResults.Sum(b => b.Retries),
-            VectorDimErrors:  results.Count(r => r.DimError));
+            VectorDimErrors:  freshResults.Count(r => r.DimError),
+            CacheHits:        cached.Count);
     }
+
+    // Splits by vector-cache hit/miss. A cached vector whose length no longer matches the
+    // configured embedding dimensions (model/config changed since it was cached) is treated
+    // as a miss rather than trusted blindly.
+    private async Task<(List<ProtocolDocument> Cached, List<ProtocolDocument> ToEmbed)> SplitByCacheAsync(
+        List<ProtocolDocument> docs, CancellationToken ct)
+    {
+        var cached  = new ConcurrentBag<ProtocolDocument>();
+        var toEmbed = new ConcurrentBag<ProtocolDocument>();
+
+        await Parallel.ForEachAsync(
+            docs,
+            new ParallelOptions { MaxDegreeOfParallelism = MaxCacheParallelism, CancellationToken = ct },
+            async (doc, token) =>
+            {
+                var vector = await _vectorCache.TryGetAsync(doc.ContentHash, token);
+                if (vector is { } v && v.Length == _config.OpenAiEmbeddingDimensions)
+                {
+                    doc.ContentVector = v;
+                    cached.Add(doc);
+                    Instrumentation.VectorCacheHits.Add(1);
+                }
+                else
+                {
+                    toEmbed.Add(doc);
+                }
+            });
+
+        return (cached.ToList(), toEmbed.ToList());
+    }
+
+    // Writes every freshly-embedded chunk's vector back to the cache, keyed by content hash,
+    // so the next run that touches an unchanged chunk with the same hash gets a cache hit
+    // instead of paying to re-embed it. Skips dimension-mismatched vectors - not worth
+    // caching a result we already know is wrong.
+    private Task CacheFreshVectorsAsync(IReadOnlyList<EmbedChunkResult> results, CancellationToken ct) =>
+        Parallel.ForEachAsync(
+            results.Where(r => !r.DimError && r.Document.ContentVector is not null),
+            new ParallelOptions { MaxDegreeOfParallelism = MaxCacheParallelism, CancellationToken = ct },
+            (r, token) => new ValueTask(_vectorCache.SetAsync(r.Document.ContentHash, r.Document.ContentVector!, token)));
 
     private async Task<BatchResult> EmbedBatchAsync(
         IReadOnlyList<ProtocolDocument> batch, SemaphoreSlim semaphore, CancellationToken ct)

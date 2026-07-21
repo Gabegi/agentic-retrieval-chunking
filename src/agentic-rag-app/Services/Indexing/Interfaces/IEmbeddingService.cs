@@ -11,5 +11,7 @@ public record EmbeddingRunResult(
     IEnumerable<ProtocolDocument> Documents,
     int ChunksTruncated,
     int EmbeddingRetries,
-    int VectorDimErrors
+    int VectorDimErrors,
+    // Chunks whose vector came from VectorCache instead of a paid embedding call.
+    int CacheHits
 );
