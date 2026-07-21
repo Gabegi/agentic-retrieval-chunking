@@ -167,7 +167,12 @@ var host = new HostBuilder()
             sp.GetRequiredService<ILogger<PdfExtractionOrchestrator>>()));
 
         // RAG pipeline
-        services.AddSingleton<IExtractionService, ExtractionService>();
+        services.AddSingleton<IExtractionService>(sp => new ExtractionService(
+            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
+            sp.GetRequiredService<IExtractionOrchestrator>(),
+            sp.GetRequiredService<IIndexDocumentService>(),
+            sp.GetRequiredService<IRunReportWriter>(),
+            sp.GetRequiredService<ILogger<ExtractionService>>()));
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IUploadService, UploadService>();
         services.AddSingleton<IIndexService, IndexService>();
