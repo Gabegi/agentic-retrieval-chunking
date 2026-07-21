@@ -13,10 +13,25 @@ namespace RagApp.UnitTests.CsvExtraction;
 public class ExtractionServiceTests
 {
     private static ExtractionDocument Doc(string sourceId) => new(
-        SourceId: sourceId,
-        Ordinal:  0,
-        Content:  "content",
-        Metadata: new Dictionary<string, string>());
+        SourceId:              sourceId,
+        Ordinal:               0,
+        Content:               "content",
+        Title:                 "",
+        Author:                null,
+        CreatedAt:             null,
+        PageCount:             null,
+        LastModifiedDate:      null,
+        Bookmarks:             [],
+        Sections:              [],
+        Breadcrumb:            null,
+        Headings:              [],
+        Boilerplate:           [],
+        Tables:                [],
+        Dimensions:            null,
+        SelectionMarks:        [],
+        Figures:               [],
+        Lines:                 [],
+        AverageWordConfidence: null);
 
     private static ExtractionOutput BuildOutput(IEnumerable<ExtractionDocument> docs) => new(
         Docs:                   docs.ToList(),
