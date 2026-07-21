@@ -26,11 +26,10 @@ public class EmbeddingServiceTests
         OpenAiEmbeddingDimensions = dims,
     };
 
-    private static DocumentChunk Document(string id, string content, string? summary = null) => new()
+    private static DocumentChunk Document(string id, string content) => new()
     {
         Id      = id,
         Content = content,
-        Summary = summary,
     };
 
     private static GeneratedEmbeddings<Embedding<float>> Embeddings(int count, int dims = 4) =>
