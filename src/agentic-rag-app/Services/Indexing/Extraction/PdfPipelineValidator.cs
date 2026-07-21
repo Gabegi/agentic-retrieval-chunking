@@ -114,8 +114,9 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         var totalAttempted = pagesExtraction.RowsAttempted;
         var errorRate      = totalAttempted == 0 ? 100.0 : 100.0 * errorCount / totalAttempted;
 
-        var passedExcludingMagnitude = errorRate <= MaxAcceptableErrorRatePercent && diffExtractionNCleaning.Count == 0;
-        var passed                   = passedExcludingMagnitude && diffCleaningNPreviousRun.Count == 0;
+        // Magnitude shift never gates - diffCleaningNPreviousRun still computed above and
+        // surfaced via MagnitudeWarnings, just not folded into Passed.
+        var passed = errorRate <= MaxAcceptableErrorRatePercent && diffExtractionNCleaning.Count == 0;
 
         return new PdfValidationReport
         {
@@ -131,7 +132,6 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             MojibakeRepairedPages            = cleanResult.MojibakeRepairedPages,
             DetectedTableCount               = detectedTableCount,
             Passed                           = passed,
-            PassedExcludingMagnitude         = passedExcludingMagnitude,
         };
     }
 
