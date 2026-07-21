@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using IndexingShared.Models;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
 

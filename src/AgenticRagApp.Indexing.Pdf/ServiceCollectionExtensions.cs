@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.Blob;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Indexing.Pdf.Services;
 using AgenticRagApp.Observability.Reports;
@@ -59,8 +60,9 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<ILogger<ExtractionService>>()));
         services.AddSingleton<IEmbeddingService,       EmbeddingService>();
         services.AddSingleton<IUploadService,          UploadService>();
-        services.AddSingleton<IIndexService,           IndexService>();
-        services.AddSingleton<IIndexDocumentService,   IndexDocumentService>();
+        // IIndexService/IIndexDocumentService are registered once by
+        // AgenticRagApp.Infrastructure's AddAgenticRagAppInfrastructure() — shared with
+        // CSV, since both write into the same Search index.
 
         // Content-hash-keyed embedding vector cache — "pipeline-artifacts" container,
         // under its own vector-cache/ path prefix (see VectorCache).

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Observability;
+using AgenticRagApp.Observability.Reports;
 
 namespace AgenticRagApp.Indexing.Csv.Services;
 
@@ -8,14 +10,21 @@ namespace AgenticRagApp.Indexing.Csv.Services;
 // Kept separate from EmbeddingService so the two concerns can evolve independently.
 public class UploadService : IUploadService
 {
+    // Scopes the drift-baseline (IIndexStatsMonitor.RecordAndCheckDriftAsync) to this
+    // doc-type - PDF and CSV must never compare against each other's baseline.
+    private const string Source = "csv";
+
     private readonly IIndexDocumentService      _indexDocumentService;
+    private readonly IIndexStatsMonitor         _indexStatsMonitor;
     private readonly ILogger<UploadService>     _logger;
 
     public UploadService(
         IIndexDocumentService  indexDocumentService,
+        IIndexStatsMonitor     indexStatsMonitor,
         ILogger<UploadService> logger)
     {
         _indexDocumentService = indexDocumentService;
+        _indexStatsMonitor    = indexStatsMonitor;
         _logger               = logger;
     }
 
@@ -55,7 +64,7 @@ public class UploadService : IUploadService
         {
             var (docCount, storageBytes) = await _indexDocumentService.GetStatisticsAsync(ct);
             (indexDocCount, indexStorageBytes) = (docCount, storageBytes);
-            redFlags.AddRange(await _indexDocumentService.CheckDriftAsync(docCount, storageBytes, ct));
+            redFlags.AddRange(await _indexStatsMonitor.RecordAndCheckDriftAsync(Source, docCount, storageBytes, ct));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

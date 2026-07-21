@@ -1,6 +1,7 @@
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.Blob;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;

@@ -43,8 +43,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Services.IExtractionService,      Services.ExtractionService>();
         services.AddSingleton<Services.IEmbeddingService,       Services.EmbeddingService>();
         services.AddSingleton<Services.IUploadService,          Services.UploadService>();
-        services.AddSingleton<Services.IIndexService,           Services.IndexService>();
-        services.AddSingleton<Services.IIndexDocumentService,   Services.IndexDocumentService>();
+        // IIndexService/IIndexDocumentService are registered once by
+        // AgenticRagApp.Infrastructure's AddAgenticRagAppInfrastructure() — shared with
+        // PDF, since both write into the same Search index.
 
         return services;
     }

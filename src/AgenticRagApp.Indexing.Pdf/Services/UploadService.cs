@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Observability;
+using AgenticRagApp.Observability.Reports;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 
@@ -9,14 +11,21 @@ namespace AgenticRagApp.Indexing.Pdf.Services;
 // Kept separate from EmbeddingService so the two concerns can evolve independently.
 public class UploadService : IUploadService
 {
+    // Scopes the drift-baseline (IIndexStatsMonitor.RecordAndCheckDriftAsync) to this
+    // doc-type - PDF and CSV must never compare against each other's baseline.
+    private const string Source = "pdf";
+
     private readonly IIndexDocumentService      _indexDocumentService;
+    private readonly IIndexStatsMonitor         _indexStatsMonitor;
     private readonly ILogger<UploadService>     _logger;
 
     public UploadService(
         IIndexDocumentService  indexDocumentService,
+        IIndexStatsMonitor     indexStatsMonitor,
         ILogger<UploadService> logger)
     {
         _indexDocumentService = indexDocumentService;
+        _indexStatsMonitor    = indexStatsMonitor;
         _logger               = logger;
     }
 
@@ -24,7 +33,12 @@ public class UploadService : IUploadService
         IEnumerable<DocumentChunk> documents, IReadOnlyList<string> staleDocumentIds, CancellationToken ct = default)
     {
         var docList = documents.ToList();
-        var (succeeded, failed) = await _indexDocumentService.UpsertDocumentsAsync(docList, ct);
+
+        // Maps down to the exact field set the Search schema knows about, right here, at
+        // the last possible moment before handing off to the generic (doc-type-agnostic)
+        // upload path - see SearchUploadChunk's own comment.
+        var uploadBatch = docList.Select(SearchUploadChunk.From).ToList();
+        var (succeeded, failed) = await _indexDocumentService.UpsertDocumentsAsync(uploadBatch, ct);
 
         _logger.LogInformation("Upload complete — {Succeeded} succeeded, {Failed} failed", succeeded, failed);
 
@@ -56,7 +70,7 @@ public class UploadService : IUploadService
         {
             var (docCount, storageBytes) = await _indexDocumentService.GetStatisticsAsync(ct);
             (indexDocCount, indexStorageBytes) = (docCount, storageBytes);
-            redFlags.AddRange(await _indexDocumentService.CheckDriftAsync(docCount, storageBytes, ct));
+            redFlags.AddRange(await _indexStatsMonitor.RecordAndCheckDriftAsync(Source, docCount, storageBytes, ct));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
