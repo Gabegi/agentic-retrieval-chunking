@@ -141,7 +141,7 @@ src/
     Extraction/ Chunking/ Embedding/ Indexing/ Upload/ Models/
     ServiceCollectionExtensions.cs   ← AddCsvIndexing() — updated to pull clients from Infrastructure instead of expecting the host to pre-register them ad hoc
 
-  AgenticRagApp.Indexing.Pdf/         (new — pulled out of AgenticRagApp)
+  AgenticRagApp.Indexing.Pdf/         (new — pulled out of AgenticRagApp.FunctionApp)
     Extraction/  (PdfExtractionPipeline, DocumentIntelligenceExtractor, PDFDocumentAnalyzer, PdfCleaner, PdfDocumentValidator, PdfNativeMetadataExtractor, PDFSectionBreadCrumbBuilder, PdfPipelineValidator)
     Chunking/ (ChunkingService, ChunkingStrategy1/2)  Embedding/ (EmbeddingService, VectorCache)  Indexing/ (IndexService, IndexDocumentService, UploadService)  Models/
     ServiceCollectionExtensions.cs   ← AddPdfIndexing(), same shape as CSV's
@@ -165,7 +165,7 @@ Azure SDK dependency. This was originally drafted as `Observability → Infrastr
 (to get a blob client) but that inverts the usual layering and was flagged as the one
 arrow likely to age badly — fixed by moving the port to `Domain` instead.
 `Indexing.Csv`/`Indexing.Pdf` reference `Domain`, `Infrastructure`, `Observability`.
-`AgenticRagApp` (host) references all five, is the only place that wires
+`AgenticRagApp.FunctionApp` (host) references all five, is the only place that wires
 `Infrastructure`'s `BlobArtifactStore` against `Observability`'s consumers, and is
 the only composition root.
 
