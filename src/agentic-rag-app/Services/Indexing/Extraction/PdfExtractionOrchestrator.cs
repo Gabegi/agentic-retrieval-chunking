@@ -384,18 +384,6 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             SpotCheckSample:        spotCheck);
     }
 
-    // Pure pass/fail decision — magnitude-check gate only, no logging or metrics. Kept
-    // separate from EmitValidationTelemetry below so the two can run on different
-    // schedules: this one drives the abort-throw from inside the try block, while the
-    // telemetry it feeds always runs from the finally block regardless of that throw.
-    private static (bool EffectivePassed, bool MagnitudeOverrideApplied) EvaluateValidation(
-        PdfValidationReport report, bool overrideMagnitudeCheck)
-    {
-        var magnitudeOverrideApplied = !report.Passed && overrideMagnitudeCheck && report.PassedExcludingMagnitude;
-        var effectivePassed          = report.Passed || magnitudeOverrideApplied;
-        return (effectivePassed, magnitudeOverrideApplied);
-    }
-
     // Pure counts derived from the report/cleanResult — no side effects, safe to compute
     // independently of whether EmitValidationTelemetry below ever runs. BuildExtractionOutput
     // needs these on the success path; EmitValidationTelemetry recomputes them itself so
@@ -417,26 +405,16 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
     // Everything this run logs and emits as metrics, in one place. Always called from
     // ExtractDocumentsAsync's finally block once a report exists, independent of whether
-    // validation passed - effectivePassed/magnitudeOverrideApplied are passed in (captured
-    // before the magnitude-check throw) so a failed run is still logged and recorded as
-    // failed here, not silently dropped because the throw already unwound the try block.
-    private void EmitValidationTelemetry(
-        PdfValidationReport report,
-        PdfCleanResult      cleanResult,
-        bool                effectivePassed,
-        bool                magnitudeOverrideApplied)
+    // validation passed - report.Passed already reflects that (a failed run is still
+    // logged and recorded as failed here, not silently dropped because the gate's throw
+    // already unwound the try block).
+    private void EmitValidationTelemetry(PdfValidationReport report, PdfCleanResult cleanResult)
     {
         foreach (var warning in report.MagnitudeWarnings)
             _logger.LogWarning("{Warning}", warning);
 
-        if (magnitudeOverrideApplied)
-            _logger.LogWarning(
-                "VALIDATION OVERRIDE APPLIED — magnitude-shift gate bypassed by explicit operator request. " +
-                "{Cleaned} records this run. Warnings: {Warnings}",
-                cleanResult.Records.Count, string.Join(" | ", report.MagnitudeWarnings));
-
         _logger.LogInformation("PDF validation {Result} — {Cleaned} records, {Issues} issues",
-            effectivePassed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
+            report.Passed ? "passed" : "failed", report.CleanedRecords, report.Issues.Count);
 
         foreach (var issue in report.Issues.Take(MaxLoggedIssues))
             _logger.Log(
