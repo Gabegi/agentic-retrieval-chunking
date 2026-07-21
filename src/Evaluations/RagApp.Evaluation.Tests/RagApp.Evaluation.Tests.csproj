@@ -18,6 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\AgenticRagApp.FunctionApp\AgenticRagApp.FunctionApp.csproj" />
+    <ProjectReference Include="..\..\AgenticRagApp.Querying\AgenticRagApp.Querying.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="testdata\golden-questions.json">

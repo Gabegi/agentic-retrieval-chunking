@@ -5,8 +5,8 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.NLP;
 using Microsoft.Extensions.AI.Evaluation.Quality;
-using AgenticRagApp.Models;
-using AgenticRagApp.Services;
+using AgenticRagApp.Querying.Models;
+using AgenticRagApp.Querying.Services;
 using RagApp.Evaluation.Tests.Models;
 
 namespace RagApp.Evaluation.Tests.Evaluation;
@@ -140,7 +140,7 @@ public sealed class RagEvaluator
     // RAG call actually cited — the cheapest, most deterministic retrieval signal available.
     // Returns -1 (not scorable) when ExpectedSources carries no document ID at all, e.g. a
     // free-text SharePoint note or an "Onbekend" known-gap scenario.
-    private static double ComputeCitationMatch(string expectedSources, IReadOnlyList<AgenticRagApp.Models.Citation> citations)
+    private static double ComputeCitationMatch(string expectedSources, IReadOnlyList<AgenticRagApp.Querying.Models.Citation> citations)
     {
         var expectedIds = DocumentIdPattern.Matches(expectedSources)
             .Select(m => m.Value)

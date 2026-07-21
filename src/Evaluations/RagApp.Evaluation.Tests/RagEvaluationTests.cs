@@ -9,7 +9,7 @@ using Microsoft.Extensions.AI;
 using AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
 using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
-using AgenticRagApp.Services;
+using AgenticRagApp.Querying.Services;
 using RagApp.Evaluation.Tests.Evaluation;
 using RagApp.Evaluation.Tests.Models;
 
