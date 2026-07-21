@@ -1,7 +1,6 @@
-using Azure;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using AgenticRagApp.Infrastructure.Clients.Embedding;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Models;
 using AgenticRagApp.Services;
@@ -32,11 +31,10 @@ public class EmbeddingServiceTests
         Content = content,
     };
 
-    private static GeneratedEmbeddings<Embedding<float>> Embeddings(int count, int dims = 4) =>
-        new(Enumerable.Range(0, count).Select(_ => new Embedding<float>(new float[dims])));
+    private static float[][] Vectors(int count, int dims = 4) =>
+        Enumerable.Range(0, count).Select(_ => new float[dims]).ToArray();
 
-    private static Mock<IEmbeddingGenerator<string, Embedding<float>>> MockGenerator() =>
-        new();
+    private static Mock<IEmbeddingClient> MockEmbeddingClient() => new();
 
     // Always-miss by default, matching the pre-cache behavior every existing test below
     // already expects (every doc actually goes through the generator). Cache-specific
@@ -50,19 +48,19 @@ public class EmbeddingServiceTests
     }
 
     private static EmbeddingService BuildService(
-        Mock<IEmbeddingGenerator<string, Embedding<float>>> generator,
+        Mock<IEmbeddingClient> embeddingClient,
         IndexerConfig?    config      = null,
         Mock<IVectorCache>? vectorCache = null) =>
-        new(generator.Object, (vectorCache ?? MockVectorCache()).Object, config ?? Config(), NullLogger<EmbeddingService>.Instance);
+        new(embeddingClient.Object, (vectorCache ?? MockVectorCache()).Object, config ?? Config(), NullLogger<EmbeddingService>.Instance);
 
     [TestMethod]
     public async Task EmbedDocumentsAsync_AllDocumentsGetContentVectorSet()
     {
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) => Embeddings(values.Count()));
-        var service = BuildService(generator);
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) => (Vectors(texts.Count), 0));
+        var service = BuildService(embeddingClient);
         var docs = new[] { Document("d1", "content one"), Document("d2", "content two") };
 
         var result = await service.EmbedDocumentsAsync(docs);
@@ -76,11 +74,11 @@ public class EmbeddingServiceTests
     [TestMethod]
     public async Task EmbedDocumentsAsync_WrongVectorDimensions_CountedAsDimError()
     {
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) => Embeddings(values.Count(), dims: 3));
-        var service = BuildService(generator, Config(dims: 4)); // expects 4, generator returns 3
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) => (Vectors(texts.Count, dims: 3), 0));
+        var service = BuildService(embeddingClient, Config(dims: 4)); // expects 4, generator returns 3
         var docs = new[] { Document("d1", "content") };
 
         var result = await service.EmbedDocumentsAsync(docs);
@@ -92,16 +90,16 @@ public class EmbeddingServiceTests
     public async Task EmbedDocumentsAsync_OversizedChunk_IsTruncatedBeforeEmbedding()
     {
         var oversized = new string('a', 25_000);
-        string[]? capturedTexts = null;
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) =>
+        IReadOnlyList<string>? capturedTexts = null;
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) =>
             {
-                capturedTexts = values.ToArray();
-                return Embeddings(capturedTexts.Length);
+                capturedTexts = texts;
+                return (Vectors(texts.Count), 0);
             });
-        var service = BuildService(generator);
+        var service = BuildService(embeddingClient);
         var docs = new[] { Document("d1", oversized) };
 
         var result = await service.EmbedDocumentsAsync(docs);
@@ -114,11 +112,11 @@ public class EmbeddingServiceTests
     [TestMethod]
     public async Task EmbedDocumentsAsync_SmallChunk_IsNotTruncated()
     {
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) => Embeddings(values.Count()));
-        var service = BuildService(generator);
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) => (Vectors(texts.Count), 0));
+        var service = BuildService(embeddingClient);
         var docs = new[] { Document("d1", "short content") };
 
         var result = await service.EmbedDocumentsAsync(docs);
@@ -132,16 +130,16 @@ public class EmbeddingServiceTests
         // Title/Breadcrumb are already prepended into Content by ChunkingService before
         // EmbeddingService ever sees a chunk - EmbeddingText is just Content directly now
         // (no separate Summary fold-in - that field no longer exists).
-        string[]? capturedTexts = null;
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) =>
+        IReadOnlyList<string>? capturedTexts = null;
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) =>
             {
-                capturedTexts = values.ToArray();
-                return Embeddings(capturedTexts.Length);
+                capturedTexts = texts;
+                return (Vectors(texts.Count), 0);
             });
-        var service = BuildService(generator);
+        var service = BuildService(embeddingClient);
         var docs = new[] { Document("d1", "My Title\n\nbody") };
 
         await service.EmbedDocumentsAsync(docs);
@@ -153,16 +151,15 @@ public class EmbeddingServiceTests
     public async Task EmbedDocumentsAsync_MoreThanOneBatch_SplitsIntoMultipleGenerateCalls()
     {
         var callSizes = new List<int>();
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) =>
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) =>
             {
-                var list = values.ToList();
-                lock (callSizes) callSizes.Add(list.Count);
-                return Embeddings(list.Count);
+                lock (callSizes) callSizes.Add(texts.Count);
+                return (Vectors(texts.Count), 0);
             });
-        var service = BuildService(generator);
+        var service = BuildService(embeddingClient);
         var docs = Enumerable.Range(0, 150).Select(i => Document($"d{i}", $"content {i}")).ToArray();
 
         var result = await service.EmbedDocumentsAsync(docs);
@@ -173,46 +170,19 @@ public class EmbeddingServiceTests
     }
 
     [TestMethod]
-    public async Task EmbedDocumentsAsync_TransientFailureThenSuccess_RetriesAndSucceeds()
+    public async Task EmbedDocumentsAsync_RetriesReportedByClient_AreSurfacedInResult()
     {
-        var attempts = 0;
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .Returns(async (IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken ct) =>
-            {
-                attempts++;
-                if (attempts == 1)
-                    throw new RequestFailedException(429, "throttled");
-                return Embeddings(values.Count());
-            });
-        var service = BuildService(generator);
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) => (Vectors(texts.Count), 1));
+        var service = BuildService(embeddingClient);
         var docs = new[] { Document("d1", "content") };
 
         var result = await service.EmbedDocumentsAsync(docs);
 
-        Assert.AreEqual(2, attempts);
         Assert.AreEqual(1, result.EmbeddingRetries);
         Assert.IsTrue(result.Documents.All(d => d.ContentVector != null));
-    }
-
-    [TestMethod]
-    public async Task EmbedDocumentsAsync_NonRetryableFailure_PropagatesImmediately()
-    {
-        var attempts = 0;
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .Returns<IEnumerable<string>, EmbeddingGenerationOptions?, CancellationToken>((_, _, _) =>
-            {
-                attempts++;
-                throw new InvalidOperationException("not retryable");
-            });
-        var service = BuildService(generator);
-        var docs = new[] { Document("d1", "content") };
-
-        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => service.EmbedDocumentsAsync(docs));
-        Assert.AreEqual(1, attempts);
     }
 
     [TestMethod]
@@ -221,16 +191,16 @@ public class EmbeddingServiceTests
         var cachedVector = new float[] { 1, 2, 3, 4 };
         var vectorCache  = new Mock<IVectorCache>();
         vectorCache.Setup(c => c.TryGetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(cachedVector);
-        var generator = MockGenerator();
-        var service   = BuildService(generator, vectorCache: vectorCache);
+        var embeddingClient = MockEmbeddingClient();
+        var service   = BuildService(embeddingClient, vectorCache: vectorCache);
         var docs      = new[] { Document("d1", "content one") };
 
         var result = await service.EmbedDocumentsAsync(docs);
 
         Assert.AreEqual(1, result.CacheHits);
         CollectionAssert.AreEqual(cachedVector, result.Documents.Single().ContentVector);
-        generator.Verify(
-            g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()),
+        embeddingClient.Verify(
+            c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -238,11 +208,11 @@ public class EmbeddingServiceTests
     public async Task EmbedDocumentsAsync_CacheMiss_EmbedsAndWritesResultToCache()
     {
         var vectorCache = MockVectorCache();
-        var generator   = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) => Embeddings(values.Count()));
-        var service = BuildService(generator, vectorCache: vectorCache);
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) => (Vectors(texts.Count), 0));
+        var service = BuildService(embeddingClient, vectorCache: vectorCache);
         var docs    = new[] { Document("d1", "content one") };
 
         var result = await service.EmbedDocumentsAsync(docs);
@@ -259,32 +229,32 @@ public class EmbeddingServiceTests
         var vectorCache = new Mock<IVectorCache>();
         vectorCache.Setup(c => c.TryGetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new float[] { 1, 2 });
         vectorCache.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<float[]>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        var generator = MockGenerator();
-        generator
-            .Setup(g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<string> values, EmbeddingGenerationOptions? _, CancellationToken _) => Embeddings(values.Count(), dims: 4));
-        var service = BuildService(generator, Config(dims: 4), vectorCache);
+        var embeddingClient = MockEmbeddingClient();
+        embeddingClient
+            .Setup(c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, CancellationToken _) => (Vectors(texts.Count, dims: 4), 0));
+        var service = BuildService(embeddingClient, Config(dims: 4), vectorCache);
         var docs    = new[] { Document("d1", "content one") };
 
         var result = await service.EmbedDocumentsAsync(docs);
 
         Assert.AreEqual(0, result.CacheHits);
-        generator.Verify(
-            g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()),
+        embeddingClient.Verify(
+            c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [TestMethod]
     public async Task EmbedDocumentsAsync_NoDocuments_ReturnsEmptyResultWithoutCallingGenerator()
     {
-        var generator = MockGenerator();
-        var service   = BuildService(generator);
+        var embeddingClient = MockEmbeddingClient();
+        var service   = BuildService(embeddingClient);
 
         var result = await service.EmbedDocumentsAsync([]);
 
         Assert.AreEqual(0, result.Documents.Count());
-        generator.Verify(
-            g => g.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()),
+        embeddingClient.Verify(
+            c => c.EmbedWithRetryAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 }
