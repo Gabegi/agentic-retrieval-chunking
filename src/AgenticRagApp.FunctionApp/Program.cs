@@ -1,4 +1,3 @@
-using Azure.Search.Documents;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.OpenTelemetry;
@@ -15,7 +14,7 @@ using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Indexing.Pdf;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
-using AgenticRagApp.Services;
+using AgenticRagApp.Querying;
 using System.Text;
 
 // Required for PdfCleaner's Windows-1252 mojibake repair (Encoding.GetEncoding(1252)) -
@@ -73,10 +72,9 @@ var host = new HostBuilder()
         // instance shared by PDF's and CSV's own UploadService.
         services.AddSingleton<IIndexStatsMonitor, IndexStatsMonitor>();
 
-        services.AddSingleton(sp =>
-            new ChunkNeighborExpander(sp.GetRequiredService<SearchClient>()));
-        services.AddSingleton<IRagQueryService, AgenticRagQueryService>();
-        services.AddSingleton<IKnowledgeService, KnowledgeService>();
+        // Querying — reads the one shared Search index, doc-type-agnostic. See
+        // AgenticRagApp.Querying/ServiceCollectionExtensions.cs for what this wires in.
+        services.AddQuerying();
 
         // PDF indexing pipeline — extraction, chunking, embedding, upload, index. See
         // AgenticRagApp.Indexing.Pdf/ServiceCollectionExtensions.cs for what this wires in.
