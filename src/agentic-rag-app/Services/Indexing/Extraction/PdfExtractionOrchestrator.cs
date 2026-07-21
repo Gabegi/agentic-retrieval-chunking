@@ -316,10 +316,11 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // nothing parses/populates Version for PDFs), and no folder/department concept
     // (MissingDepartmentCount).
     //
-    // fileResults (chunking-rewrite-plan.md item #1) feeds the two lookups below (item #2
-    // + item #3) so real section breadcrumbs / DI-detected headings / native Author+CreatedAt
-    // / table counts / OCR confidence / figure captions reach ExtractionDocument as typed
-    // fields, instead of being discarded after validation reads Structure for its own checks.
+    // fileResults (chunking-rewrite-plan.md item #1) feeds the lookups below (items #2/#3)
+    // so real section breadcrumbs / DI structure / native metadata reach ExtractionDocument
+    // as typed fields, instead of being discarded after validation reads Structure for its
+    // own checks. FileSizeBytes/PdfSpecVersion/EstimatedCostUsd and PageErrors/Warnings are
+    // deliberately not threaded through - see ExtractionDocument's own comment for why.
     private static ExtractionOutput BuildExtractionOutput(
         IReadOnlyList<PDFExtractionResult> fileResults,
         PdfValidationReport                report,
@@ -330,6 +331,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         Dictionary<string, DateTimeOffset>  lastModifiedByBlob)
     {
         var nativeMetadataByBlob = BuildNativeMetadataLookup(fileResults);
+        var sectionsByBlob       = BuildSectionsLookup(fileResults);
         var pageContextByKey     = BuildPageContextLookup(fileResults);
 
         var extractionDocs = cleanResult.Records
@@ -343,14 +345,21 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                     Ordinal:               r.PageNumber,
                     Content:               r.PageContent,
                     Title:                 r.Title,
-                    LastModifiedDate:      lastModifiedByBlob.TryGetValue(r.BlobName, out var lm) ? lm : null,
-                    Breadcrumb:            pageContext.Breadcrumb,
-                    Heading:               pageContext.Heading,
                     Author:                nativeMetadata?.Author,
                     CreatedAt:             nativeMetadata?.CreatedAt,
-                    TableCount:            pageContext.TableCount,
-                    AverageWordConfidence: pageContext.AverageWordConfidence,
-                    FigureCaptions:        pageContext.FigureCaptions);
+                    PageCount:             nativeMetadata?.PageCount,
+                    LastModifiedDate:      lastModifiedByBlob.TryGetValue(r.BlobName, out var lm) ? lm : null,
+                    Bookmarks:             nativeMetadata?.Bookmarks ?? [],
+                    Sections:              sectionsByBlob.GetValueOrDefault(r.BlobName) ?? [],
+                    Breadcrumb:            pageContext.Breadcrumb,
+                    Headings:              pageContext.Headings,
+                    Boilerplate:           pageContext.Boilerplate,
+                    Tables:                pageContext.Tables,
+                    Dimensions:            pageContext.Dimensions,
+                    SelectionMarks:        pageContext.SelectionMarks,
+                    Figures:               pageContext.Figures,
+                    Lines:                 pageContext.Lines,
+                    AverageWordConfidence: pageContext.AverageWordConfidence);
             })
             .ToList();
 
