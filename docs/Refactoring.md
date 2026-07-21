@@ -192,12 +192,27 @@ refactors, execute literally, verify with `dotnet build`/`dotnet test`, not
 guesswork). Nothing in this plan is implemented yet — implementation starts only when
 explicitly requested.
 
-**Phase 0 — Rename host, delete dead code.**
+**Phase 0 — Rename host, delete dead code, introduce shared build props.**
 `agentic-rag-app/` → `AgenticRagApp/`, `AgenticRag.csproj` → `AgenticRagApp.csproj`,
 namespace `AgenticRag` → `AgenticRagApp` throughout, update `ragapplication.sln`
 project entries and paths, update `.pipelines/4-deploy-application.yml`'s publish
 path. Delete `Services/Querying/Classic/RagQueryService.cs` and its test
 (`RagQueryServiceTests.cs`) — confirmed dead, not wired into DI.
+
+Rename blast-radius checklist (grep the whole repo, not just `*.cs`): `host.json`
+(Durable Task Hub name may be derived from/reference the old app name),
+`local.settings.json` / `appsettings*.json`, `Properties/launchSettings.json`
+(profile name), any App Insights cloud-role-name or dashboard/query string literal
+keyed on `AgenticRag`/`agentic-rag-app`/`protocols-indexer`, and `infra/*.tf` /
+`.pipelines/*.yml` for any other path or name reference beyond the two already
+identified.
+
+Also add `src/Directory.Build.props` (common `TargetFramework`/`Nullable`/
+`ImplicitUsings`) and `src/Directory.Packages.props` (central package version
+management) now, before the six new csproj files get created in later phases, so
+they inherit consistent settings instead of copy-pasting boilerplate and drifting on
+package versions.
+
 Verify: `dotnet build src/ragapplication.sln`, `dotnet test src/RagApp.UnitTests/...`.
 
 **Phase 1 — `AgenticRagApp.Domain`.**
