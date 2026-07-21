@@ -7,9 +7,15 @@ using AgenticRag.Configuration;
 
 namespace AgenticRag.Services;
 
-// Manages the Azure AI Search index lifecycle: creates the index on first run (skips if already present),
-// and defines the full schema — fields, HNSW vector search, and semantic ranking configuration.
-// To force a schema update on an existing index, call the dedicated setup-index HTTP endpoint.
+// Manages the Azure AI Search index lifecycle: creates the index on first run (skips if
+// already present), and defines the full schema — fields, HNSW vector search, and
+// semantic ranking configuration.
+//
+// EnsureIndexAsync only ever creates a *missing* index - it never updates an existing
+// one, specifically to avoid a code-driven push silently overwriting any portal-side
+// customisation nobody told this class about. There's no schema-update path today (no
+// "setup-index" endpoint actually exists despite what an earlier version of this comment
+// claimed) - adding one is only worth doing once there's a real index to update against.
 public class IndexService : IIndexService
 {
     private readonly SearchIndexClient _indexClient;
@@ -23,8 +29,8 @@ public class IndexService : IIndexService
         _logger      = logger;
     }
 
-    // Creates the index on first run. Skips if it already exists to avoid overwriting portal customisations.
-    // To intentionally update the schema, call the dedicated setup-index endpoint.
+    // Creates the index on first run. Skips if it already exists - see the class comment
+    // above for why.
     public async Task EnsureIndexAsync()
     {
         try
