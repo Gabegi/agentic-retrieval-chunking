@@ -45,11 +45,6 @@ public record ExtractionDocument(
     // reads the blob property directly, not this field).
     DateTimeOffset? LastModifiedDate,
 
-    // PdfDocumentValidator preflight facts + PDFDocumentAnalyzer's cost estimate.
-    long     FileSizeBytes,
-    double?  PdfSpecVersion,
-    decimal? EstimatedCostUsd,
-
     // Raw bookmark/outline tree (Breadcrumb below is the resolved per-page projection of
     // this - kept here too since the tree itself, e.g. full depth/structure, is lossy to
     // collapse into a single breadcrumb string).
