@@ -147,6 +147,42 @@ about) — and since no index exists yet, that guard never triggered here.
   guards against. Worth adding once there's a real index and a real next
   field to add.
 
+## Post-implementation audit ✅ found and fixed a critical bug
+
+Sequential review of `EmbeddingService`, `IndexService`/`IndexDocumentService`, and
+`IndexingFunction` (the Durable Function) after Tier 1/2 shipped.
+`EmbeddingService` and `IndexService`/`IndexDocumentService` checked out clean.
+
+**Found**: `chunks.json` — the blob hand-off between `ChunkActivity` and
+`EmbedAndUploadActivity` — is a real JSON serialization boundary (Durable
+Functions activities don't share memory). Every field this session added to
+`DocumentChunk` was `[JsonIgnore]`'d so Search upload wouldn't reject an
+unknown field — but `[JsonIgnore]` is type-level, not call-site-level, so it
+also stripped those fields from the blob hand-off *and* the Stage 2
+`chunking.json` archive. By the time `EmbedAndUploadActivity` ran,
+`Tables`/`Figures`/`AverageWordConfidence`/etc. had silently reset to their
+defaults, so the four new Tier 2 fields (`TableCount`/`HasTable`/
+`PageQuality`/`FigureCaptions`, all computed from those now-empty fields)
+would have reached Search as `0`/`false`/`null`/`[]` on every single chunk,
+regardless of what extraction actually found. None of the 261 tests caught
+it — they all assert against the in-memory object `ChunkDocuments()`
+returns directly, never an actual serialize/deserialize round-trip.
+
+**Fixed**: removed `[JsonIgnore]` from `DocumentChunk`'s data fields (kept
+it on the pure-computed helper properties like `TokenEstimate`/
+`EmbeddingText` - those are deterministic functions of `Content`, which
+always survives, so they don't need persisting). Added `SearchUploadChunk`
+(`Models/SearchUploadChunk.cs`) - the exact 13-field Search-schema subset,
+mirroring the `SnapshotChunk` pattern - built by
+`IndexDocumentService.UpsertDocumentsAsync` right before the actual
+`_searchClient.UploadDocumentsAsync` call, not carried anywhere else.
+`DocumentChunk` now serializes fully everywhere (blob hand-off, Stage 2
+archive); only the one upload call site narrows down.
+
+**Residual gap**: no test exercises an actual JSON round-trip of
+`DocumentChunk` (this bug's exact failure mode) or asserts `SearchUploadChunk`
+contains only schema fields. Worth adding before this ships for real.
+
 ## Explicitly out of scope
 
 - `Structure.Sections` (DI's real semantic chunk boundaries) — the eventual

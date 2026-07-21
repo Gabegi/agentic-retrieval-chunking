@@ -111,16 +111,19 @@ src/
     Program.cs                     ← wires Infrastructure + Observability + AddPdfIndexing() + AddCsvIndexing()
     (dead Services/Querying/Classic/RagQueryService.cs deleted, not moved)
 
-  AgenticRagApp.Domain/              (new — shared/abstract model types only)
+  AgenticRagApp.Domain/              (new — shared/abstract model types + cross-cutting ports)
+    Reports/                        ← shared report envelope, IRunReportWriter
+    Storage/                        ← IArtifactStore (port: WriteJsonAsync/ReadJsonAsync/DeleteAsync/ListAsync) — the abstraction Observability codes against instead of BlobContainerClient directly
+
   AgenticRagApp.Infrastructure/      (new — all Azure SDK client wiring)
     Clients/                        ← one AddAgenticRagAppInfrastructure() DI extension: BlobServiceClient, keyed pipeline-temp BlobContainerClient, SearchClient, SearchIndexClient (newly DI-registered — fixes the 5x duplication bug), DocumentIntelligenceClient, AzureOpenAIClient (+ IEmbeddingGenerator/IChatClient wrapping)
+    Storage/                        ← BlobArtifactStore : IArtifactStore (Domain's port), the one place BlobContainerClient touches Observability's concern
     Configuration/                  ← IndexerConfig (deduped, one copy)
     Models/                         ← infra-facing DTOs only if any emerge (e.g. Search index field schema), not domain models
 
-  AgenticRagApp.Observability/       (new)
-    Reports/                        ← IRunReportWriter/RunReportWriter (one copy, dedupe the two existing), PdfIndexRunReport, CsvIndexRunReport (forked per decision #7) + shared envelope from Domain
-    Interfaces/ Models/             ← IPipelineArtifactWriter/PipelineArtifactWriter, ISnapshotService/SnapshotService, Instrumentation, ChunkStats/ExtractionStats/EmbedUploadStats/SnapshotChunk
-    (depends on Infrastructure for BlobContainerClient — not the other way around)
+  AgenticRagApp.Observability/       (new — depends on Domain only, no Azure SDK reference)
+    Reports/                        ← RunReportWriter (implements Domain's IRunReportWriter against IArtifactStore, not BlobContainerClient), PdfIndexRunReport, CsvIndexRunReport (forked per decision #7)
+    Interfaces/ Models/             ← IPipelineArtifactWriter/PipelineArtifactWriter, ISnapshotService/SnapshotService (both coded against IArtifactStore), Instrumentation, ChunkStats/ExtractionStats/EmbedUploadStats/SnapshotChunk
 
   AgenticRagApp.Indexing.Csv/         (renamed from CsvIndexing)
     Extraction/ Chunking/ Embedding/ Indexing/ Upload/ Models/
