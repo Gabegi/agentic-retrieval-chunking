@@ -1,3 +1,8 @@
+// CSV indexing skeleton — commented out. CSV has no active Durable flow today; this is
+// a shape-only reference for whenever activating it becomes a deliberate decision, not
+// live code. Uncomment together with re-adding the AgenticRagApp.Indexing.Csv
+// ProjectReference in AgenticRagApp.FunctionApp.csproj.
+/*
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.DurableTask;
@@ -11,13 +16,6 @@ using IndexingShared.Models;
 
 namespace AgenticRagApp.Functions;
 
-// CSV indexing skeleton — same shape as PdfIndexingFunction, deliberately NOT wired as a
-// live Azure Function: no [Function]/[HttpTrigger]/[OrchestrationTrigger]/[ActivityTrigger]
-// attributes, and AddCsvIndexing() is not called from Program.cs. CSV has no active
-// Durable flow today; this exists so the wiring shape is ready when that becomes a
-// deliberate decision, not a side effect of this refactor. Do not add the Functions
-// attributes back without also calling services.AddCsvIndexing() in Program.cs and
-// deciding the production-activation question explicitly.
 public class CsvIndexingFunction
 {
     // Scopes the rolling snapshot and drift baseline to this doc-type - PDF and CSV must
@@ -228,3 +226,4 @@ public class CsvIndexingFunction
     private Task DeleteBlobAsync(string blobPath, CancellationToken ct) =>
         _blobStore.DeleteIfExistsAsync(_pipelineContainer, blobPath, ct);
 }
+*/

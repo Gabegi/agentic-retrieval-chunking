@@ -34,9 +34,9 @@
     <ProjectReference Include="..\AgenticRagApp.Infrastructure\AgenticRagApp.Infrastructure.csproj" />
     <ProjectReference Include="..\AgenticRagApp.Observability\AgenticRagApp.Observability.csproj" />
     <ProjectReference Include="..\AgenticRagApp.Indexing.Pdf\AgenticRagApp.Indexing.Pdf.csproj" />
-    <!-- CSV is dormant: referenced only so Functions/CsvIndexingFunction.cs (a plain,
-         non-Function skeleton — no [Function] attributes, not wired via AddCsvIndexing())
-         compiles. Not an activation of the CSV pipeline. -->
+    <!-- CSV is dormant. Functions/CsvIndexingFunction.cs is commented out; uncomment it
+         together with this reference when activating CSV becomes a deliberate decision.
     <ProjectReference Include="..\AgenticRagApp.Indexing.Csv\AgenticRagApp.Indexing.Csv.csproj" />
+    -->
   </ItemGroup>
 </Project>
