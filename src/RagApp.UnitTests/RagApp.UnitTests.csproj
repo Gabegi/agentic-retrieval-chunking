@@ -14,7 +14,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AgenticRagApp.FunctionApp\AgenticRagApp.FunctionApp.csproj" />
-    <ProjectReference Include="..\CsvIndexing\CsvIndexing.csproj" />
     <ProjectReference Include="..\IndexingShared\IndexingShared.csproj" />
   </ItemGroup>
 </Project>
