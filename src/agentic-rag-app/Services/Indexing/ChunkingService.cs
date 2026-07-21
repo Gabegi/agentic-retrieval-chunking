@@ -37,9 +37,13 @@ public class ChunkingService : IChunkingService
 
         foreach (var doc in docs.OrderBy(d => d.SourceId).ThenBy(d => d.Ordinal))
         {
-            var title   = doc.Metadata.GetValueOrDefault("title") ?? "";
-            var summary = doc.Metadata.GetValueOrDefault("summary");
-            var chunks  = Chunk(doc.Content);
+            var chunks = Chunk(doc.Content);
+
+            // Real per-page section context: Breadcrumb (hierarchical, from the bookmark
+            // outline) is preferred when present; otherwise fall back to the first
+            // DI-detected heading on this page. Null when the page has neither - previously
+            // this was always null, since nothing ever set TextChunk.Heading.
+            var heading = doc.Breadcrumb ?? doc.Headings.FirstOrDefault()?.Content;
 
             // Chunk ordinal is scoped to this document (SourceId + Ordinal), not the run —
             // otherwise the same document gets different chunk IDs depending on which other
@@ -48,32 +52,37 @@ public class ChunkingService : IChunkingService
             {
                 var chunk = chunks[docChunkIndex];
 
-                // Prepend the document title so every chunk — including short continuation
-                // pages with no query-term overlap on their own — benefits from the parent
-                // document's identity in both BM25 and vector scoring.
-                var body    = chunk.Heading != null ? $"{chunk.Heading}\n\n{chunk.Content}" : chunk.Content;
-                var content = string.IsNullOrEmpty(title) ? body : $"{title}\n\n{body}";
+                // Prepend the document title, then the page's heading/breadcrumb, so every
+                // chunk — including short continuation pages with no query-term overlap on
+                // their own — benefits from both the parent document's identity and its
+                // section context in BM25 and vector scoring.
+                var body    = heading != null ? $"{heading}\n\n{chunk.Content}" : chunk.Content;
+                var content = string.IsNullOrEmpty(doc.Title) ? body : $"{doc.Title}\n\n{body}";
 
                 result.Add(new DocumentChunk
                 {
-                    Id               = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", docChunkIndex),
-                    DocumentId       = doc.SourceId,
-                    Title            = doc.Metadata.GetValueOrDefault("title"),
-                    Department       = doc.Metadata.GetValueOrDefault("folder_path"),
-                    QuickCode        = doc.Metadata.GetValueOrDefault("quick_code"),
-                    RelativePath     = doc.Metadata.GetValueOrDefault("relative_path"),
-                    LastModifiedDate = ParseDate(doc.Metadata.GetValueOrDefault("last_modified_date")),
-                    CheckDate        = ParseDate(doc.Metadata.GetValueOrDefault("check_date")),
-                    Version          = doc.Metadata.GetValueOrDefault("version"),
-                    Content          = content,
-                    Heading          = chunk.Heading,
-                    PageNumber       = doc.Ordinal,
-                    ChunkIndex       = docChunkIndex,
-                    // Same Summary value on every chunk of a document (the join copies the
-                    // index record's summary onto every page) — unlike the title prepend
-                    // above, this stays out of Content and lives in its own searchable/
-                    // semantic field instead, so it doesn't repeat inside the stored text.
-                    Summary          = string.IsNullOrWhiteSpace(summary) ? null : summary,
+                    Id                    = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", docChunkIndex),
+                    DocumentId            = doc.SourceId,
+                    Title                 = doc.Title,
+                    LastModifiedDate      = doc.LastModifiedDate,
+                    Content               = content,
+                    Heading               = heading,
+                    PageNumber            = doc.Ordinal,
+                    ChunkIndex            = docChunkIndex,
+                    Author                = doc.Author,
+                    CreatedAt             = doc.CreatedAt,
+                    PageCount             = doc.PageCount,
+                    Bookmarks             = doc.Bookmarks,
+                    Sections              = doc.Sections,
+                    Breadcrumb            = doc.Breadcrumb,
+                    Headings              = doc.Headings,
+                    Boilerplate           = doc.Boilerplate,
+                    Tables                = doc.Tables,
+                    Dimensions            = doc.Dimensions,
+                    SelectionMarks        = doc.SelectionMarks,
+                    Figures               = doc.Figures,
+                    Lines                 = doc.Lines,
+                    AverageWordConfidence = doc.AverageWordConfidence,
                 });
             }
         }
