@@ -12,7 +12,7 @@ using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
-using AgenticRagApp.Services;
+using AgenticRagApp.Querying.Services;
 
 namespace AgenticRagApp.Functions;
 
