@@ -316,9 +316,12 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     // nothing parses/populates Version for PDFs), and no folder/department concept
     // (MissingDepartmentCount).
     //
-    // fileResults is threaded through (chunking-rewrite-plan.md item #1) so a later step
-    // can join Structure/SectionBreadcrumbs/NativeMetadata against cleanResult.Records by
-    // (BlobName, PageNumber) - not consumed yet, that join is item #2.
+    // fileResults (chunking-rewrite-plan.md item #1) feeds the two lookups below (item #2)
+    // so real section breadcrumbs / DI-detected headings / native Author+CreatedAt reach
+    // ExtractionDocument.Metadata instead of being discarded after validation reads them.
+    // Numeric/structured data from Structure (tables, page quality, figures) is item #3 -
+    // deliberately not here, since that needs the typed-fields-vs-Metadata-strings decision
+    // this string-only join doesn't.
     private static ExtractionOutput BuildExtractionOutput(
         IReadOnlyList<PDFExtractionResult> fileResults,
         PdfValidationReport                report,
@@ -328,19 +331,42 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         int                                 missingTitle,
         Dictionary<string, DateTimeOffset>  lastModifiedByBlob)
     {
+        var nativeMetadataByBlob = BuildNativeMetadataLookup(fileResults);
+        var pageContextByKey     = BuildPageContextLookup(fileResults);
+
         var extractionDocs = cleanResult.Records
-            .Select(r => new ExtractionDocument(
-                SourceId: r.BlobName,
-                Ordinal:  r.PageNumber,
-                Content:  r.PageContent,
-                Metadata: new Dictionary<string, string>
+            .Select(r =>
+            {
+                var nativeMetadata = nativeMetadataByBlob.GetValueOrDefault(r.BlobName);
+                var pageContext    = pageContextByKey.GetValueOrDefault((r.BlobName, r.PageNumber));
+
+                var metadata = new Dictionary<string, string>
                 {
                     ["title"]              = r.Title,
                     // Diff-relevant timestamp: the blob's own storage LastModified.
                     ["last_modified_date"] = lastModifiedByBlob.TryGetValue(r.BlobName, out var lm)
                         ? lm.ToString("yyyy-MM-dd")
                         : "",
-                }))
+                };
+
+                // Real section context for this page, when the PDF has it - "breadcrumb"
+                // (from the bookmark outline) is preferred when present since it's
+                // hierarchical ("Chapter 3 > 3.2 Dosage"); "heading" (DI-detected, works
+                // even without an outline) is the fallback. Neither key is added when
+                // there's nothing for this page - ChunkingService (item #4) decides how
+                // to fall back, not this join.
+                if (pageContext?.Breadcrumb is { } breadcrumb) metadata["breadcrumb"] = breadcrumb;
+                if (pageContext?.Heading    is { } heading)    metadata["heading"]    = heading;
+
+                if (nativeMetadata?.Author is { } author)         metadata["author"]       = author;
+                if (nativeMetadata?.CreatedAt is { } createdAt)   metadata["created_date"] = createdAt.ToString("yyyy-MM-dd");
+
+                return new ExtractionDocument(
+                    SourceId: r.BlobName,
+                    Ordinal:  r.PageNumber,
+                    Content:  r.PageContent,
+                    Metadata: metadata);
+            })
             .ToList();
 
         var issues = report.Issues
