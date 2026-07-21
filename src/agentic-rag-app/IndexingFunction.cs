@@ -31,6 +31,7 @@ public class IndexingFunction
     private readonly BlobContainerClient       _pipelineContainer;
     private readonly IRunReportWriter          _reportWriter;
     private readonly IPipelineArtifactWriter   _artifactWriter;
+    private readonly ISnapshotService          _snapshotService;
     private readonly ILogger<IndexingFunction> _logger;
 
     public IndexingFunction(
@@ -43,6 +44,7 @@ public class IndexingFunction
         [FromKeyedServices("pipeline-temp")] BlobContainerClient pipelineContainer,
         IRunReportWriter          reportWriter,
         IPipelineArtifactWriter   artifactWriter,
+        ISnapshotService          snapshotService,
         ILogger<IndexingFunction> logger)
     {
         _extractionService = extractionService;
@@ -54,6 +56,7 @@ public class IndexingFunction
         _pipelineContainer = pipelineContainer;
         _reportWriter      = reportWriter;
         _artifactWriter    = artifactWriter;
+        _snapshotService   = snapshotService;
         _logger            = logger;
     }
 
