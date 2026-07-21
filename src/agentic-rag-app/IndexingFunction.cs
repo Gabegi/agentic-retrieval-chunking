@@ -141,6 +141,10 @@ public class IndexingFunction
             var (chunks, stats) = _chunkingService.ChunkDocuments(docs);
             await DeleteBlobAsync(req.InputBlob, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, chunks, context.CancellationToken);
+
+            await _artifactWriter.WriteArtifactAsync(
+                $"{req.InstanceId}/chunking.json", new { Chunks = chunks, Stats = stats }, context.CancellationToken);
+
             _logger.LogInformation("Chunked {Docs} docs into {Chunks} chunks → {Blob}", docs.Count, chunks.Count, req.OutputBlob);
             return stats;
         }
