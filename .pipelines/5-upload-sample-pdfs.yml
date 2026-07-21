@@ -12,7 +12,7 @@ pr: none
 # (public_network_access_enabled = false - see infra/storage.tf) and this
 # hosted agent has no VNet access, so this pipeline briefly flips that toggle
 # for its own runner IP and reverts it after uploading - same dance as
-# 4-deploy-application.yml's SCM-firewall step, applied to the storage
+# pipeline.yml's Deploy stage SCM-firewall step, applied to the storage
 # account instead (which has no IP-restriction escape hatch, so the whole
 # public-access toggle has to flip rather than just an allow rule).
 parameters:
@@ -88,7 +88,7 @@ stages:
                 # 20x15s (5 min) wasn't enough in practice: flipping
                 # public-network-access from Disabled to Enabled is a slower,
                 # separate propagation than just adding an IP rule to an
-                # already-public account (c.f. 4-deploy-application.yml's SCM
+                # already-public account (c.f. pipeline.yml's Deploy stage SCM
                 # firewall, which only ever adds an Allow rule to a Function
                 # App that's permanently public - no Disabled->Enabled step).
                 READY=0

@@ -1,0 +1,216 @@
+# Kept for reference / manual standalone reruns - not the active automatic pipeline.
+# ../pipeline.yml's Plan/Apply stages are what actually runs on push/PR now, gated
+# behind Test passing first. Trigger disabled here so this doesn't run in parallel
+# with pipeline.yml and reintroduce the ungated race.
+trigger: none
+pr: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/production') }}:
+      - name: envName
+        value: 'production'
+      - name: serviceConnection
+        value: 'cor-cap-app-prd'
+      - name: tfvarsFile
+        value: 'envs/prod.tfvars'
+      - name: backendRgName
+        value: 'cor-cap-cicd-prd-we-001'
+      - name: backendKey
+        value: 'prod.terraform.tfstate'
+      - name: backendStorageAccount
+        value: 'corsttfcapprdwe'
+      - name: backendContainer
+        value: 'terraform-state-app'
+  - ${{ else }}:
+      - name: envName
+        value: 'development'
+      - name: serviceConnection
+        value: 'cor-cap-app-dev'
+      - name: tfvarsFile
+        value: 'envs/dev.tfvars'
+      - name: backendRgName
+        value: 'cor-cap-cicd-dev-we-001'
+      - name: backendKey
+        value: 'dev.terraform.tfstate'
+      - name: backendStorageAccount
+        value: 'corsttfcapdevwe'
+      - name: backendContainer
+        value: 'terraform-state-app'
+
+stages:
+
+  # Runs on PRs and on push to either branch: init, validate, plan
+  - stage: Plan
+    displayName: 'Validate & Plan (${{ variables.envName }})'
+    jobs:
+      - job: terraform_plan
+        steps:
+          - checkout: self
+
+          # Read-only: pulls the actual current state of everything relevant
+          # to the indexer Function App's networking in one shot - app
+          # state/config, VNet integration, both subnets' actual NSG/route
+          # table associations, the spoke route table's routes, the pe
+          # subnet's (platform-owned) NSG rules, both private endpoints'
+          # provisioning state + DNS zone groups, the actual private DNS A
+          # records, and the content share's storage account config.
+          # Dev-environment names hardcoded since this is a diagnostic aid,
+          # not part of the deploy itself.
+          - task: AzureCLI@2
+            displayName: 'DIAGNOSTIC: full Function App + networking state'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                FUNC_APP="cor-func-idx-cap-dev-we-001"
+                FUNC_RG="cor-cap-data-dev-we-001"
+                NET_RG="cor-cap-network-dev-we-001"
+                VNET="cor-vnet-cap-dev-we-001"
+                ROUTE_TABLE="cor-rt-spoke-cap-dev-we-001"
+                PE_NSG="cor-nsg-cap-dev-we-001"
+                FUNC_STORAGE="corstfunccapdevwe"
+                HUB_SUB="c8e46005-ce0e-4be5-9ded-0178e19fbe28"
+                HUB_DNS_RG="cor-connectivity-dns-prd-we-001"
+
+                echo "=== Function App state/config ==="
+                az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" \
+                  --query "{state:state, usageState:usageState, availabilityState:availabilityState, publicNetworkAccess:publicNetworkAccess, vnetRouteAll:siteConfig.vnetRouteAllEnabled, outboundIps:outboundIpAddresses}" -o json
+
+                echo "=== Function App VNet integration ==="
+                az functionapp vnet-integration list -g "$FUNC_RG" -n "$FUNC_APP" -o json
+
+                echo "=== Function App plan (Consumption/Premium/Flex/Dedicated?) ==="
+                az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" --query "{sku:sku, kind:kind}" -o json
+                PLAN_ID=$(az functionapp show -g "$FUNC_RG" -n "$FUNC_APP" --query "serverFarmId" -o tsv)
+                az appservice plan show --ids "$PLAN_ID" --query "{name:name, sku:sku}" -o json
+
+                echo "=== WEBSITE_VNET_ROUTE_ALL / WEBSITE_CONTENTOVERVNET ==="
+                az functionapp config appsettings list -g "$FUNC_RG" -n "$FUNC_APP" \
+                  --query "[?name=='WEBSITE_VNET_ROUTE_ALL' || name=='WEBSITE_CONTENTOVERVNET']" -o table
+
+                echo "=== Function App app setting names (values omitted) ==="
+                az functionapp config appsettings list -g "$FUNC_RG" -n "$FUNC_APP" --query "[].name" -o table
+
+                echo "=== func subnet: actual current NSG/route table association ==="
+                az network vnet subnet show -g "$NET_RG" --vnet-name "$VNET" -n cor-snet-cap-func-001 \
+                  --query "{addressPrefix:addressPrefix, nsg:networkSecurityGroup.id, routeTable:routeTable.id, privateEndpointNetworkPolicies:privateEndpointNetworkPolicies}" -o json
+
+                echo "=== pe subnet: actual current NSG/route table association ==="
+                az network vnet subnet show -g "$NET_RG" --vnet-name "$VNET" -n cor-snet-cap-pe-001 \
+                  --query "{addressPrefix:addressPrefix, nsg:networkSecurityGroup.id, routeTable:routeTable.id, privateEndpointNetworkPolicies:privateEndpointNetworkPolicies}" -o json
+
+                echo "=== spoke route table: current routes ==="
+                az network route-table route list -g "$NET_RG" --route-table-name "$ROUTE_TABLE" -o table
+
+                echo "=== pe subnet NSG rules (platform-owned) ==="
+                az network nsg rule list -g "$NET_RG" --nsg-name "$PE_NSG" -o table
+
+                echo "=== func site private endpoint: provisioning + connection state ==="
+                az network private-endpoint show -g "$FUNC_RG" -n cor-pep-func-cap-dev-we-001 \
+                  --query "{provisioningState:provisioningState, connectionState:privateLinkServiceConnections[0].privateLinkServiceConnectionState}" -o json
+                az network private-endpoint dns-zone-group list -g "$FUNC_RG" --endpoint-name cor-pep-func-cap-dev-we-001 -o json
+
+                echo "=== storage file private endpoint: provisioning + connection state ==="
+                az network private-endpoint show -g "$FUNC_RG" -n cor-pep-stfunc-file-cap-dev-we-001 \
+                  --query "{provisioningState:provisioningState, connectionState:privateLinkServiceConnections[0].privateLinkServiceConnectionState}" -o json
+                az network private-endpoint dns-zone-group list -g "$FUNC_RG" --endpoint-name cor-pep-stfunc-file-cap-dev-we-001 -o json
+
+                echo "=== private DNS A records: privatelink.file.core.windows.net ==="
+                az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.file.core.windows.net --subscription "$HUB_SUB" -o table
+
+                echo "=== private DNS A records: privatelink.azurewebsites.net ==="
+                az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" -o table
+
+                echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.file.core.windows.net? (A record existing isn't enough - the zone must be linked to this VNet for its resolver to consult it) ==="
+                az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.file.core.windows.net --subscription "$HUB_SUB" \
+                  --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+
+                echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.azurewebsites.net? ==="
+                az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" \
+                  --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+
+                echo "=== VNet custom DNS servers (expect empty/null - Azure default 168.63.129.16 path; a custom server here must itself resolve the privatelink zones) ==="
+                az network vnet show -g "$NET_RG" -n "$VNET" --query "dhcpOptions.dnsServers" -o json
+
+                echo "=== func storage account: public network access + network rules (incl. any Service Endpoint / virtual network rules) ==="
+                az storage account show -g "$FUNC_RG" -n "$FUNC_STORAGE" \
+                  --query "{publicNetworkAccess:publicNetworkAccess, defaultAction:networkRuleSet.defaultAction, bypass:networkRuleSet.bypass, virtualNetworkRules:networkRuleSet.virtualNetworkRules}" -o json
+
+                echo "=== func storage account: content file share exists? (data-plane call - expected to fail from this runner, no VNet path to a private-endpoint-only account) ==="
+                ACCOUNT_KEY=$(az storage account keys list -g "$FUNC_RG" -n "$FUNC_STORAGE" --query "[0].value" -o tsv)
+                az storage share exists --account-name "$FUNC_STORAGE" --account-key "$ACCOUNT_KEY" --name "$FUNC_APP" -o json \
+                  || echo "(failed as expected - this runner has no network path to the storage account's data plane)"
+
+          - template: ../templates/install-terraform.yml
+
+          - template: ../templates/terraform-cli.yml
+            parameters:
+              displayName: 'Init'
+              serviceConnection: '$(serviceConnection)'
+              script: |
+                terraform init \
+                  -backend-config="resource_group_name=$(backendRgName)" \
+                  -backend-config="storage_account_name=$(backendStorageAccount)" \
+                  -backend-config="container_name=$(backendContainer)" \
+                  -backend-config="key=$(backendKey)" \
+                  -backend-config="use_azuread_auth=true"
+
+          - template: ../templates/terraform-cli.yml
+            parameters:
+              displayName: 'Validate'
+              serviceConnection: '$(serviceConnection)'
+              script: terraform validate
+
+          - template: ../templates/terraform-cli.yml
+            parameters:
+              displayName: 'Plan'
+              serviceConnection: '$(serviceConnection)'
+              script: |
+                terraform plan \
+                  -var-file="$(tfvarsFile)" \
+                  -out=$(Build.ArtifactStagingDirectory)/tfplan
+
+          - publish: '$(Build.ArtifactStagingDirectory)/tfplan'
+            artifact: tfplan
+
+  # Only runs on push to development/production, not on PRs.
+  # 'production' environment requires an Approval check in Pipelines > Environments.
+  - stage: Apply
+    displayName: 'Apply (${{ variables.envName }})'
+    dependsOn: Plan
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - deployment: terraform_apply
+        environment: '${{ variables.envName }}'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - download: current
+                  artifact: tfplan
+
+                - template: ../templates/install-terraform.yml
+
+                - template: ../templates/terraform-cli.yml
+                  parameters:
+                    displayName: 'Init'
+                    serviceConnection: '$(serviceConnection)'
+                    script: |
+                      terraform init \
+                        -backend-config="resource_group_name=$(backendRgName)" \
+                        -backend-config="storage_account_name=$(backendStorageAccount)" \
+                        -backend-config="container_name=$(backendContainer)" \
+                        -backend-config="key=$(backendKey)" \
+                        -backend-config="use_azuread_auth=true"
+
+                - template: ../templates/terraform-cli.yml
+                  parameters:
+                    displayName: 'Apply'
+                    serviceConnection: '$(serviceConnection)'
+                    script: terraform apply $(Pipeline.Workspace)/tfplan/tfplan

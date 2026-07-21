@@ -1,3 +1,16 @@
+# Single gated pipeline: Test -> Plan -> Apply -> Deploy. Each stage only runs if the
+# previous one succeeded (dependsOn + condition: succeeded()), so a broken build/test
+# never reaches Terraform, and a failed/skipped Apply never reaches the app deploy.
+# Supersedes the old separate 1-infra-deploy.yml / 3-build-test.yml /
+# 4-deploy-application.yml pipelines - their logic lives here now, unchanged.
+#
+# On a PR: only Test and Plan run (Plan is read-only / diagnostic - safe on PRs).
+# Apply and Deploy are gated off PRs via `ne(variables['Build.Reason'], 'PullRequest')`,
+# same as before.
+#
+# 'production' environment requires an Approval check in Pipelines > Environments,
+# gating the Apply stage (and therefore Deploy, since Deploy depends on Apply).
+
 trigger:
   branches:
     include:
@@ -29,6 +42,10 @@ variables:
         value: 'corsttfcapprdwe'
       - name: backendContainer
         value: 'terraform-state-app'
+      - name: functionAppName
+        value: 'cor-func-idx-cap-prd-we-001'
+      - name: functionAppRg
+        value: 'cor-cap-data-prd-we-001'
   - ${{ else }}:
       - name: envName
         value: 'development'
@@ -44,12 +61,84 @@ variables:
         value: 'corsttfcapdevwe'
       - name: backendContainer
         value: 'terraform-state-app'
+      - name: functionAppName
+        value: 'cor-func-idx-cap-dev-we-001'
+      - name: functionAppRg
+        value: 'cor-cap-data-dev-we-001'
 
 stages:
 
-  # Runs on PRs and on push to either branch: init, validate, plan
+  # ── 1. Test ─────────────────────────────────────────────────────────────────
+  - stage: Test
+    displayName: 'Build & Unit Test'
+    jobs:
+      - job: build_test
+        steps:
+          - checkout: self
+
+          - task: UseDotNet@2
+            displayName: 'Install .NET 10 SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '10.0.x'
+
+          - script: |
+              dotnet restore src/AgenticRagApplication.sln
+            displayName: 'Restore'
+
+          # Builds the whole solution (including RagApp.Evaluation.Tests) so a
+          # compile break anywhere is still caught here - only the actual test
+          # run below is scoped to unit tests. Evaluation.Tests is excluded from
+          # `dotnet test` because it calls out to live Azure OpenAI/Search
+          # (DefaultAzureCredential + SEARCH_ENDPOINT/OPENAI_* env vars) that
+          # this pipeline has no service connection or credentials for.
+          - script: |
+              dotnet build src/AgenticRagApplication.sln -c Release --no-restore
+            displayName: 'Build'
+
+          # One test project per production project (src/UnitTests/) - each still logs to
+          # the same shared trx/coverage folder so publish steps below don't need updating
+          # per project.
+          - script: |
+              for proj in \
+                src/UnitTests/AgenticRagApp.Infrastructure.Tests/AgenticRagApp.Infrastructure.Tests.csproj \
+                src/UnitTests/AgenticRagApp.Observability.Tests/AgenticRagApp.Observability.Tests.csproj \
+                src/UnitTests/AgenticRagApp.Querying.Tests/AgenticRagApp.Querying.Tests.csproj \
+                src/UnitTests/AgenticRagApp.Indexing.Pdf.Tests/AgenticRagApp.Indexing.Pdf.Tests.csproj \
+                src/UnitTests/AgenticRagApp.Indexing.Csv.Tests/AgenticRagApp.Indexing.Csv.Tests.csproj \
+                src/UnitTests/AgenticRagApp.FunctionApp.Tests/AgenticRagApp.FunctionApp.Tests.csproj; do
+                dotnet test "$proj" \
+                  -c Release --no-build \
+                  --logger "trx;LogFileName=$(basename "$proj" .csproj)-test-results.trx" \
+                  --results-directory $(Agent.TempDirectory)/testresults \
+                  --collect:"XPlat Code Coverage" \
+                  -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+              done
+            displayName: 'Run unit tests with coverage'
+
+          - task: PublishTestResults@2
+            displayName: 'Publish test results'
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '**/test-results.trx'
+              searchFolder: '$(Agent.TempDirectory)/testresults'
+              mergeTestResults: true
+
+          # coverlet.collector drops coverage.cobertura.xml under a per-run GUID subfolder of
+          # --results-directory - the double-** glob picks it up regardless of that GUID.
+          - task: PublishCodeCoverageResults@2
+            displayName: 'Publish code coverage'
+            condition: succeededOrFailed()
+            inputs:
+              summaryFileLocation: '$(Agent.TempDirectory)/testresults/**/coverage.cobertura.xml'
+
+  # ── 2. Plan ─────────────────────────────────────────────────────────────────
+  # Runs on PRs and on push, but only after Test succeeds: init, validate, plan.
   - stage: Plan
     displayName: 'Validate & Plan (${{ variables.envName }})'
+    dependsOn: Test
+    condition: succeeded()
     jobs:
       - job: terraform_plan
         steps:
@@ -182,7 +271,8 @@ stages:
           - publish: '$(Build.ArtifactStagingDirectory)/tfplan'
             artifact: tfplan
 
-  # Only runs on push to development/production, not on PRs.
+  # ── 3. Apply ────────────────────────────────────────────────────────────────
+  # Only runs on push to development/production, not on PRs, and only if Plan succeeded.
   # 'production' environment requires an Approval check in Pipelines > Environments.
   - stage: Apply
     displayName: 'Apply (${{ variables.envName }})'
@@ -219,3 +309,103 @@ stages:
                     displayName: 'Apply'
                     serviceConnection: '$(serviceConnection)'
                     script: terraform apply $(Pipeline.Workspace)/tfplan/tfplan
+
+  # ── 4. Deploy ───────────────────────────────────────────────────────────────
+  # Only runs on push to development/production, not on PRs, and only if Apply succeeded
+  # (which itself only ran if Plan, which itself only ran if Test, succeeded) - so the
+  # app only ever ships on top of a Terraform apply that ran against green tests.
+  - stage: Deploy
+    displayName: 'Deploy Application (${{ variables.envName }})'
+    dependsOn: Apply
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: deploy_function_app
+        steps:
+          - checkout: self
+
+          - task: UseDotNet@2
+            displayName: 'Install .NET 10 SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '10.0.x'
+
+          - script: |
+              dotnet publish src/AgenticRagApp.FunctionApp/AgenticRagApp.FunctionApp.csproj -c Release -o $(Build.ArtifactStagingDirectory)/publish
+            displayName: 'Publish'
+
+          - script: |
+              cd $(Build.ArtifactStagingDirectory)/publish
+              zip -r $(Build.ArtifactStagingDirectory)/protocol-indexer.zip .
+            displayName: 'Zip package'
+
+          # Same OIDC service connection as the Plan/Apply stages above - no separate
+          # secrets/credentials to manage for app deploys.
+          #
+          # The Function App denies public traffic by default (see
+          # function_app.tf) and this hosted agent has no VNet access, so we
+          # open a scoped Allow rule for this runner's own IP on the SCM
+          # site just for the duration of the deploy, then remove it -
+          # narrower window than leaving the app open, but not as clean as a
+          # self-hosted agent living inside the VNet.
+          - task: AzureCLI@2
+            displayName: 'Open SCM firewall for this runner'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                RUNNER_IP=$(curl -fsSL https://api.ipify.org)
+                echo "##vso[task.setvariable variable=runnerIp]$RUNNER_IP"
+                az functionapp config access-restriction add \
+                  --resource-group $(functionAppRg) \
+                  --name $(functionAppName) \
+                  --rule-name "AzDoRunnerTemp" \
+                  --action Allow \
+                  --ip-address "$RUNNER_IP/32" \
+                  --priority 100 \
+                  --scm-site true
+
+          # Temporary, diagnostic: capture Kudu's own log stream for the
+          # duration of the zip deploy, to see the actual failure (e.g. the
+          # ZipFS/siteversion.txt content-share-mount signature) instead of
+          # just the generic 500/503 the CLI reports. Only works here because
+          # the SCM firewall rule above is open for this runner right now -
+          # remove once the deploy is reliably green.
+          - task: AzureCLI@2
+            displayName: 'Deploy to Function App'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az webapp log tail -n $(functionAppName) -g $(functionAppRg) > $(Build.ArtifactStagingDirectory)/kudu-tail.log 2>&1 &
+                TAIL_PID=$!
+
+                set +e
+                az functionapp deployment source config-zip \
+                  --resource-group $(functionAppRg) \
+                  --name $(functionAppName) \
+                  --src $(Build.ArtifactStagingDirectory)/protocol-indexer.zip
+                DEPLOY_EXIT=$?
+                set -e
+
+                sleep 10
+                kill $TAIL_PID 2>/dev/null || true
+                echo "=== Kudu log tail captured during deploy ==="
+                cat $(Build.ArtifactStagingDirectory)/kudu-tail.log || true
+
+                exit $DEPLOY_EXIT
+
+          - task: AzureCLI@2
+            displayName: 'Close SCM firewall for this runner'
+            condition: always()
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az functionapp config access-restriction remove \
+                  --resource-group $(functionAppRg) \
+                  --name $(functionAppName) \
+                  --rule-name "AzDoRunnerTemp" \
+                  --scm-site true

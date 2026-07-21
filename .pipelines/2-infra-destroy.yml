@@ -5,7 +5,7 @@ pr: none
 # (keyvault.tf) has purge_protection_enabled = true - intentional, not a bug,
 # it stops the vault from being permanently deleted by accident or by a
 # malicious actor. The tradeoff: this destroy pipeline can only soft-delete
-# it, not purge it, so re-running Apply (1-infra-deploy.yml) for the same
+# it, not purge it, so re-running Apply (pipeline.yml's Apply stage) for the same
 # environment afterward will hit a global-name collision against the
 # soft-deleted vault and need the name instance bumped (see the comment on
 # azurerm_key_vault.main documenting this happening once already, "-001" ->
@@ -117,7 +117,7 @@ stages:
             artifact: tfplan
 
   # Gated by the same Azure DevOps Environment approval checks as
-  # 1-infra-deploy.yml (Pipelines > Environments > development/production).
+  # pipeline.yml's Apply stage (Pipelines > Environments > development/production).
   - stage: Apply
     displayName: 'Destroy Apply (${{ parameters.environment }})'
     dependsOn: Plan
