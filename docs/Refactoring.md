@@ -319,10 +319,14 @@ different projects and assumes it's an oversight.
 
 - `dotnet restore` + `dotnet build` on the renamed solution, zero errors/new
   warnings.
-- `dotnet test` across every new `.Tests` project, all green, same test count as
-  before the split (no test silently dropped in the move).
+- `dotnet test` across every new `.Tests` project, all green. Confirm via a
+  `dotnet test --list-tests` diff (before/after), not a raw count — see Phase 6.
 - Diff `git status` / `git diff --stat` phase by phase to confirm each phase touches
   only its intended files.
-- Manually run the PDF indexing Durable flow locally (Azure Functions Core Tools) at
-  least once after Phase 5 to confirm no behavioral regression — this is the one
-  phase that moves live, running code rather than dormant/duplicate code.
+- Manually run the PDF indexing Durable flow locally (Azure Functions Core Tools)
+  once after **Phase 2** (client-injection change) and again after **Phase 5** (the
+  move itself) — Phase 2 already edits live pipeline code, don't wait until Phase 5
+  to catch a lifetime/wiring bug.
+- Confirm `AgenticRagApp.Observability`'s tests run with no Azure SDK package loaded
+  at all (fake `IArtifactStore`) — the concrete proof the dependency-direction fix in
+  the target structure actually holds.
