@@ -143,10 +143,19 @@ src/
   RagApp.Evaluation.Tests/            (unchanged in shape — golden-question end-to-end eval, not per-slice; just repoint its ProjectReference)
 ```
 
-Dependency direction: `Domain` has no project references. `Infrastructure` and
-`Observability` may reference `Domain`; `Observability` references `Infrastructure`.
+Dependency direction: `Domain` has no project references — it owns the shared model
+types *and* the cross-cutting ports (`IArtifactStore`, `IRunReportWriter`) that other
+projects code against. `Infrastructure` references `Domain` and implements those
+ports against real Azure SDK clients. `Observability` also references only `Domain`
+— it depends on `IArtifactStore`, never on `BlobContainerClient` or `Infrastructure`
+directly, so its report/stat logic is unit-testable with a fake store and has zero
+Azure SDK dependency. This was originally drafted as `Observability → Infrastructure`
+(to get a blob client) but that inverts the usual layering and was flagged as the one
+arrow likely to age badly — fixed by moving the port to `Domain` instead.
 `Indexing.Csv`/`Indexing.Pdf` reference `Domain`, `Infrastructure`, `Observability`.
-`AgenticRagApp` (host) references all five and is the only composition root.
+`AgenticRagApp` (host) references all five, is the only place that wires
+`Infrastructure`'s `BlobArtifactStore` against `Observability`'s consumers, and is
+the only composition root.
 
 ### Domain project scope (needs care, not a mechanical move)
 
