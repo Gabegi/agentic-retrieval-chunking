@@ -11,7 +11,7 @@ public interface IExtractionOrchestrator
     // Cheap listing of every source document currently available to extract - id (blob name
     // for PDF) + LastModified only, no download or extraction. Lets ExtractionService diff
     // against the index BEFORE paying for extraction on anything already up to date.
-    Task<IReadOnlyDictionary<string, DateTimeOffset>> ListSourceDocumentsAsync(CancellationToken ct = default);
+    Task<IReadOnlyDictionary<string, DateTimeOffset>> ListDocumentsInBlobAsync(CancellationToken ct = default);
 
     // Extracts only the given source ids - ExtractionService has already diffed
     // ListSourceDocumentsAsync's listing against the index and determined these are the

@@ -41,7 +41,7 @@ public class ExtractionServiceTests
         var caseInsensitiveListing = new Dictionary<string, DateTimeOffset>(sourceListing, StringComparer.OrdinalIgnoreCase);
         var mock = new Mock<IExtractionOrchestrator>();
         mock.SetupGet(m => m.Source).Returns(source);
-        mock.Setup(m => m.ListSourceDocumentsAsync(It.IsAny<CancellationToken>()))
+        mock.Setup(m => m.ListDocumentsInBlobAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyDictionary<string, DateTimeOffset>)caseInsensitiveListing);
         mock.Setup(m => m.ExtractDocumentsAsync(It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlySet<string> ids, CancellationToken _) => BuildOutput(ids.Select(Doc)));
@@ -56,7 +56,7 @@ public class ExtractionServiceTests
         var caseInsensitiveListing = new Dictionary<string, DateTimeOffset>(sourceListing, StringComparer.OrdinalIgnoreCase);
         var mock = new Mock<IExtractionOrchestrator>();
         mock.SetupGet(m => m.Source).Returns(source);
-        mock.Setup(m => m.ListSourceDocumentsAsync(It.IsAny<CancellationToken>()))
+        mock.Setup(m => m.ListDocumentsInBlobAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyDictionary<string, DateTimeOffset>)caseInsensitiveListing);
         mock.Setup(m => m.ExtractDocumentsAsync(It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(output);

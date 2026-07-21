@@ -35,12 +35,19 @@ public class ExtractionService : IExtractionService
     public async Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionResults Stats)> ExtractAsync(
         bool forceReindex, CancellationToken ct = default)
     {
-        // Cheap: source id (blob name) + LastModified only, no download/extraction.
-        var sourceListing = await _extractor.ListSourceDocumentsAsync(ct);
+        // What documents exist in blob storage right now - id + LastModified only, no
+        // download or content yet. This is the "source" side of the diff.
+        var sourceListing = await _extractor.ListDocumentsInBlobAsync(ct);
 
-        // check what documents we have in the index already (sourceId + last-indexed)
+        // What documents are already in the Search index - id + last-indexed date. This is
+        // the "target" side. Diffing it against sourceListing below is what lets us skip
+        // paying for extraction on anything already indexed and unchanged.
         var indexedDates = await _indexDocumentService.GetCurrentIndexedDocumentDatesAsync(ct);
 
+        // We extract a document if either:
+            // 1. It's new — sourceId isn't in indexedDates at all, or
+            // 2. It's updated — it is in indexedDates, but sourceListing's LastModified is newer than what's recorded there, or
+            // 3. forceReindex is true — process everything regardless.
         var (sourceIdsToProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped) =
             CompareSourceListingToIndex(sourceListing, indexedDates, forceReindex);
 

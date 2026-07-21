@@ -189,22 +189,6 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         }
     }
 
-    // Cheap listing of every PDF blob's name + LastModified only — no download, no
-    // Document Intelligence call. Lets ExtractionService diff this against the index
-    // BEFORE paying for extraction on anything already up to date.
-    public async Task<IReadOnlyDictionary<string, DateTimeOffset>> ListSourceDocumentsAsync(CancellationToken ct = default)
-    {
-        var result = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
-
-        await foreach (var blobItem in _container.GetBlobsAsync(cancellationToken: ct))
-        {
-            if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
-            result[blobItem.Name] = blobItem.Properties.LastModified ?? DateTimeOffset.MinValue;
-        }
-
-        return result;
-    }
-
     // Downloads and extracts every PDF blob in the container that's in sourceIdsToProcess,
     // up to MaxExtractionParallelism at a time. One file's exception (network blip, an
     // unexpected extractor bug) shouldn't abort the whole run — it becomes a file-level
