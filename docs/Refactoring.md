@@ -229,10 +229,21 @@ every Azure SDK client (see Clients table above), including a proper
 here (one copy). Update the 5 call sites that currently
 `new SearchIndexClient(...)`/`new SearchClient(...)` locally to accept an injected
 client instead. Delete `IndexingShared/Configuration`.
+
+Client lifetimes, stated explicitly so the isolated-worker host doesn't get this
+wrong silently: all Azure SDK clients (`BlobServiceClient`, `SearchClient`,
+`SearchIndexClient`, `DocumentIntelligenceClient`, `AzureOpenAIClient`,
+`KnowledgeBaseRetrievalClient`) are thread-safe by design and registered as
+**singletons**. The keyed `"pipeline-temp"` `BlobContainerClient` stays a singleton
+per key, same as today.
+
+This phase edits live PDF-pipeline code (the 5 call sites), not just adds new files
+— it's a behavioral change to the active flow, even though unit tests mock these
+clients directly. Don't wait until Phase 5 to catch a DI-lifetime bug here.
 Verify: `dotnet build`, run existing `IndexService`/`IndexDocumentService`/
-`KnowledgeService` unit tests to confirm behavior unchanged after switching to
-injected clients (they already `Moq` these SDK clients directly, per existing
-pattern).
+`KnowledgeService` unit tests, **and** run a local `StartIndexing` trigger
+(Azure Functions Core Tools against dev settings) end-to-end once — Moq-based unit
+tests won't surface a singleton-vs-per-invocation client lifetime mistake.
 
 **Phase 3 — `AgenticRagApp.Observability`.**
 New class library, depends on `Infrastructure` + `Domain`. Move `IRunReportWriter`/
