@@ -1,9 +1,9 @@
 using System.Reflection;
 using Microsoft.DurableTask;
 using Moq;
-using AgenticRag;
-using AgenticRag.Models;
-using AgenticRag.Observability.Reports;
+using AgenticRagApp;
+using AgenticRagApp.Models;
+using AgenticRagApp.Observability.Reports;
 
 namespace RagApp.UnitTests.Functions;
 

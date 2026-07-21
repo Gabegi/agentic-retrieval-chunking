@@ -4,8 +4,8 @@ using Azure.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using AgenticRag.Models;
-using AgenticRag.Services;
+using AgenticRagApp.Models;
+using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.PdfExtraction;
 

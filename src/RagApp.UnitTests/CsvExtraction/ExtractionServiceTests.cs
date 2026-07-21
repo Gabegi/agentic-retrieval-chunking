@@ -3,9 +3,9 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using AgenticRag.Models;
-using AgenticRag.Observability.Reports;
-using AgenticRag.Services;
+using AgenticRagApp.Models;
+using AgenticRagApp.Observability.Reports;
+using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.CsvExtraction;
 

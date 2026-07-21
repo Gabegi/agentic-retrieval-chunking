@@ -6,9 +6,9 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using AgenticRag.Configuration;
-using AgenticRag.Observability.Reports;
-using AgenticRag.Services;
+using AgenticRagApp.Configuration;
+using AgenticRagApp.Observability.Reports;
+using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.Indexing;
 
@@ -95,7 +95,7 @@ public class IndexDocumentServiceTests
         search.Setup(s => s.UploadDocumentsAsync(It.IsAny<IEnumerable<object>>(), It.IsAny<IndexDocumentsOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(UploadResponse(("c1", true), ("c2", false)));
 
-        var (succeeded, failed) = await service.UpsertDocumentsAsync([new AgenticRag.Models.DocumentChunk { Id = "c1" }, new AgenticRag.Models.DocumentChunk { Id = "c2" }]);
+        var (succeeded, failed) = await service.UpsertDocumentsAsync([new AgenticRagApp.Models.DocumentChunk { Id = "c1" }, new AgenticRagApp.Models.DocumentChunk { Id = "c2" }]);
 
         Assert.AreEqual(1, succeeded);
         Assert.AreEqual(1, failed);

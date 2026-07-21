@@ -1,7 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using AgenticRag.Services;
+using AgenticRagApp.Services;
 using UglyToad.PdfPig;
 
 namespace RagApp.UnitTests.PdfExtraction;

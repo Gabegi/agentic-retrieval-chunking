@@ -1,4 +1,4 @@
-using AgenticRag.Services;
+using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.Indexing;
 

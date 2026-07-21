@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "AgenticRagApp.FunctionApp": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

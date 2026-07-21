@@ -1,7 +1,7 @@
 using System.ClientModel.Primitives;
 using System.Text.Json;
 using Azure.Search.Documents.KnowledgeBases.Models;
-using AgenticRag.Services;
+using AgenticRagApp.Services;
 
 namespace RagApp.UnitTests.Querying;
 

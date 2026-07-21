@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using AgenticRag.Models;
+using AgenticRagApp.Models;
 
 namespace RagApp.UnitTests.Indexing;
 
