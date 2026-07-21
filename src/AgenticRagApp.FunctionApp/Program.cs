@@ -97,7 +97,7 @@ var host = new HostBuilder()
 
         // Extraction source — PDF is the only IExtractionOrchestrator left in this project.
         // CSV's pipeline (extractor, chunking, embedding, upload, index) moved out to the
-        // standalone CsvIndexing project — see IndexingShared for the source-agnostic
+        // standalone AgenticRagApp.Indexing.Csv project — see IndexingShared for the source-agnostic
         // seam types (ExtractionDocument/ExtractionOutput/etc.) both sides return/consume.
         services.AddSingleton<IExtractionOrchestrator>(sp => new PdfExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
