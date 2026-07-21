@@ -85,15 +85,21 @@ stages:
 
                 # Network rule additions aren't instant - poll rather than a blind
                 # sleep, so this only waits as long as it actually needs to.
+                # 20x15s (5 min) wasn't enough in practice: flipping
+                # public-network-access from Disabled to Enabled is a slower,
+                # separate propagation than just adding an IP rule to an
+                # already-public account (c.f. 4-deploy-application.yml's SCM
+                # firewall, which only ever adds an Allow rule to a Function
+                # App that's permanently public - no Disabled->Enabled step).
                 READY=0
-                for i in $(seq 1 20); do
+                for i in $(seq 1 60); do
                   if az storage blob list \
                       --account-name $(storageAccountName) --account-key "$ACCOUNT_KEY" \
                       --container-name $(containerName) -o none 2>/dev/null; then
                     READY=1
                     break
                   fi
-                  echo "Waiting for storage network rule to propagate... ($i/20)"
+                  echo "Waiting for storage network rule to propagate... ($i/60)"
                   sleep 15
                 done
                 if [ "$READY" -ne 1 ]; then
