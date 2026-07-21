@@ -116,6 +116,10 @@ public class IndexingFunction
             var (docs, stats) = await _extractionService.ExtractAsync(
                 req.ForceReindex, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
+
+            await _artifactWriter.WriteArtifactAsync(
+                $"{req.InstanceId}/extraction.json", new { Docs = docs, Stats = stats }, context.CancellationToken);
+
             _logger.LogInformation("Extracted {Count} docs → {Blob}", docs.Count, req.OutputBlob);
             return stats;
         }
