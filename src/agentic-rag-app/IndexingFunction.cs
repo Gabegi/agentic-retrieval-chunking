@@ -85,7 +85,7 @@ public class IndexingFunction
 
         try
         {
-            extractResults = await context.CallActivityAsync<ExtractionResults>("ExtractActivity",        new ExtractRequest(input.ForceReindex, input.OverrideMagnitudeCheck, docsBlob));
+            extractResults = await context.CallActivityAsync<ExtractionResults>("ExtractActivity",        new ExtractRequest(input.ForceReindex, docsBlob));
             chunkResults   = await context.CallActivityAsync<ChunkingResults>("ChunkActivity",               new ChunkRequest(docsBlob, chunksBlob));
             embedResults   = await context.CallActivityAsync<EmbedUploadingResults>("EmbedAndUploadActivity", new EmbedUploadRequest(chunksBlob, extractResults.StaleDocumentIds));
             success      = true;
@@ -113,7 +113,7 @@ public class IndexingFunction
         {
             await _indexService.EnsureIndexAsync();
             var (docs, stats) = await _extractionService.ExtractAsync(
-                req.ForceReindex, req.OverrideMagnitudeCheck, context.CancellationToken);
+                req.ForceReindex, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, docs, context.CancellationToken);
             _logger.LogInformation("Extracted {Count} docs → {Blob}", docs.Count, req.OutputBlob);
             return stats;
@@ -296,7 +296,7 @@ public class IndexingFunction
             stage, chunkCount, Environment.WorkingSet / 1024 / 1024, GC.GetTotalMemory(false) / 1024 / 1024);
 }
 
-public record IndexRequest(bool ForceReindex, bool OverrideMagnitudeCheck = false);
-public record ExtractRequest(bool ForceReindex, bool OverrideMagnitudeCheck, string OutputBlob);
+public record IndexRequest(bool ForceReindex);
+public record ExtractRequest(bool ForceReindex, string OutputBlob);
 public record ChunkRequest(string InputBlob, string OutputBlob);
 public record EmbedUploadRequest(string ChunksBlob, IReadOnlyList<string> StaleDocumentIds);
