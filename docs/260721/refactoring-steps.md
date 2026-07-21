@@ -205,10 +205,12 @@ guesswork). Nothing in this plan is implemented yet — implementation starts on
 explicitly requested.
 
 **Phase 0 — Rename host, delete dead code, introduce shared build props.**
-`agentic-rag-app/` → `AgenticRagApp/`, `AgenticRag.csproj` → `AgenticRagApp.csproj`,
-namespace `AgenticRag` → `AgenticRagApp` throughout, update `ragapplication.sln`
-project entries and paths, update `.pipelines/4-deploy-application.yml`'s publish
-path. Delete `Services/Querying/Classic/RagQueryService.cs` and its test
+`agentic-rag-app/` → `AgenticRagApp.FunctionApp/`, `AgenticRag.csproj` →
+`AgenticRagApp.FunctionApp.csproj`, namespace `AgenticRag` → `AgenticRagApp`
+throughout (root namespace, not `AgenticRagApp.FunctionApp` — see "Resolved
+decisions" #1), update `ragapplication.sln` project entries and paths, update
+`.pipelines/4-deploy-application.yml`'s publish path. Delete
+`Services/Querying/Classic/RagQueryService.cs` and its test
 (`RagQueryServiceTests.cs`) — confirmed dead, not wired into DI.
 
 Rename blast-radius checklist (grep the whole repo, not just `*.cs`): `host.json`
@@ -308,7 +310,7 @@ single `dotnet test` line in `.pipelines/3-build-test.yml` with **one explicit
 under a per-run GUID subfolder, so the existing double-`**` glob in
 `PublishCodeCoverageResults@2` keeps working unmodified). Repoint
 `RagApp.Evaluation.Tests`'s `ProjectReference` at the renamed
-`AgenticRagApp.csproj`. Delete `RagApp.UnitTests` once emptied.
+`AgenticRagApp.FunctionApp.csproj`. Delete `RagApp.UnitTests` once emptied.
 Verify: `dotnet test --list-tests` on `RagApp.UnitTests` before the move, and on the
 full set of new test projects after — diff the two lists rather than just comparing
 counts, so a test that moved but silently lost discovery (bad trait/category, wrong
