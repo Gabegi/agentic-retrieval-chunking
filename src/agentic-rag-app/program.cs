@@ -132,6 +132,12 @@ var host = new HostBuilder()
             new PipelineArtifactWriter(
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("indexing-artifacts")));
 
+        // Content-hash-keyed embedding vector cache - same "indexing-artifacts" container as
+        // the archive above, under its own vector-cache/ path prefix (see VectorCache).
+        services.AddSingleton<IVectorCache>(sp =>
+            new VectorCache(
+                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("indexing-artifacts")));
+
         services.AddSingleton(_ =>
             new SearchClient(new Uri(config.SearchEndpoint), config.SearchIndexName, credential));
         services.AddSingleton(_ =>
