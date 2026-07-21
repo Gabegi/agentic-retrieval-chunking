@@ -19,6 +19,18 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Indexing.Pdf"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Querying", "AgenticRagApp.Querying\AgenticRagApp.Querying.csproj", "{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Indexing.Csv.Tests", "UnitTests\AgenticRagApp.Indexing.Csv.Tests\AgenticRagApp.Indexing.Csv.Tests.csproj", "{369F750A-9B9C-4E7C-9AEA-384D8FDC4AE7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Indexing.Pdf.Tests", "UnitTests\AgenticRagApp.Indexing.Pdf.Tests\AgenticRagApp.Indexing.Pdf.Tests.csproj", "{D64839C6-838F-4185-95FD-A0D6EB9A1D0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Infrastructure.Tests", "UnitTests\AgenticRagApp.Infrastructure.Tests\AgenticRagApp.Infrastructure.Tests.csproj", "{EE68DC84-3920-404B-9B84-27B244616633}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Observability.Tests", "UnitTests\AgenticRagApp.Observability.Tests\AgenticRagApp.Observability.Tests.csproj", "{78A82A83-0A9F-43A4-A13E-8D07047783F3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Querying.Tests", "UnitTests\AgenticRagApp.Querying.Tests\AgenticRagApp.Querying.Tests.csproj", "{70CDB627-B630-4E63-B993-E770F0001F92}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.FunctionApp.Tests", "UnitTests\AgenticRagApp.FunctionApp.Tests\AgenticRagApp.FunctionApp.Tests.csproj", "{1315CE34-0794-45CC-B28E-D05F1D62804D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
