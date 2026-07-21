@@ -1,7 +1,18 @@
 # Vertical-slice restructure of cap.lz.app
 
-Status: proposed, not yet implemented. No code changes have been made — this
-document is the plan only.
+Status: in progress, on branch `feature/refactoring`. Phase 0 (host rename) and
+Phase 1 (`AgenticRagApp.Infrastructure`) are **done**. Phases 2+ not started.
+
+**Revised after Phase 0** (user pushback, confirmed): `AgenticRagApp.Domain` is
+dropped from the plan entirely. The only thing it was going to hold was a storage
+port interface (`IArtifactStore`) so `Observability` wouldn't depend on
+`Infrastructure` directly — but the existing test suite already mocks
+`BlobContainerClient` directly via Moq (`RunReportWriterTests.cs`), so that
+abstraction was solving a non-problem. **`Observability` will depend directly on
+`Infrastructure`** for `BlobContainerClient`, same pattern the codebase already uses
+(see updated "Target project structure" and phase list below — `Domain` no longer
+appears in either). `Domain` may be created later, but only if a genuine shared
+model need actually shows up — not built speculatively.
 
 ## Context
 
@@ -93,22 +104,21 @@ That doc records two unscheduled backlog items, both folded into this plan:
    Terraform or pipeline-stage changes needed for this.
 3. **Cleanup is in scope**: fold in the duplication/dead-code fixes found above, not
    just relocate them as-is.
-4. **`IndexingShared`'s fate**: dissolved. Its contents redistribute into three new
-   projects (Domain / Infrastructure / Observability) per the target shape below —
-   no project named `IndexingShared` survives, and the backlog doc's "Client folder
-   inside IndexingShared" suggestion is superseded by putting it in the new
-   `Infrastructure` project instead.
-5. **New `AgenticRagApp.Domain` project** (user's addition, not in the original
-   5-point list): holds genuinely shared model types, including abstract/extensible
-   base types other flows derive from. This needs real design work, not just a file
-   move — see "Domain project scope" below.
+4. **`IndexingShared`'s fate**: dissolved. Its contents redistribute into
+   `Infrastructure` / `Observability` per the target shape below — no project named
+   `IndexingShared` survives, and the backlog doc's "Client folder inside
+   IndexingShared" suggestion is superseded by putting it in the new `Infrastructure`
+   project instead.
+5. ~~New `AgenticRagApp.Domain` project~~ — **superseded**, see "`Domain` — deferred,
+   not built" below. Turned out to be solving a non-problem (see revision note at the
+   top of this doc).
 6. **Orchestrator naming collision**: rename the class-library pipeline class
    `PdfExtractionOrchestrator` → `PdfExtractionPipeline`, so "Orchestrator" is
    reserved for the Durable Function orchestrator concept in the host project once
    PDF gets its own project.
 7. **Reporting**: "We should never mix different document types in reporting" — fork
-   `IndexRunReport` into **`PdfIndexRunReport`** and **`CsvIndexRunReport`**, sharing
-   only a common envelope (see Domain scope below), never one combined shape.
+   `IndexRunReport` into **`PdfIndexRunReport`** and **`CsvIndexRunReport`**, no
+   shared base type, never one combined shape.
 
 ## Target project structure
 

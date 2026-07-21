@@ -108,6 +108,24 @@ resource "azurerm_storage_container" "reports" {
   container_access_type = "private"
 }
 
+# Written by IPipelineArtifactWriter (Observability/PipelineArtifactWriter.cs) -
+# always-on full extraction/chunking/embedding artifact archive, one blob per
+# pipeline stage per run under {instanceId}/.
+resource "azurerm_storage_container" "indexing_artifacts" {
+  name                  = "indexing-artifacts"
+  storage_account_id    = azurerm_storage_account.data.id
+  container_access_type = "private"
+}
+
+# Written by IRunReportWriter (Observability/RunReportWriter.cs) - gated on
+# IsEnabled (env.IsDevelopment()), so this stays empty unless DOTNET_ENVIRONMENT
+# is set to Development on the function app.
+resource "azurerm_storage_container" "telemetry_reports" {
+  name                  = "telemetry-reports"
+  storage_account_id    = azurerm_storage_account.data.id
+  container_access_type = "private"
+}
+
 # Azure Storage only permits one group Id per private endpoint for this
 # account ("OnlyOneGroupIdPermitted... first-party resource"), so blob/queue/
 # table each need their own private endpoint rather than one bundled PE.

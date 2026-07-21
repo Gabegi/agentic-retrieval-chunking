@@ -46,26 +46,26 @@ var host = new HostBuilder()
 
         services.AddSingleton<IRunReportWriter>(sp =>
             new RunReportWriter(
-                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("telemetry-reports"),
+                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-reports"),
                 sp.GetRequiredService<IHostEnvironment>()));
 
-        // Persistent full-content archive - separate container from telemetry-reports above,
+        // Persistent full-content archive - separate container from pipeline-reports above,
         // always on (not gated by environment or a config flag - see IPipelineArtifactWriter).
         services.AddSingleton<IPipelineArtifactWriter>(sp =>
             new PipelineArtifactWriter(
-                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("indexing-artifacts")));
+                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts")));
 
-        // Content-hash-keyed embedding vector cache - same "indexing-artifacts" container as
+        // Content-hash-keyed embedding vector cache - same "pipeline-artifacts" container as
         // the archive above, under its own vector-cache/ path prefix (see VectorCache).
         services.AddSingleton<IVectorCache>(sp =>
             new VectorCache(
-                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("indexing-artifacts")));
+                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts")));
 
         // Rolling full-corpus snapshot + the vector-cache eviction that rides along with it -
-        // same "indexing-artifacts" container, under its own snapshots/ path prefix.
+        // same "pipeline-artifacts" container, under its own snapshots/ path prefix.
         services.AddSingleton<ISnapshotService>(sp =>
             new SnapshotService(
-                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("indexing-artifacts"),
+                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts"),
                 sp.GetRequiredService<IVectorCache>(),
                 sp.GetRequiredService<ILogger<SnapshotService>>()));
 
