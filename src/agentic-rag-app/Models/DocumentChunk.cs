@@ -62,26 +62,29 @@ public class DocumentChunk
 
     // ── Everything else extraction produced ─────────────────────────────────
     // Not in the Search schema (no simple/collection field shape fits these - nested
-    // objects like TableInfo's cells, or file-level data like Bookmarks/Sections).
-    // [JsonIgnore] so upload never sends an unknown field to Search. Still carried through
-    // in full so it's not silently dropped - available in the Stage 2 archive today, and
-    // the source of truth the derived fields above are computed from.
+    // objects like TableInfo's cells, or file-level data like Bookmarks/Sections) - but
+    // NOT [JsonIgnore]'d. That attribute is type-level, not call-site-level: it would
+    // strip these fields from every serialization of DocumentChunk, not just the Search
+    // upload one - including the ChunkActivity -> EmbedAndUploadActivity blob hand-off
+    // (chunks.json) and the Stage 2 archive, silently losing this data before it could
+    // ever reach either. See SearchUploadChunk for the actual Search-only projection,
+    // built right before the upload call instead.
 
-    [JsonIgnore] public string?         Author { get; set; }
-    [JsonIgnore] public DateTimeOffset? CreatedAt { get; set; }
-    [JsonIgnore] public int?            PageCount { get; set; }
-    [JsonIgnore] public IReadOnlyList<Bookmark>    Bookmarks { get; set; } = [];
-    [JsonIgnore] public IReadOnlyList<SectionInfo> Sections  { get; set; } = [];
+    public string?         Author { get; set; }
+    public DateTimeOffset? CreatedAt { get; set; }
+    public int?            PageCount { get; set; }
+    public IReadOnlyList<Bookmark>    Bookmarks { get; set; } = [];
+    public IReadOnlyList<SectionInfo> Sections  { get; set; } = [];
 
-    [JsonIgnore] public string? Breadcrumb { get; set; }
-    [JsonIgnore] public IReadOnlyList<Heading>           Headings       { get; set; } = [];
-    [JsonIgnore] public IReadOnlyList<Heading>           Boilerplate    { get; set; } = [];
-    [JsonIgnore] public IReadOnlyList<TableInfo>         Tables         { get; set; } = [];
-    [JsonIgnore] public PageDimensions?                  Dimensions     { get; set; }
-    [JsonIgnore] public IReadOnlyList<SelectionMarkInfo> SelectionMarks { get; set; } = [];
-    [JsonIgnore] public IReadOnlyList<FigureInfo>        Figures        { get; set; } = [];
-    [JsonIgnore] public IReadOnlyList<LineInfo>          Lines          { get; set; } = [];
-    [JsonIgnore] public double?                          AverageWordConfidence { get; set; }
+    public string? Breadcrumb { get; set; }
+    public IReadOnlyList<Heading>           Headings       { get; set; } = [];
+    public IReadOnlyList<Heading>           Boilerplate    { get; set; } = [];
+    public IReadOnlyList<TableInfo>         Tables         { get; set; } = [];
+    public PageDimensions?                  Dimensions     { get; set; }
+    public IReadOnlyList<SelectionMarkInfo> SelectionMarks { get; set; } = [];
+    public IReadOnlyList<FigureInfo>        Figures        { get; set; } = [];
+    public IReadOnlyList<LineInfo>          Lines          { get; set; } = [];
+    public double?                          AverageWordConfidence { get; set; }
 
     [JsonIgnore] public int  TokenEstimate => Content.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
     [JsonIgnore] public bool IsEmpty       => string.IsNullOrWhiteSpace(Content);

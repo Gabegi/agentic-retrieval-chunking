@@ -119,11 +119,33 @@ Tier 2.
    `chunk.Heading != null`. `EmbeddingText` simplified to `=> Content`
    directly (no more `Summary` fold-in — that field is gone).
 
-## Tier 2 — needs the schema-update mechanism built first
+## Tier 2 — dedicated fields for filtering/faceting ✅ done
 
-Out of scope until that's unblocked:
-- Dedicated `table_count`/`has_table`, `page_quality`, `figure_captions`
-  fields for filtering/faceting, rather than folding them into text.
+Correction to the original framing above: adding a *new* field to an Azure
+AI Search index doesn't need a migration mechanism — `CreateOrUpdateIndex`
+supports pure additions natively, existing documents just get `null` until
+reprocessed. The real blocker was `IndexService.EnsureIndexAsync` itself,
+which deliberately skips updating an index that already exists (to avoid a
+code push silently clobbering portal-side customisations nobody told it
+about) — and since no index exists yet, that guard never triggered here.
+
+- `IndexService`: added `table_count` (Int32), `has_table` (Boolean,
+  filterable+facetable), `page_quality` (Double, filterable+sortable),
+  `figure_captions` (searchable string collection, `nl.microsoft` analyzer).
+- `DocumentChunk`: four new `[JsonPropertyName]`-mapped computed properties
+  (`TableCount`, `HasTable`, `PageQuality`, `FigureCaptions`) derived from
+  the raw `Tables`/`Figures`/`AverageWordConfidence` fields already carried
+  through since Tier 1 — same pattern as `TokenEstimate`/`IsEmpty` already
+  being computed from `Content`.
+- Same operational caveat as the Stage 4 snapshot: these only populate for
+  documents that actually get reprocessed. A `force=true` reindex is what
+  backfills them for the whole corpus, not just new/updated docs going
+  forward.
+- Deliberately not built: an "update an existing index" path. Not needed
+  yet (no index exists), and building it speculatively risks exactly the
+  portal-customisation-clobbering problem `EnsureIndexAsync`'s current skip
+  guards against. Worth adding once there's a real index and a real next
+  field to add.
 
 ## Explicitly out of scope
 
