@@ -28,7 +28,7 @@ stages:
               version: '10.0.x'
 
           - script: |
-              dotnet restore src/ragapplication.sln
+              dotnet restore src/AgenticRagApplication.sln
             displayName: 'Restore'
 
           # Builds the whole solution (including RagApp.Evaluation.Tests) so a
@@ -38,7 +38,7 @@ stages:
           # (DefaultAzureCredential + SEARCH_ENDPOINT/OPENAI_* env vars) that
           # this pipeline has no service connection or credentials for.
           - script: |
-              dotnet build src/ragapplication.sln -c Release --no-restore
+              dotnet build src/AgenticRagApplication.sln -c Release --no-restore
             displayName: 'Build'
 
           - script: |

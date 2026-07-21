@@ -218,7 +218,7 @@ explicitly requested.
 `agentic-rag-app/` → `AgenticRagApp.FunctionApp/`, `AgenticRag.csproj` →
 `AgenticRagApp.FunctionApp.csproj`, namespace `AgenticRag` → `AgenticRagApp`
 throughout (root namespace, not `AgenticRagApp.FunctionApp` — see "Resolved
-decisions" #1), update `ragapplication.sln` project entries and paths, update
+decisions" #1), update `AgenticRagApplication.sln` project entries and paths, update
 `.pipelines/4-deploy-application.yml`'s publish path. Delete
 `Services/Querying/Classic/RagQueryService.cs` and its test
 (`RagQueryServiceTests.cs`) — confirmed dead, not wired into DI.
@@ -237,7 +237,7 @@ management) now, before the six new csproj files get created in later phases, so
 they inherit consistent settings instead of copy-pasting boilerplate and drifting on
 package versions.
 
-Verify: `dotnet build src/ragapplication.sln`, `dotnet test src/RagApp.UnitTests/...`.
+Verify: `dotnet build src/AgenticRagApplication.sln`, `dotnet test src/RagApp.UnitTests/...`.
 
 **Phase 1 — `AgenticRagApp.Domain`.**
 New class library, no project references. Add the shared report envelope described
