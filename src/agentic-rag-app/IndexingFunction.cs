@@ -14,10 +14,8 @@ using AgenticRag.Services;
 
 namespace AgenticRag;
 
-// Generic indexing entrypoint. Exactly one IExtractionOrchestrator is registered in program.cs
-// at a time (currently CsvExtractionOrchestrator) - the pipeline steps here don't know or care
-// which one. To switch source (e.g. to a future PDF extractor), replace that registration;
-// nothing in this file changes.
+// PDF indexing entrypoint - Durable Functions orchestrator driving the
+// extract/chunk/embed-and-upload pipeline.
 //
 // Payload pattern: extracted docs and chunks are written to blob (container: indexing-pipeline,
 // paths: {instanceId}/extracted.json and {instanceId}/chunks.json). Only the blob name string
@@ -32,6 +30,7 @@ public class IndexingFunction
     private readonly IKnowledgeService         _knowledgeService;
     private readonly BlobContainerClient       _pipelineContainer;
     private readonly IRunReportWriter          _reportWriter;
+    private readonly IPipelineArtifactWriter   _artifactWriter;
     private readonly ILogger<IndexingFunction> _logger;
 
     public IndexingFunction(
@@ -43,6 +42,7 @@ public class IndexingFunction
         IKnowledgeService         knowledgeService,
         [FromKeyedServices("pipeline-temp")] BlobContainerClient pipelineContainer,
         IRunReportWriter          reportWriter,
+        IPipelineArtifactWriter   artifactWriter,
         ILogger<IndexingFunction> logger)
     {
         _extractionService = extractionService;
@@ -53,6 +53,7 @@ public class IndexingFunction
         _knowledgeService  = knowledgeService;
         _pipelineContainer = pipelineContainer;
         _reportWriter      = reportWriter;
+        _artifactWriter    = artifactWriter;
         _logger            = logger;
     }
 
