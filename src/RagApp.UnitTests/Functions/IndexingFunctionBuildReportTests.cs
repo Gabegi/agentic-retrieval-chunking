@@ -77,6 +77,7 @@ public class IndexingFunctionBuildReportTests
         ChunksTruncated:               2,
         EmbeddingRetries:              3,
         VectorDimErrors:               0,
+        VectorCacheHits:               0,
         TotalEmbeddingDurationMs:      1234,
         IndexDocumentCountSnapshot:    1000,
         IndexStorageSizeBytesSnapshot: 2_000_000,
