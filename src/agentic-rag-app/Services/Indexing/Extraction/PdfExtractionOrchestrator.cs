@@ -132,7 +132,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
 
             var (errors, warnings, missingTitle) = CountIssues(validation, cleanResult);
-            return BuildExtractionOutput(validation, cleanResult, errors, warnings, missingTitle, lastModifiedByBlob);
+            return BuildExtractionOutput(fileResults, validation, cleanResult, errors, warnings, missingTitle, lastModifiedByBlob);
         }
         catch (Exception ex)
         {
