@@ -196,7 +196,7 @@ namespace AgenticRagApp.Services
             Operation<AnalyzeResult> operation;
             try
             {
-                operation = await _diClient.AnalyzeDocumentAsync(WaitUntil.Started, analyzeOptions, cancellationToken: ct);
+                operation = await _diClient.SubmitAnalyzeAsync(analyzeOptions, ct);
             }
             catch (RequestFailedException ex)
             {

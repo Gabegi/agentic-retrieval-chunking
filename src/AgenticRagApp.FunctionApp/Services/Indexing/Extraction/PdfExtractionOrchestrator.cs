@@ -1,11 +1,10 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using System.Text.Json;
 using Azure;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
@@ -25,6 +24,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 {
     private readonly BlobContainerClient                _container;
     private readonly BlobContainerClient                _stateContainer;
+    private readonly IBlobStore                          _blobStore;
     private readonly IRunReportWriter                   _reportWriter;
     private readonly IPdfExtractor                      _extractor;
     private readonly IPdfCleaner                        _pdfCleaner;
@@ -59,6 +59,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     public PdfExtractionOrchestrator(
         BlobContainerClient                container,
         BlobContainerClient                stateContainer,
+        IBlobStore                         blobStore,
         IRunReportWriter                   reportWriter,
         IPdfExtractor                      extractor,
         IPdfCleaner                        cleaner,
@@ -68,6 +69,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     {
         _container      = container;
         _stateContainer = stateContainer;
+        _blobStore      = blobStore;
         _reportWriter   = reportWriter;
         _extractor      = extractor;
         _pdfCleaner        = cleaner;
@@ -205,19 +207,22 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         var lastModified = new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
 
 
-        // Iterates through items in blob, for each BlobItem, runs the download-and-extract
+        var blobs = await _blobStore.ListBlobsAsync(_container, ct);
+
+        // Iterates through items in the container, for each one runs the download-and-extract
         await Parallel.ForEachAsync(
-            _container.GetBlobsAsync(cancellationToken: ct),
+            blobs,
             new ParallelOptions { MaxDegreeOfParallelism = MaxExtractionParallelism, CancellationToken = ct },
-            async (blobItem, cancellationToken) =>
+            async (blob, cancellationToken) =>
             {
+                var (name, lastModifiedProp, contentLength) = blob;
 
                 // Skips any blob item whose name doesn't end in .pdf (case-insensitive), so non-PDF files in the container are ignored.
-                if (!blobItem.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
+                if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
 
                 // Already up to date in the index (per ExtractionService's own pre-extraction
                 // blob listing/diff) - skip the paid download + Document Intelligence call entirely.
-                if (!sourceIdsToProcess.Contains(blobItem.Name)) return;
+                if (!sourceIdsToProcess.Contains(name)) return;
 
                 // we need a lastmodified date to tell new/updated docs apart from unchanged ones.
                 // Recorded here, before the try block below, so failed downloads/extractions
@@ -225,16 +230,16 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                 // pre-extraction skip already happened above, in ExtractionService), so a
                 // failed file here simply produces no cleaned record and gets retried next
                 // run - its index last_modified_date never advances.
-                if (blobItem.Properties.LastModified is { } modified)
+                if (lastModifiedProp is { } modified)
                 {
-                    lastModified[blobItem.Name] = modified;
+                    lastModified[name] = modified;
                 }
                 else
                 {
                     _logger.LogWarning(
                         "'{Blob}' has no LastModified from blob storage — treating as never-modified so it isn't reprocessed every run.",
-                        blobItem.Name);
-                    lastModified[blobItem.Name] = DateTimeOffset.MinValue;
+                        name);
+                    lastModified[name] = DateTimeOffset.MinValue;
                 }
 
                 // Try block covers the download too: a failed download for one blob must not
@@ -242,10 +247,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                 // also cancel the other in-flight tasks, discarding paid DI calls mid-flight.
                 try
                 {
-                    // DownloadContentAsync is the docs-preferred API for blobs that fit in
-                    // memory; avoids the MemoryStream + ToArray() double allocation.
-                    var download = await _container.GetBlobClient(blobItem.Name).DownloadContentAsync(cancellationToken);
-                    var pdfBytes = download.Value.Content.ToArray();
+                    var pdfBytes = await _blobStore.DownloadBytesAsync(_container, name, cancellationToken);
 
                     // Computed here, before any backend is invoked, so it applies regardless of
                     // which IPdfExtractor ends up running - same bytes always hash the same,
@@ -255,9 +257,9 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                     // visible while that dedup check gets built. Gated on IsEnabled so SHA-256 isn't
                     // computed on every blob, every run, when Debug logging is off (the normal case).
                     if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("'{Blob}' content hash: {Hash}", blobItem.Name, ComputeContentHash(pdfBytes));
+                        _logger.LogDebug("'{Blob}' content hash: {Hash}", name, ComputeContentHash(pdfBytes));
 
-                    results.Add(await _extractor.ExtractPDFAsync(blobItem.Name, pdfBytes, cancellationToken));
+                    results.Add(await _extractor.ExtractPDFAsync(name, pdfBytes, cancellationToken));
                 }
                 catch (OperationCanceledException)
                 {
@@ -265,9 +267,9 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Download or extraction failed for '{Blob}'; recording as a file-level error.", blobItem.Name);
-                    results.Add(new PDFExtractionResult(false, blobItem.Name, blobItem.Properties.ContentLength ?? 0, null, null, null, null, null, null,
-                        new ExtractionError { DocumentId = blobItem.Name, Message = ex.Message, Reason = PdfOpenFailureReason.Unknown }));
+                    _logger.LogWarning(ex, "Download or extraction failed for '{Blob}'; recording as a file-level error.", name);
+                    results.Add(new PDFExtractionResult(false, name, contentLength ?? 0, null, null, null, null, null, null,
+                        new ExtractionError { DocumentId = name, Message = ex.Message, Reason = PdfOpenFailureReason.Unknown }));
                 }
             });
 
@@ -562,54 +564,10 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
     private async Task<(int? Count, ETag? ETag)> PreviousRunCount(CancellationToken ct)
     {
-        var blob = _stateContainer.GetBlobClient(StateBlobName);
-
-        try
-        {
-            var download = await blob.DownloadContentAsync(ct);
-            var state    = download.Value.Content.ToObjectFromJson<RunState>();
-            return (state?.CleanedRecords, download.Value.Details.ETag);
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404)
-        {
-            // No previous state blob - first run, or it was removed. Checking existence
-            // separately (ExistsAsync then DownloadContentAsync) would be a second
-            // round-trip and racy anyway (the blob could vanish between the two calls),
-            // so just attempt the download and treat 404 as "no baseline".
-            return (null, null);
-        }
-        catch (JsonException ex)
-        {
-            // A corrupt/partially-written state blob shouldn't brick the whole run -
-            // it just means "no usable baseline", the same as the blob not existing.
-            _logger.LogWarning(ex,
-                "State blob '{Blob}' contains invalid JSON — treating as no previous baseline.", StateBlobName);
-            return (null, null);
-        }
+        var (state, etag) = await _blobStore.TryReadJsonWithETagAsync<RunState>(_stateContainer, StateBlobName, ct);
+        return (state?.CleanedRecords, etag);
     }
 
-    private async Task SaveRunStateAsync(int cleanedRecords, ETag? previousETag, CancellationToken ct)
-    {
-        var json       = JsonSerializer.Serialize(new RunState(cleanedRecords));
-        var conditions = previousETag is ETag tag
-            ? new BlobRequestConditions { IfMatch = tag }
-            : new BlobRequestConditions { IfNoneMatch = ETag.All };
-
-        try
-        {
-            await _stateContainer.GetBlobClient(StateBlobName)
-                .UploadAsync(BinaryData.FromString(json), new BlobUploadOptions { Conditions = conditions }, ct);
-        }
-        catch (RequestFailedException ex) when (ex.Status is 412 or 409)
-        {
-            // Lost a race with another concurrent run's save - not worth failing this
-            // otherwise-successful run over. The next run's magnitude check just
-            // compares against whichever baseline won the race. 412 is the IfMatch/
-            // IfNoneMatch precondition failure; 409 (BlobAlreadyExists) is what the
-            // first-run IfNoneMatch: * path gets instead when the blob was created
-            // concurrently since there was no previous state to match against.
-            _logger.LogWarning(
-                "State blob '{Blob}' was updated concurrently — this run's baseline was not saved.", StateBlobName);
-        }
-    }
+    private Task SaveRunStateAsync(int cleanedRecords, ETag? previousETag, CancellationToken ct) =>
+        _blobStore.SaveJsonWithETagAsync(_stateContainer, StateBlobName, new RunState(cleanedRecords), previousETag, ct);
 }

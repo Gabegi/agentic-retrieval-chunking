@@ -12,6 +12,9 @@ public class BlobStore : IBlobStore
 
     public BlobStore(ILogger<BlobStore> logger) => _logger = logger;
 
+    public async Task EnsureContainerExistsAsync(BlobContainerClient container, CancellationToken ct = default) =>
+        await container.CreateIfNotExistsAsync(cancellationToken: ct);
+
     public async Task<byte[]> DownloadBytesAsync(BlobContainerClient container, string blobName, CancellationToken ct = default)
     {
         var download = await container.GetBlobClient(blobName).DownloadContentAsync(ct);
@@ -30,12 +33,12 @@ public class BlobStore : IBlobStore
     public async Task<bool> DeleteIfExistsAsync(BlobContainerClient container, string blobName, CancellationToken ct = default) =>
         await container.GetBlobClient(blobName).DeleteIfExistsAsync(cancellationToken: ct);
 
-    public async Task<IReadOnlyList<(string Name, DateTimeOffset? LastModified)>> ListBlobsAsync(
+    public async Task<IReadOnlyList<(string Name, DateTimeOffset? LastModified, long? ContentLength)>> ListBlobsAsync(
         BlobContainerClient container, CancellationToken ct = default)
     {
-        var result = new List<(string, DateTimeOffset?)>();
+        var result = new List<(string, DateTimeOffset?, long?)>();
         await foreach (var item in container.GetBlobsAsync(cancellationToken: ct))
-            result.Add((item.Name, item.Properties.LastModified));
+            result.Add((item.Name, item.Properties.LastModified, item.Properties.ContentLength));
         return result;
     }
 

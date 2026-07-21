@@ -9,6 +9,8 @@ namespace AgenticRagApp.Infrastructure.Clients.Blob;
 // this only ever does the mechanical Azure call.
 public interface IBlobStore
 {
+    Task EnsureContainerExistsAsync(BlobContainerClient container, CancellationToken ct = default);
+
     Task<byte[]> DownloadBytesAsync(BlobContainerClient container, string blobName, CancellationToken ct = default);
 
     Task<Stream> OpenReadAsync(BlobContainerClient container, string blobName, CancellationToken ct = default);
@@ -19,8 +21,8 @@ public interface IBlobStore
 
     Task<bool> DeleteIfExistsAsync(BlobContainerClient container, string blobName, CancellationToken ct = default);
 
-    // Cheap listing — blob name + storage LastModified only, no content download.
-    Task<IReadOnlyList<(string Name, DateTimeOffset? LastModified)>> ListBlobsAsync(BlobContainerClient container, CancellationToken ct = default);
+    // Cheap listing — blob name, storage LastModified, and content length only, no content download.
+    Task<IReadOnlyList<(string Name, DateTimeOffset? LastModified, long? ContentLength)>> ListBlobsAsync(BlobContainerClient container, CancellationToken ct = default);
 
     Task<T> DownloadJsonAsync<T>(BlobContainerClient container, string blobName, CancellationToken ct = default);
 

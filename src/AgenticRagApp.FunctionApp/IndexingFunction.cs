@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -7,6 +6,7 @@ using Microsoft.DurableTask;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
@@ -29,6 +29,7 @@ public class IndexingFunction
     private readonly IIndexService             _indexService;
     private readonly IKnowledgeService         _knowledgeService;
     private readonly BlobContainerClient       _pipelineContainer;
+    private readonly IBlobStore                _blobStore;
     private readonly IRunReportWriter          _reportWriter;
     private readonly IPipelineArtifactWriter   _artifactWriter;
     private readonly ISnapshotService          _snapshotService;
@@ -42,6 +43,7 @@ public class IndexingFunction
         IIndexService             indexService,
         IKnowledgeService         knowledgeService,
         [FromKeyedServices("pipeline-temp")] BlobContainerClient pipelineContainer,
+        IBlobStore                blobStore,
         IRunReportWriter          reportWriter,
         IPipelineArtifactWriter   artifactWriter,
         ISnapshotService          snapshotService,
@@ -54,6 +56,7 @@ public class IndexingFunction
         _indexService      = indexService;
         _knowledgeService  = knowledgeService;
         _pipelineContainer = pipelineContainer;
+        _blobStore         = blobStore;
         _reportWriter      = reportWriter;
         _artifactWriter    = artifactWriter;
         _snapshotService   = snapshotService;
@@ -315,20 +318,15 @@ public class IndexingFunction
 
     private async Task WriteBlobAsync<T>(string blobPath, T data, CancellationToken ct)
     {
-        await _pipelineContainer.CreateIfNotExistsAsync(cancellationToken: ct);
-        var json = JsonSerializer.SerializeToUtf8Bytes(data);
-        using var ms = new MemoryStream(json);
-        await _pipelineContainer.GetBlobClient(blobPath).UploadAsync(ms, overwrite: true, cancellationToken: ct);
+        await _blobStore.EnsureContainerExistsAsync(_pipelineContainer, ct);
+        await _blobStore.UploadJsonAsync(_pipelineContainer, blobPath, data, ct);
     }
 
-    private async Task<T> ReadBlobAsync<T>(string blobPath, CancellationToken ct)
-    {
-        var response = await _pipelineContainer.GetBlobClient(blobPath).DownloadContentAsync(ct);
-        return JsonSerializer.Deserialize<T>(response.Value.Content)!;
-    }
+    private Task<T> ReadBlobAsync<T>(string blobPath, CancellationToken ct) =>
+        _blobStore.DownloadJsonAsync<T>(_pipelineContainer, blobPath, ct);
 
     private Task DeleteBlobAsync(string blobPath, CancellationToken ct) =>
-        _pipelineContainer.GetBlobClient(blobPath).DeleteIfExistsAsync(cancellationToken: ct);
+        _blobStore.DeleteIfExistsAsync(_pipelineContainer, blobPath, ct);
 
     // WorkingSet is the whole process's OS-level footprint (managed heap + native +
     // embedding vector arrays) - what actually counts against the EP1 plan's 3.5GB

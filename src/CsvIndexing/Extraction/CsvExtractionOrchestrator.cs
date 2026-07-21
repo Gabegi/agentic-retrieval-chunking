@@ -1,12 +1,11 @@
 using Azure;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using CsvIndexing.Models;
 using IndexingShared.Models;
 using IndexingShared.Observability;
 using IndexingShared.Observability.Reports;
-using System.Text.Json;
 
 namespace CsvIndexing.Services;
 
@@ -17,6 +16,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
 {
     private readonly BlobContainerClient                _container;
     private readonly BlobContainerClient                _stateContainer;
+    private readonly IBlobStore                         _blobStore;
     private readonly IRunReportWriter                   _reportWriter;
     private readonly ICsvExtractor                      _csvExtractor;
     private readonly ICsvJoiner                         _csvJoiner;
@@ -47,6 +47,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     public CsvExtractionOrchestrator(
         BlobContainerClient                container,
         BlobContainerClient                stateContainer,
+        IBlobStore                         blobStore,
         IRunReportWriter                   reportWriter,
         ICsvExtractor                      csvExtractor,
         ICsvJoiner                         csvJoiner,
@@ -56,6 +57,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     {
         _container         = container;
         _stateContainer    = stateContainer;
+        _blobStore         = blobStore;
         _reportWriter      = reportWriter;
         _csvExtractor      = csvExtractor;
         _csvJoiner         = csvJoiner;
@@ -73,8 +75,8 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
         // once, so there's nothing gained by holding the entire file in memory before
         // parsing starts, and a large export would otherwise mean two full files
         // resident in memory at once for no reason.
-        var pagesStreamTask = _container.GetBlobClient(PagesBlobName).OpenReadAsync(cancellationToken: ct);
-        var indexStreamTask = _container.GetBlobClient(IndexBlobName).OpenReadAsync(cancellationToken: ct);
+        var pagesStreamTask = _blobStore.OpenReadAsync(_container, PagesBlobName, ct);
+        var indexStreamTask = _blobStore.OpenReadAsync(_container, IndexBlobName, ct);
         await Task.WhenAll(pagesStreamTask, indexStreamTask);
 
         await using var pagesStream = await pagesStreamTask;
@@ -244,44 +246,10 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
     // If difference is more than x%, that's flagged and hard failed
     private async Task<(int? Count, ETag? ETag)> PreviousRunCount(CancellationToken ct)
     {
-        var blob = _stateContainer.GetBlobClient(StateBlobName);
-        if (!await blob.ExistsAsync(ct)) return (null, null);
-
-        try
-        {
-            var download = await blob.DownloadContentAsync(ct);
-            var state    = download.Value.Content.ToObjectFromJson<RunState>();
-            return (state?.CleanedRecords, download.Value.Details.ETag);
-        }
-        catch (JsonException ex)
-        {
-            // A corrupt/partially-written state blob shouldn't brick the whole run -
-            // it just means "no usable baseline", the same as the blob not existing.
-            _logger.LogWarning(ex,
-                "State blob '{Blob}' contains invalid JSON — treating as no previous baseline.", StateBlobName);
-            return (null, null);
-        }
+        var (state, etag) = await _blobStore.TryReadJsonWithETagAsync<RunState>(_stateContainer, StateBlobName, ct);
+        return (state?.CleanedRecords, etag);
     }
 
-    private async Task SaveRunStateAsync(int cleanedRecords, ETag? previousETag, CancellationToken ct)
-    {
-        var json       = JsonSerializer.Serialize(new RunState(cleanedRecords));
-        var conditions = previousETag is ETag tag
-            ? new BlobRequestConditions { IfMatch = tag }
-            : new BlobRequestConditions { IfNoneMatch = ETag.All };
-
-        try
-        {
-            await _stateContainer.GetBlobClient(StateBlobName)
-                .UploadAsync(BinaryData.FromString(json), new BlobUploadOptions { Conditions = conditions }, ct);
-        }
-        catch (RequestFailedException ex) when (ex.Status == 412)
-        {
-            // Lost a race with another concurrent run's save - not worth failing this
-            // otherwise-successful run over. The next run's magnitude check just
-            // compares against whichever baseline won the race.
-            _logger.LogWarning(
-                "State blob '{Blob}' was updated concurrently — this run's baseline was not saved.", StateBlobName);
-        }
-    }
+    private Task SaveRunStateAsync(int cleanedRecords, ETag? previousETag, CancellationToken ct) =>
+        _blobStore.SaveJsonWithETagAsync(_stateContainer, StateBlobName, new RunState(cleanedRecords), previousETag, ct);
 }

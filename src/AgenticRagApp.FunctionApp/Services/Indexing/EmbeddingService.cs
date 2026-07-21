@@ -1,9 +1,6 @@
-using System.ClientModel;
 using System.Collections.Concurrent;
-using System.Net.Http;
-using Azure;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using AgenticRagApp.Infrastructure.Clients.Embedding;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Models;
 using AgenticRagApp.Observability;
@@ -12,10 +9,10 @@ namespace AgenticRagApp.Services;
 
 public class EmbeddingService : IEmbeddingService
 {
-    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
-    private readonly IVectorCache                                  _vectorCache;
-    private readonly IndexerConfig                                 _config;
-    private readonly ILogger<EmbeddingService>                     _logger;
+    private readonly IEmbeddingClient          _embeddingClient;
+    private readonly IVectorCache              _vectorCache;
+    private readonly IndexerConfig             _config;
+    private readonly ILogger<EmbeddingService> _logger;
 
     private const int MaxParallelism = 4;
     private const int BatchSize = 100;    // one request per batch instead of one per chunk
@@ -27,15 +24,15 @@ public class EmbeddingService : IEmbeddingService
     private const int MaxCacheParallelism = 8;
 
     public EmbeddingService(
-        IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
+        IEmbeddingClient                              embeddingClient,
         IVectorCache                                  vectorCache,
         IndexerConfig                                 config,
         ILogger<EmbeddingService>                     logger)
     {
-        _embeddingGenerator = embeddingGenerator;
-        _vectorCache        = vectorCache;
-        _config             = config;
-        _logger             = logger;
+        _embeddingClient = embeddingClient;
+        _vectorCache     = vectorCache;
+        _config          = config;
+        _logger          = logger;
     }
 
     public async Task<EmbeddingRunResult> EmbedDocumentsAsync(
@@ -132,7 +129,9 @@ public class EmbeddingService : IEmbeddingService
                 texts[i] = text;
             }
 
-            var (vectors, retries) = await EmbedWithRetryAsync(texts, ct);
+            var (vectors, retries) = await _embeddingClient.EmbedWithRetryAsync(texts, ct);
+            if (retries > 0)
+                Instrumentation.EmbeddingRetries.Add(retries);
 
             var results = new List<EmbedChunkResult>(batch.Count);
             for (int i = 0; i < batch.Count; i++)
@@ -157,44 +156,6 @@ public class EmbeddingService : IEmbeddingService
             semaphore.Release();
         }
     }
-
-    private async Task<(float[][] Vectors, int Retries)> EmbedWithRetryAsync(IReadOnlyList<string> texts, CancellationToken ct)
-    {
-        const int maxRetries = 5;
-        var retries = 0;
-
-        for (int attempt = 0; attempt < maxRetries; attempt++)
-        {
-            try
-            {
-                var result = await _embeddingGenerator.GenerateAsync(texts, cancellationToken: ct);
-                return (result.Select(e => e.Vector.ToArray()).ToArray(), retries);
-            }
-            catch (Exception ex) when (!ct.IsCancellationRequested && IsRetryable(ex))
-            {
-                if (attempt == maxRetries - 1) throw;
-                retries++;
-                Instrumentation.EmbeddingRetries.Add(1);
-                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt + 1)); // 2s, 4s, 8s, 16s
-                _logger.LogWarning(ex, "Embedding call failed, retry {Attempt}/{Max} in {Delay}s",
-                    attempt + 1, maxRetries, delay.TotalSeconds);
-                await Task.Delay(delay, ct);
-            }
-        }
-
-        throw new InvalidOperationException("Unreachable");
-    }
-
-    // Retries throttling (429), transient server-side failures (5xx), and network-level
-    // faults — a dropped connection or timeout is no less recoverable than a 429.
-    private static bool IsRetryable(Exception ex) => ex switch
-    {
-        ClientResultException  cre => cre.Status == 429 || cre.Status >= 500,
-        RequestFailedException rfe => rfe.Status == 429 || rfe.Status >= 500,
-        HttpRequestException        => true,
-        TaskCanceledException       => true,   // request timeout, not caller cancellation (guarded above)
-        _ => false
-    };
 
     private record EmbedChunkResult(DocumentChunk Document, bool Truncated, bool DimError);
     private record BatchResult(List<EmbedChunkResult> Results, int Retries);

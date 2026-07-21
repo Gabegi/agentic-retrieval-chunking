@@ -1,5 +1,6 @@
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.DependencyInjection;
+using AgenticRagApp.Infrastructure.Clients.Blob;
 using IndexingShared.Observability.Reports;
 
 namespace CsvIndexing;
@@ -26,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Services.IExtractionOrchestrator>(sp => new Services.CsvExtractionOrchestrator(
             sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
             sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
+            sp.GetRequiredService<IBlobStore>(),
             sp.GetRequiredService<IRunReportWriter>(),
             sp.GetRequiredService<Services.ICsvExtractor>(),
             sp.GetRequiredService<Services.ICsvJoiner>(),
