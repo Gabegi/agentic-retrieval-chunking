@@ -20,6 +20,9 @@
     <PackageReference Include="Microsoft.Extensions.AI.Evaluation.NLP" Version="*-*" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\agentic-rag-app\AgenticRag.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <None Update="testdata\golden-questions.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
