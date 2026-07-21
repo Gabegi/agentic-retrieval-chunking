@@ -1,4 +1,4 @@
-namespace AgenticRagApp.Models;
+namespace AgenticRagApp.Querying.Models;
 
 public record RagQueryResult(
     string                 Answer,

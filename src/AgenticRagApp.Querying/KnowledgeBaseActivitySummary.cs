@@ -1,6 +1,6 @@
 using Azure.Search.Documents.KnowledgeBases.Models;
 
-namespace AgenticRagApp.Services;
+namespace AgenticRagApp.Querying.Services;
 
 // Query-planning + answer-synthesis token usage lives in per-step activity records
 // rather than a rolled-up total on the response, so sum them here.

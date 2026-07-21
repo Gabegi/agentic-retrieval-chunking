@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.Search;
 using AgenticRagApp.Infrastructure.Configuration;
 
-namespace AgenticRagApp.Services;
+namespace AgenticRagApp.Querying.Services;
 
 public class KnowledgeService : IKnowledgeService
 {

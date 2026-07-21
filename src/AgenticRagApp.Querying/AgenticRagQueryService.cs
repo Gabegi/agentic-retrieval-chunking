@@ -2,9 +2,9 @@ using System.Diagnostics;
 using Azure.Search.Documents.KnowledgeBases.Models;
 using AgenticRagApp.Infrastructure.Clients.KnowledgeRetrieval;
 using AgenticRagApp.Infrastructure.Configuration;
-using AgenticRagApp.Models;
+using AgenticRagApp.Querying.Models;
 
-namespace AgenticRagApp.Services;
+namespace AgenticRagApp.Querying.Services;
 
 // Agentic retrieval through the Azure AI Search knowledge base created by
 // KnowledgeService. The knowledge base decomposes the question into one or more

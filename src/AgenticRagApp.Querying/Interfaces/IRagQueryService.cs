@@ -1,6 +1,6 @@
-using AgenticRagApp.Models;
+using AgenticRagApp.Querying.Models;
 
-namespace AgenticRagApp.Services;
+namespace AgenticRagApp.Querying.Services;
 
 public interface IRagQueryService
 {

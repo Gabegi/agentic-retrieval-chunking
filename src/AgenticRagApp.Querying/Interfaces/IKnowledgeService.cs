@@ -1,4 +1,4 @@
-namespace AgenticRagApp.Services;
+namespace AgenticRagApp.Querying.Services;
 
 public interface IKnowledgeService
 {
