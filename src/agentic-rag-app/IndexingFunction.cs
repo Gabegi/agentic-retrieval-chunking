@@ -198,8 +198,15 @@ public class IndexingFunction
                 context.CancellationToken);
 
             var uploadResult = await _uploadService.UploadDocumentsAsync(
-                embeddingResult.Documents, req.StaleDocumentIds, context.CancellationToken);
+                embeddedDocs, req.StaleDocumentIds, context.CancellationToken);
             LogProcessMemory("upload complete", chunks.Count);
+
+            // Rolling full-corpus snapshot + the vector-cache eviction that rides along with
+            // it. Best-effort against uploadResult.DocsFailed - a chunk that failed to upsert
+            // is still folded into the snapshot as if it succeeded (UploadService doesn't
+            // report which specific chunks failed, only the count) - rare, self-corrects
+            // whenever that document is next reprocessed.
+            await _snapshotService.UpdateAsync(embeddedDocs, req.StaleDocumentIds, req.InstanceId, context.CancellationToken);
 
             await DeleteBlobAsync(req.ChunksBlob, context.CancellationToken);
 
