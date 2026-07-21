@@ -171,9 +171,10 @@ public class IndexingFunction
             LogProcessMemory("embedding complete", chunks.Count);
 
             // Metadata only, never the raw vectors (~12KB+ per chunk, and not useful to read
-            // back as JSON anyway) - content_hash gets added here once Stage 3's hash-dedup lands.
+            // back as JSON anyway) - the actual vector for a given hash lives once in the
+            // vector cache (VectorCache), not duplicated here.
             var chunkSummaries = embeddingResult.Documents
-                .Select(d => new { d.Id, d.DocumentId, Dims = d.ContentVector?.Length });
+                .Select(d => new { d.Id, d.DocumentId, d.ContentHash, Dims = d.ContentVector?.Length });
             await _artifactWriter.WriteArtifactAsync(
                 $"{req.InstanceId}/embedding.json",
                 new
@@ -184,6 +185,7 @@ public class IndexingFunction
                         embeddingResult.ChunksTruncated,
                         embeddingResult.EmbeddingRetries,
                         embeddingResult.VectorDimErrors,
+                        embeddingResult.CacheHits,
                     },
                 },
                 context.CancellationToken);
@@ -201,6 +203,7 @@ public class IndexingFunction
                 ChunksTruncated:               embeddingResult.ChunksTruncated,
                 EmbeddingRetries:              embeddingResult.EmbeddingRetries,
                 VectorDimErrors:               embeddingResult.VectorDimErrors,
+                VectorCacheHits:               embeddingResult.CacheHits,
                 TotalEmbeddingDurationMs:      sw.ElapsedMilliseconds,
                 IndexDocumentCountSnapshot:    uploadResult.IndexDocumentCountSnapshot,
                 IndexStorageSizeBytesSnapshot: uploadResult.IndexStorageSizeBytesSnapshot,
