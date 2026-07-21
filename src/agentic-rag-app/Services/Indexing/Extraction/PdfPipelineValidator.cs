@@ -237,12 +237,12 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         return reconciliation;
     }
 
-    // 5. Magnitude shift vs a previous run, if supplied.
-    // Design constraint for a future content-hash extraction skip: cleanResult only
-    // reflects files actually (re-)extracted this run. If skipped-unchanged files stop
-    // contributing to the count without their prior page counts being folded back in,
-    // the first hash-skip run looks like a massive drop and trips this gate for a corpus
-    // that didn't shrink. Resolve before shipping hash-skip, not after.
+    // 5. Magnitude shift vs a previous run, if supplied. Advisory only (see the tiering
+    // comment at the top of this file) - previousRunCleanedCount is itself just "however
+    // many records the last run actually processed", which shrinks a lot once extraction-
+    // skip means most runs only touch a handful of changed documents. Gating on that
+    // would fail nearly every normal run, so this is reported via MagnitudeWarnings for a
+    // human to read, never enforced.
     private static List<string> CheckDiffCleanNPreviousRun(PdfCleanResult cleanResult, int? previousRunCleanedCount)
     {
         var magnitude = new List<string>();

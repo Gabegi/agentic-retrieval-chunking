@@ -8,8 +8,13 @@ public interface IExtractionOrchestrator
 {
     string Source { get; }  // e.g. "csv", "pdf"
 
-    // overrideMagnitudeCheck: bypasses ONLY the magnitude-shift validation gate (a large,
-    // legitimate import/removal), never the error-rate or reconciliation checks - those
-    // indicate genuinely malformed data and must always block.
-    Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default);
+    // Cheap listing of every source document currently available to extract - id (blob name
+    // for PDF) + LastModified only, no download or extraction. Lets ExtractionService diff
+    // against the index BEFORE paying for extraction on anything already up to date.
+    Task<IReadOnlyDictionary<string, DateTimeOffset>> ListSourceDocumentsAsync(CancellationToken ct = default);
+
+    // Extracts only the given source ids - ExtractionService has already diffed
+    // ListSourceDocumentsAsync's listing against the index and determined these are the
+    // only ones that are new or changed. Ids outside this set produce no ExtractionDocuments.
+    Task<ExtractionOutput> ExtractDocumentsAsync(IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct = default);
 }

@@ -6,5 +6,5 @@ namespace AgenticRag.Services;
 public interface IExtractionService
 {
     Task<(IReadOnlyList<ExtractionDocument> Docs, ExtractionResults Stats)> ExtractAsync(
-        bool forceReindex, bool overrideMagnitudeCheck = false, CancellationToken ct = default);
+        bool forceReindex, CancellationToken ct = default);
 }

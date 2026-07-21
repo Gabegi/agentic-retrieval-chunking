@@ -76,33 +76,29 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
         _logger         = logger;
     }
 
-    public async Task<ExtractionOutput> ExtractDocumentsAsync(bool overrideMagnitudeCheck = false, CancellationToken ct = default)
+    public async Task<ExtractionOutput> ExtractDocumentsAsync(
+        IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct = default)
     {
         var runAt = DateTimeOffset.UtcNow;
 
         // Captured as the pipeline progresses so the finally block below can always emit
         // telemetry and write a report off whatever got built, regardless of where the try
-        // block throws (the magnitude-check abort, SaveRunStateAsync, BuildExtractionOutput).
-        // effectivePassed is captured before the magnitude-check throw specifically so that
-        // throw's failure is still reflected in the logs/metrics emitted afterward in finally
-        // - report.Passed (written verbatim to the blob report) already carries it independent
-        // of any of this. Nothing to emit if Validate itself never ran (blob listing/cleaning/
-        // PreviousRunCount failed) - there's no report or cleanResult to build either from.
-        List<PdfExtractionDiagnostics> diagnostics              = new();
-        PdfValidationReport?           validation                   = null;
-        PdfCleanResult?                cleanResult              = null;
-        var                            effectivePassed          = false;
-        var                            magnitudeOverrideApplied = false;
-        Exception?                     failure                  = null;
+        // block throws (the reconciliation-gate abort, SaveRunStateAsync, BuildExtractionOutput).
+        // Nothing to emit if Validate itself never ran (blob listing/cleaning/PreviousRunCount
+        // failed) - there's no report or cleanResult to build either from.
+        List<PdfExtractionDiagnostics> diagnostics = new();
+        PdfValidationReport?           validation  = null;
+        PdfCleanResult?                cleanResult = null;
+        Exception?                     failure     = null;
 
         try
         {
             // 1/ Extract Data from PDFs
-            var (fileResults, lastModifiedByBlob) = await ExtractPdfsFromBlobAsync(ct);
+            var (fileResults, lastModifiedByBlob) = await ExtractPdfsFromBlobAsync(sourceIdsToProcess, ct);
 
-            
+
             // 2/ Clean pages
-            
+
             // Filters to successfully-extracted files and flattens their pages into one list
             // because _cleaner.Clean only needs page content — not the file-level error/warning data that _validator.Validate needs separately from fileResults itself
             var pages = fileResults.Where(f => f.Ok).SelectMany(f => f.Pages!).ToList();
@@ -114,27 +110,25 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
 
             // 4/ Validate results
             validation = _validator.Validate(fileResults, cleanResult, previousCount, diagnostics);
-            (effectivePassed, magnitudeOverrideApplied) = EvaluateValidation(validation, overrideMagnitudeCheck);
 
-            // 5/ Validation Gate — only enforced outside Development, so local/dev runs
-            // aren't blocked by a stale magnitude baseline or reconciliation noise while
-            // experimenting. Still surfaced as a warning either way via EmitValidationTelemetry.
-            if (!effectivePassed)
+            // 5/ Validation Gate — reconciliation problems only (magnitude-shift is
+            // advisory-only, see PdfPipelineValidator's tiering comment; report.Passed
+            // already excludes it). Only enforced outside Development, so local/dev runs
+            // aren't blocked by reconciliation noise while experimenting. Still surfaced as
+            // a warning either way via EmitValidationTelemetry.
+            if (!validation.Passed)
             {
                 if (_env.IsDevelopment())
                     _logger.LogWarning(
-                        "PDF validation failed ({Reconciliation} reconciliation problem(s), {Magnitude} magnitude warning(s)) " +
+                        "PDF validation failed ({Reconciliation} reconciliation problem(s)) " +
                         "— continuing because we're in Development.",
-                        validation.ReconciliationProblems.Count, validation.MagnitudeWarnings.Count);
+                        validation.ReconciliationProblems.Count);
                 else
                     throw new InvalidOperationException(
-                        $"PDF validation failed ({validation.ReconciliationProblems.Count} reconciliation problem(s), " +
-                        $"{validation.MagnitudeWarnings.Count} magnitude warning(s)) — aborting extraction.");
+                        $"PDF validation failed ({validation.ReconciliationProblems.Count} reconciliation problem(s)) " +
+                        "— aborting extraction.");
             }
 
-            // Whether passed normally or via override, this becomes the new baseline - an
-            // override run resets the magnitude check so the NEXT run is auto-gated again
-            // instead of comparing against the same stale count.
             await SaveRunStateAsync(cleanResult.Records.Count, previousETag, ct);
 
             var (errors, warnings, missingTitle) = CountIssues(validation, cleanResult);
@@ -155,12 +149,12 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
             {
                 // Each caught independently: a failure in one (e.g. a transient blob error
                 // writing the report) must not mask whatever real exception the try block
-                // is already propagating (including the magnitude-check InvalidOperationException
+                // is already propagating (including the reconciliation-gate InvalidOperationException
                 // above), and must not stop the other of the two from still running.
                 try
                 {
                     // always send telemetry
-                    EmitValidationTelemetry(validation, cleanResult!, effectivePassed, magnitudeOverrideApplied);
+                    EmitValidationTelemetry(validation, cleanResult!);
                 }
                 catch (Exception ex)
                 {

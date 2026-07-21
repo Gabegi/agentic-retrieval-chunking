@@ -128,15 +128,16 @@ public class PdfPipelineValidatorTests
     }
 
     [TestMethod]
-    public void MagnitudeShiftBeyondThreshold_FailsButPassedExcludingMagnitudeIsTrue()
+    public void MagnitudeShiftBeyondThreshold_DoesNotFailPassed_ButStillReportsWarning()
     {
         var (fileResults, clean) = HappyPath(); // 1 cleaned record
 
         // Previous run had 100 - a drop to 1 is a -99% shift, way past the 20% threshold.
+        // Magnitude is advisory-only (see PdfPipelineValidator's tiering comment) - it must
+        // never fail Passed, only show up in MagnitudeWarnings.
         var report = BuildValidator().Validate(fileResults, clean, previousRunCleanedCount: 100);
 
-        Assert.IsFalse(report.Passed);
-        Assert.IsTrue(report.PassedExcludingMagnitude);
+        Assert.IsTrue(report.Passed);
         Assert.AreEqual(1, report.MagnitudeWarnings.Count);
     }
 
