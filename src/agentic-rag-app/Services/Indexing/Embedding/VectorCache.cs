@@ -46,4 +46,20 @@ public class VectorCache : IVectorCache
         using var ms = new MemoryStream(json);
         await _container.GetBlobClient($"{Prefix}/{contentHash}.json").UploadAsync(ms, overwrite: true, cancellationToken: ct);
     }
+
+    public async Task<int> EvictOrphanedAsync(IReadOnlySet<string> liveHashes, CancellationToken ct = default)
+    {
+        var deleted = 0;
+
+        await foreach (var blobItem in _container.GetBlobsAsync(BlobTraits.None, BlobStates.None, $"{Prefix}/", ct))
+        {
+            var hash = blobItem.Name[(Prefix.Length + 1)..^".json".Length];
+            if (liveHashes.Contains(hash)) continue;
+
+            await _container.GetBlobClient(blobItem.Name).DeleteIfExistsAsync(cancellationToken: ct);
+            deleted++;
+        }
+
+        return deleted;
+    }
 }
