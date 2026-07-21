@@ -41,13 +41,24 @@ stages:
               dotnet build src/AgenticRagApplication.sln -c Release --no-restore
             displayName: 'Build'
 
+          # One test project per production project (src/UnitTests/) - each still logs to
+          # the same shared trx/coverage folder so publish steps below don't need updating
+          # per project.
           - script: |
-              dotnet test src/RagApp.UnitTests/RagApp.UnitTests.csproj \
-                -c Release --no-build \
-                --logger "trx;LogFileName=test-results.trx" \
-                --results-directory $(Agent.TempDirectory)/testresults \
-                --collect:"XPlat Code Coverage" \
-                -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+              for proj in \
+                src/UnitTests/AgenticRagApp.Infrastructure.Tests/AgenticRagApp.Infrastructure.Tests.csproj \
+                src/UnitTests/AgenticRagApp.Observability.Tests/AgenticRagApp.Observability.Tests.csproj \
+                src/UnitTests/AgenticRagApp.Querying.Tests/AgenticRagApp.Querying.Tests.csproj \
+                src/UnitTests/AgenticRagApp.Indexing.Pdf.Tests/AgenticRagApp.Indexing.Pdf.Tests.csproj \
+                src/UnitTests/AgenticRagApp.Indexing.Csv.Tests/AgenticRagApp.Indexing.Csv.Tests.csproj \
+                src/UnitTests/AgenticRagApp.FunctionApp.Tests/AgenticRagApp.FunctionApp.Tests.csproj; do
+                dotnet test "$proj" \
+                  -c Release --no-build \
+                  --logger "trx;LogFileName=$(basename "$proj" .csproj)-test-results.trx" \
+                  --results-directory $(Agent.TempDirectory)/testresults \
+                  --collect:"XPlat Code Coverage" \
+                  -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+              done
             displayName: 'Run unit tests with coverage'
 
           - task: PublishTestResults@2
