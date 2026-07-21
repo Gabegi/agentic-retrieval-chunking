@@ -3,7 +3,7 @@ using IndexingShared.Models;
 namespace IndexingShared.Observability.Reports;
 
 // Written to blob after every development indexing run.
-// Path: telemetry-reports/indexing/{yyyy}/{MM}/{dd}/{instanceId}.json
+// Path: pipeline-reports/indexing/{yyyy}/{MM}/{dd}/{instanceId}.json
 //
 // How to use: compare two reports side-by-side after a source change or config tweak
 // to see whether quality moved in the right direction. Fields marked "Quality signal"

@@ -5,7 +5,7 @@ using Azure.Storage.Blobs.Models;
 
 namespace AgenticRagApp.Services;
 
-// One blob per content hash under indexing-artifacts/vector-cache/ - not one shared file,
+// One blob per content hash under pipeline-artifacts/vector-cache/ - not one shared file,
 // so a read never races a concurrent write from another chunk and eviction (Stage 4) can
 // delete individual orphaned entries without touching the rest.
 public class VectorCache : IVectorCache

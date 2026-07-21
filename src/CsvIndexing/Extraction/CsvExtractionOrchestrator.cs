@@ -32,7 +32,7 @@ public class CsvExtractionOrchestrator : IExtractionOrchestrator
 
     // Folder segment namespacing every report blob this orchestrator writes, so a
     // future second IExtractionOrchestrator (e.g. PDF) writing to the same
-    // "telemetry-reports" container doesn't mix its blobs in with these.
+    // "pipeline-reports" container doesn't mix its blobs in with these.
     private const string ReportFolder = "indexing/csv-extraction";
 
     // Caps how many individual validation issues get their own log line. A badly

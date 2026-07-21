@@ -2,7 +2,7 @@ using AgenticRagApp.Models;
 
 namespace AgenticRagApp.Services;
 
-// Maintains the rolling full-corpus snapshot (indexing-artifacts/snapshots/{instanceId}/full-index.json)
+// Maintains the rolling full-corpus snapshot (pipeline-artifacts/snapshots/{instanceId}/full-index.json)
 // and, as a direct follow-on, evicts vector-cache entries the snapshot no longer references.
 //
 // IMPORTANT operational note: the snapshot only ever gains chunks that actually pass through

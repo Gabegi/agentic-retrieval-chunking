@@ -37,7 +37,7 @@ public class PdfExtractionOrchestrator : IExtractionOrchestrator
     private const string StateBlobName = "pdf-extraction-state.json";
 
     // Folder segment namespacing every report blob this orchestrator writes, so it
-    // doesn't mix into CsvExtractionOrchestrator's blobs in the same "telemetry-reports" container.
+    // doesn't mix into CsvExtractionOrchestrator's blobs in the same "pipeline-reports" container.
     private const string ReportFolder = "indexing/pdf-extraction";
 
     // See CsvExtractionOrchestrator.MaxLoggedIssues — same rationale (log volume/cost cap,
