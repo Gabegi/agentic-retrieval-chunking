@@ -173,10 +173,14 @@ public class IndexingFunction
             sw.Stop();
             LogProcessMemory("embedding complete", chunks.Count);
 
+            // Materialized once (Documents is a lazy cached+fresh concat) - reused below for
+            // upload and the rolling snapshot, not re-enumerated per use.
+            var embeddedDocs = embeddingResult.Documents.ToList();
+
             // Metadata only, never the raw vectors (~12KB+ per chunk, and not useful to read
             // back as JSON anyway) - the actual vector for a given hash lives once in the
             // vector cache (VectorCache), not duplicated here.
-            var chunkSummaries = embeddingResult.Documents
+            var chunkSummaries = embeddedDocs
                 .Select(d => new { d.Id, d.DocumentId, d.ContentHash, Dims = d.ContentVector?.Length });
             await _artifactWriter.WriteArtifactAsync(
                 $"{req.InstanceId}/embedding.json",
