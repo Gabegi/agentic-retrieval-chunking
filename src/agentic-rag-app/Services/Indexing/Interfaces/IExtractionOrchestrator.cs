@@ -2,19 +2,15 @@ using AgenticRag.Models;
 
 namespace AgenticRag.Services;
 
-// Any extractor (CSV, PDF, …) implements this and declares its source key.
-// Register multiple implementations in DI — IndexingPipelineOrchestrator resolves by Source at runtime.
+// The PDF extraction pipeline (download, run Document Intelligence, clean, validate).
+// Kept as an interface purely so ExtractionService's unit tests can mock it - not for
+// swapping to another document type at runtime; this pipeline is PDF-only.
 public interface IExtractionOrchestrator
 {
-    string Source { get; }  // e.g. "csv", "pdf"
+    string Source { get; }  // "pdf"
 
-    // Cheap listing of every source document currently available to extract - id (blob name
-    // for PDF) + LastModified only, no download or extraction. Lets ExtractionService diff
-    // against the index BEFORE paying for extraction on anything already up to date.
-    Task<IReadOnlyDictionary<string, DateTimeOffset>> ListDocumentsInBlobAsync(CancellationToken ct = default);
-
-    // Extracts only the given source ids - ExtractionService has already diffed
-    // ListSourceDocumentsAsync's listing against the index and determined these are the
-    // only ones that are new or changed. Ids outside this set produce no ExtractionDocuments.
+    // Extracts only the given source ids - ExtractionService has already listed what's in
+    // blob storage and diffed it against the index to determine these are the only ones
+    // that are new or changed. Ids outside this set produce no ExtractionDocuments.
     Task<ExtractionOutput> ExtractDocumentsAsync(IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct = default);
 }
