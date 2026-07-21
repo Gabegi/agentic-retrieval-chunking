@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Observability
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Indexing.Pdf", "AgenticRagApp.Indexing.Pdf\AgenticRagApp.Indexing.Pdf.csproj", "{A7C7B1D8-BACD-4EA9-B720-924E5C85A307}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticRagApp.Querying", "AgenticRagApp.Querying\AgenticRagApp.Querying.csproj", "{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -125,6 +127,18 @@ Global
 		{A7C7B1D8-BACD-4EA9-B720-924E5C85A307}.Release|x64.Build.0 = Release|Any CPU
 		{A7C7B1D8-BACD-4EA9-B720-924E5C85A307}.Release|x86.ActiveCfg = Release|Any CPU
 		{A7C7B1D8-BACD-4EA9-B720-924E5C85A307}.Release|x86.Build.0 = Release|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Debug|x64.Build.0 = Debug|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Debug|x86.Build.0 = Debug|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Release|x64.ActiveCfg = Release|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Release|x64.Build.0 = Release|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Release|x86.ActiveCfg = Release|Any CPU
+		{6FA6ED40-82C8-46E7-89A1-0BBDE805E8CE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
