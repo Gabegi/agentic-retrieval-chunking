@@ -128,6 +128,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IKnowledgeRetrievalClient, KnowledgeRetrievalClient>();
         services.AddSingleton<IEmbeddingClient, EmbeddingClient>();
 
+        // Shared Search index lifecycle + document CRUD — one instance for both PDF and
+        // CSV, since both write into the same index (see IndexService's own comment).
+        services.AddSingleton<IIndexService, IndexService>();
+        services.AddSingleton<IIndexDocumentService, IndexDocumentService>();
+
         return config;
     }
 }
