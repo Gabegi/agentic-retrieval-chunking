@@ -12,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure;
 using AgenticRagApp.Infrastructure.Clients.Blob;
+using AgenticRagApp.Indexing.Pdf;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
 using AgenticRagApp.Services;
@@ -58,12 +59,6 @@ var host = new HostBuilder()
                 sp.GetRequiredService<IBlobStore>(),
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts")));
 
-        // Content-hash-keyed embedding vector cache - same "pipeline-artifacts" container as
-        // the archive above, under its own vector-cache/ path prefix (see VectorCache).
-        services.AddSingleton<IVectorCache>(sp =>
-            new VectorCache(
-                sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts")));
-
         // Rolling full-corpus snapshot (source-scoped, never merged across doc types) - same
         // "pipeline-artifacts" container, under its own snapshots/{source}/ path prefix.
         // Vector-cache eviction is done by the caller (IndexingFunction), not here - see
@@ -77,52 +72,11 @@ var host = new HostBuilder()
         services.AddSingleton(sp =>
             new ChunkNeighborExpander(sp.GetRequiredService<SearchClient>()));
         services.AddSingleton<IRagQueryService, AgenticRagQueryService>();
-
-        // Chunking
-        services.AddSingleton<IChunkingStrategy, PdfChunkingStrategy1>();
-        services.AddSingleton<IChunkingService, ChunkingService>();
-
-        // PDF extraction backend — only registered when Document Intelligence is
-        // configured (Infrastructure only registers the DocumentIntelligenceClient itself
-        // under the same condition); PdfExtractionOrchestrator resolves it explicitly by
-        // Name below rather than via GetRequiredService, so a future second backend can't
-        // silently change which one gets picked.
-        if (!string.IsNullOrWhiteSpace(config.DocumentIntelligenceEndpoint))
-        {
-            services.AddSingleton<PdfDocumentAnalyzer>();
-            services.AddSingleton<IPdfExtractor, DocumentIntelligenceExtractor>();
-        }
-        services.AddSingleton<IPdfCleaner,           PdfCleaner>();
-        services.AddSingleton<IPdfPipelineValidator, PdfPipelineValidator>();
-
-        // Extraction source — PDF is the only IExtractionOrchestrator left in this project.
-        // CSV's pipeline (extractor, chunking, embedding, upload, index) moved out to the
-        // standalone AgenticRagApp.Indexing.Csv project — see IndexingShared for the source-agnostic
-        // seam types (ExtractionDocument/ExtractionOutput/etc.) both sides return/consume.
-        services.AddSingleton<IExtractionOrchestrator>(sp => new PdfExtractionOrchestrator(
-            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
-            sp.GetRequiredKeyedService<BlobContainerClient>("pipeline-temp"),
-            sp.GetRequiredService<IBlobStore>(),
-            sp.GetRequiredService<IRunReportWriter>(),
-            sp.GetServices<IPdfExtractor>().Single(e => e.Name == "DocumentIntelligence"),
-            sp.GetRequiredService<IPdfCleaner>(),
-            sp.GetRequiredService<IPdfPipelineValidator>(),
-            sp.GetRequiredService<IHostEnvironment>(),
-            sp.GetRequiredService<ILogger<PdfExtractionOrchestrator>>()));
-
-        // RAG pipeline
-        services.AddSingleton<IExtractionService>(sp => new ExtractionService(
-            sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("documents"),
-            sp.GetRequiredService<IBlobStore>(),
-            sp.GetRequiredService<IExtractionOrchestrator>(),
-            sp.GetRequiredService<IIndexDocumentService>(),
-            sp.GetRequiredService<IRunReportWriter>(),
-            sp.GetRequiredService<ILogger<ExtractionService>>()));
-        services.AddSingleton<IEmbeddingService, EmbeddingService>();
-        services.AddSingleton<IUploadService, UploadService>();
-        services.AddSingleton<IIndexService, IndexService>();
-        services.AddSingleton<IIndexDocumentService, IndexDocumentService>();
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
+
+        // PDF indexing pipeline — extraction, chunking, embedding, upload, index. See
+        // AgenticRagApp.Indexing.Pdf/ServiceCollectionExtensions.cs for what this wires in.
+        services.AddPdfIndexing(config);
     })
     .Build();
 

@@ -15,11 +15,9 @@
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" />
     <PackageReference Include="Azure.Core" />
     <PackageReference Include="Azure.Identity" />
-    <PackageReference Include="Azure.AI.DocumentIntelligence" />
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="Azure.AI.OpenAI" />
     <PackageReference Include="Azure.Search.Documents" />
-    <PackageReference Include="PdfPig" />
     <PackageReference Include="System.Text.Encoding.CodePages" />
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
@@ -35,5 +33,6 @@
   <ItemGroup>
     <ProjectReference Include="..\AgenticRagApp.Infrastructure\AgenticRagApp.Infrastructure.csproj" />
     <ProjectReference Include="..\AgenticRagApp.Observability\AgenticRagApp.Observability.csproj" />
+    <ProjectReference Include="..\AgenticRagApp.Indexing.Pdf\AgenticRagApp.Indexing.Pdf.csproj" />
   </ItemGroup>
 </Project>
