@@ -28,7 +28,7 @@ public class SnapshotService : ISnapshotService
     }
 
     public async Task UpdateAsync(
-        IReadOnlyList<ProtocolDocument> newChunks,
+        IReadOnlyList<DocumentChunk> newChunks,
         IReadOnlyList<string>           staleDocumentIds,
         string                          instanceId,
         CancellationToken               ct = default)

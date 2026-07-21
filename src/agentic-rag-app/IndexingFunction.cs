@@ -134,7 +134,7 @@ public class IndexingFunction
         }
     }
 
-    // Step 2 — read ExtractionDocuments, chunk, serialise ProtocolDocuments to blob; return stats
+    // Step 2 — read ExtractionDocuments, chunk, serialise DocumentChunks to blob; return stats
     [Function("ChunkActivity")]
     public async Task<ChunkingResults> ChunkActivity([ActivityTrigger] ChunkRequest req, FunctionContext context)
     {
@@ -159,13 +159,13 @@ public class IndexingFunction
         }
     }
 
-    // Step 3 — read ProtocolDocuments, embed then upload to Azure AI Search; return combined stats
+    // Step 3 — read DocumentChunks, embed then upload to Azure AI Search; return combined stats
     [Function("EmbedAndUploadActivity")]
     public async Task<EmbedUploadingResults> EmbedAndUploadActivity([ActivityTrigger] EmbedUploadRequest req, FunctionContext context)
     {
         try
         {
-            var chunks = await ReadBlobAsync<List<ProtocolDocument>>(req.ChunksBlob, context.CancellationToken);
+            var chunks = await ReadBlobAsync<List<DocumentChunk>>(req.ChunksBlob, context.CancellationToken);
             LogProcessMemory("chunks loaded", chunks.Count);
 
             var sw              = System.Diagnostics.Stopwatch.StartNew();

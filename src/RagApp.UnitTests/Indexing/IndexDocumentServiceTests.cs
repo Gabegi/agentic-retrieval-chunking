@@ -95,7 +95,7 @@ public class IndexDocumentServiceTests
         search.Setup(s => s.UploadDocumentsAsync(It.IsAny<IEnumerable<object>>(), It.IsAny<IndexDocumentsOptions>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(UploadResponse(("c1", true), ("c2", false)));
 
-        var (succeeded, failed) = await service.UpsertDocumentsAsync([new AgenticRag.Models.ProtocolDocument { Id = "c1" }, new AgenticRag.Models.ProtocolDocument { Id = "c2" }]);
+        var (succeeded, failed) = await service.UpsertDocumentsAsync([new AgenticRag.Models.DocumentChunk { Id = "c1" }, new AgenticRag.Models.DocumentChunk { Id = "c2" }]);
 
         Assert.AreEqual(1, succeeded);
         Assert.AreEqual(1, failed);

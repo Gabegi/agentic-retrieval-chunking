@@ -4,11 +4,11 @@ namespace AgenticRag.Services;
 
 public interface IEmbeddingService
 {
-    Task<EmbeddingRunResult> EmbedDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default);
+    Task<EmbeddingRunResult> EmbedDocumentsAsync(IEnumerable<DocumentChunk> documents, CancellationToken ct = default);
 }
 
 public record EmbeddingRunResult(
-    IEnumerable<ProtocolDocument> Documents,
+    IEnumerable<DocumentChunk> Documents,
     int ChunksTruncated,
     int EmbeddingRetries,
     int VectorDimErrors,

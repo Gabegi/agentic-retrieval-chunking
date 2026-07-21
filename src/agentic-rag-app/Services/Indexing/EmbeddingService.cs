@@ -39,7 +39,7 @@ public class EmbeddingService : IEmbeddingService
     }
 
     public async Task<EmbeddingRunResult> EmbedDocumentsAsync(
-        IEnumerable<ProtocolDocument> documents,
+        IEnumerable<DocumentChunk> documents,
         CancellationToken ct = default)
     {
         var docList = documents.ToList();
@@ -73,11 +73,11 @@ public class EmbeddingService : IEmbeddingService
     // Splits by vector-cache hit/miss. A cached vector whose length no longer matches the
     // configured embedding dimensions (model/config changed since it was cached) is treated
     // as a miss rather than trusted blindly.
-    private async Task<(List<ProtocolDocument> Cached, List<ProtocolDocument> ToEmbed)> SplitByCacheAsync(
-        List<ProtocolDocument> docs, CancellationToken ct)
+    private async Task<(List<DocumentChunk> Cached, List<DocumentChunk> ToEmbed)> SplitByCacheAsync(
+        List<DocumentChunk> docs, CancellationToken ct)
     {
-        var cached  = new ConcurrentBag<ProtocolDocument>();
-        var toEmbed = new ConcurrentBag<ProtocolDocument>();
+        var cached  = new ConcurrentBag<DocumentChunk>();
+        var toEmbed = new ConcurrentBag<DocumentChunk>();
 
         await Parallel.ForEachAsync(
             docs,
@@ -111,7 +111,7 @@ public class EmbeddingService : IEmbeddingService
             (r, token) => new ValueTask(_vectorCache.SetAsync(r.Document.ContentHash, r.Document.ContentVector!, token)));
 
     private async Task<BatchResult> EmbedBatchAsync(
-        IReadOnlyList<ProtocolDocument> batch, SemaphoreSlim semaphore, CancellationToken ct)
+        IReadOnlyList<DocumentChunk> batch, SemaphoreSlim semaphore, CancellationToken ct)
     {
         await semaphore.WaitAsync(ct);
         try
@@ -196,6 +196,6 @@ public class EmbeddingService : IEmbeddingService
         _ => false
     };
 
-    private record EmbedChunkResult(ProtocolDocument Document, bool Truncated, bool DimError);
+    private record EmbedChunkResult(DocumentChunk Document, bool Truncated, bool DimError);
     private record BatchResult(List<EmbedChunkResult> Results, int Retries);
 }

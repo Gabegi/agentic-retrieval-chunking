@@ -24,7 +24,7 @@ public record SnapshotChunk(
     int ChunkIndex,
     string ContentHash)
 {
-    public static SnapshotChunk From(ProtocolDocument doc) => new(
+    public static SnapshotChunk From(DocumentChunk doc) => new(
         Id:               doc.Id,
         DocumentId:       doc.DocumentId,
         Title:            doc.Title,

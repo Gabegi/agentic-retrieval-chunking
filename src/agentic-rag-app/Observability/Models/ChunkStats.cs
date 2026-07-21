@@ -24,7 +24,7 @@ public sealed record ChunkingResults(
         BandUnder100:       0, Band100To500: 0, Band500To1500: 0, Band1500Plus: 0,
         CoherentChunks:     0, HeadingsDetected: 0, Strategy: strategy);
 
-    public static ChunkingResults Compute(IReadOnlyList<ProtocolDocument> chunks, string strategy)
+    public static ChunkingResults Compute(IReadOnlyList<DocumentChunk> chunks, string strategy)
     {
         if (chunks.Count == 0) return Empty(strategy);
 

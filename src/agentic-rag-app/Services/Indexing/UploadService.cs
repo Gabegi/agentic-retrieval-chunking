@@ -4,7 +4,7 @@ using AgenticRag.Observability;
 
 namespace AgenticRag.Services;
 
-// Owns the upload half of the indexing pipeline: upserts embedded ProtocolDocuments
+// Owns the upload half of the indexing pipeline: upserts embedded DocumentChunks
 // into Azure AI Search and takes a post-upload index stats/drift snapshot.
 // Kept separate from EmbeddingService so the two concerns can evolve independently.
 public class UploadService : IUploadService
@@ -21,7 +21,7 @@ public class UploadService : IUploadService
     }
 
     public async Task<UploadResult> UploadDocumentsAsync(
-        IEnumerable<ProtocolDocument> documents, IReadOnlyList<string> staleDocumentIds, CancellationToken ct = default)
+        IEnumerable<DocumentChunk> documents, IReadOnlyList<string> staleDocumentIds, CancellationToken ct = default)
     {
         var docList = documents.ToList();
         var (succeeded, failed) = await _indexDocumentService.UpsertDocumentsAsync(docList, ct);

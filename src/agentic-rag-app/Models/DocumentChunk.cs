@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace AgenticRag.Models;
 
-public class ProtocolDocument
+public class DocumentChunk
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";

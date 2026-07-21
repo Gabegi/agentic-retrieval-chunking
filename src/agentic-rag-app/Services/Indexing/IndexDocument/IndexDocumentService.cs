@@ -36,7 +36,7 @@ public class IndexDocumentService : IIndexDocumentService
     }
 
     // Uploads embedded documents to the index in batches of 1000 (push API limit).
-    public async Task<(int Succeeded, int Failed)> UpsertDocumentsAsync(IEnumerable<ProtocolDocument> documents, CancellationToken ct = default)
+    public async Task<(int Succeeded, int Failed)> UpsertDocumentsAsync(IEnumerable<DocumentChunk> documents, CancellationToken ct = default)
     {
         var docList   = documents.ToList();
         var succeeded = 0;

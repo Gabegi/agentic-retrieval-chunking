@@ -133,7 +133,7 @@ public class ChunkingServiceTests
     }
 
     [TestMethod]
-    public void ChunkDocuments_MapsMetadataFieldsOntoProtocolDocument()
+    public void ChunkDocuments_MapsMetadataFieldsOntoDocumentChunk()
     {
         var service  = BuildService(MockStrategy());
         var metadata = new Dictionary<string, string>

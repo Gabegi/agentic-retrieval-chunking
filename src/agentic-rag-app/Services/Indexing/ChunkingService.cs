@@ -28,12 +28,12 @@ public class ChunkingService : IChunkingService
         return _strategy.Chunk(content);
     }
 
-    // Converts ExtractionDocuments into indexed ProtocolDocuments,
+    // Converts ExtractionDocuments into indexed DocumentChunks,
     // computes ChunkingResults, and emits all chunk telemetry in one place.
-    public (IReadOnlyList<ProtocolDocument> Docs, ChunkingResults Stats) ChunkDocuments(
+    public (IReadOnlyList<DocumentChunk> Docs, ChunkingResults Stats) ChunkDocuments(
         IReadOnlyList<ExtractionDocument> docs)
     {
-        var result = new List<ProtocolDocument>();
+        var result = new List<DocumentChunk>();
 
         foreach (var doc in docs.OrderBy(d => d.SourceId).ThenBy(d => d.Ordinal))
         {
@@ -54,7 +54,7 @@ public class ChunkingService : IChunkingService
                 var body    = chunk.Heading != null ? $"{chunk.Heading}\n\n{chunk.Content}" : chunk.Content;
                 var content = string.IsNullOrEmpty(title) ? body : $"{title}\n\n{body}";
 
-                result.Add(new ProtocolDocument
+                result.Add(new DocumentChunk
                 {
                     Id               = ChunkingUtils.SafeKey($"{doc.SourceId}::{doc.Ordinal}", docChunkIndex),
                     DocumentId       = doc.SourceId,
@@ -87,7 +87,7 @@ public class ChunkingService : IChunkingService
         return (result, stats);
     }
 
-    private static void EmitChunkMetrics(ChunkingResults stats, IReadOnlyList<ProtocolDocument> chunks)
+    private static void EmitChunkMetrics(ChunkingResults stats, IReadOnlyList<DocumentChunk> chunks)
     {
         var strategyTag = new KeyValuePair<string, object?>("strategy", stats.Strategy);
 
