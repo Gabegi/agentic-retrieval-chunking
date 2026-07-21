@@ -1,8 +1,10 @@
 # Single gated pipeline: Test -> Plan -> Apply -> Deploy. Each stage only runs if the
 # previous one succeeded (dependsOn + condition: succeeded()), so a broken build/test
 # never reaches Terraform, and a failed/skipped Apply never reaches the app deploy.
-# Supersedes the old separate 1-infra-deploy.yml / 3-build-test.yml /
-# 4-deploy-application.yml pipelines - their logic lives here now, unchanged.
+# Same logic as base/run-unit-tests.yml, base/deploy-azure-infrastructure.yml, and
+# base/deploy-function-app.yml, composed into one gated run - those three are kept
+# standalone (trigger: none) for reference/manual reruns only; this is the one that
+# actually runs automatically.
 #
 # On a PR: only Test and Plan run (Plan is read-only / diagnostic - safe on PRs).
 # Apply and Deploy are gated off PRs via `ne(variables['Build.Reason'], 'PullRequest')`,
@@ -10,6 +12,12 @@
 #
 # 'production' environment requires an Approval check in Pipelines > Environments,
 # gating the Apply stage (and therefore Deploy, since Deploy depends on Apply).
+
+# Per-run display name, e.g. "deploy-to-development-20260721.1" - the pipeline
+# definition itself is named "deploy-to-environment" (one definition serves both
+# branches, see the envName variable below), this is what makes each individual
+# run's name reflect which environment it actually targeted.
+name: 'deploy-to-$(envName)-$(Date:yyyyMMdd)$(Rev:.r)'
 
 trigger:
   branches:
