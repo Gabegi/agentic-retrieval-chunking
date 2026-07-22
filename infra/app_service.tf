@@ -83,8 +83,13 @@ locals {
       scope = azurerm_search_service.main.id
       role  = "Search Index Data Reader"
     }
+    # Scoped to the account, not the project: AzureOpenAIClient calls the
+    # account's own endpoint directly, with no project routing in the
+    # request, so a role granted only on the project sub-resource wouldn't
+    # authorize it (RBAC only inherits downward) - same fix as func's
+    # openai_user in function_app.tf.
     openai_user = {
-      scope = data.azurerm_cognitive_account_project.rag.id
+      scope = data.azurerm_cognitive_account.foundry.id
       role  = "Cognitive Services OpenAI User"
     }
   }
