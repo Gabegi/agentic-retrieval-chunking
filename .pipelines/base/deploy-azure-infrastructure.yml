@@ -131,13 +131,13 @@ stages:
                 echo "=== private DNS A records: privatelink.azurewebsites.net ==="
                 az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" -o table
 
-                echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.file.core.windows.net? (A record existing isn't enough - the zone must be linked to this VNet for its resolver to consult it) ==="
+                echo "=== is $VNET actually LINKED to privatelink.file.core.windows.net? (A record existing isn't enough - the zone must be linked to this VNet for its resolver to consult it) ==="
                 az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.file.core.windows.net --subscription "$HUB_SUB" \
-                  --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+                  --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
 
-                echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.azurewebsites.net? ==="
+                echo "=== is $VNET actually LINKED to privatelink.azurewebsites.net? ==="
                 az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" \
-                  --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+                  --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
 
                 echo "=== VNet custom DNS servers (expect empty/null - Azure default 168.63.129.16 path; a custom server here must itself resolve the privatelink zones) ==="
                 az network vnet show -g "$NET_RG" -n "$VNET" --query "dhcpOptions.dnsServers" -o json
