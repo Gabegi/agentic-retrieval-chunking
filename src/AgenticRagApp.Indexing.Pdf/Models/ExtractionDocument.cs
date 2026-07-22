@@ -45,6 +45,15 @@ public record ExtractionDocument(
     // reads the blob property directly, not this field).
     DateTimeOffset? LastModifiedDate,
 
+    // Zenya's own identity/lifecycle facts (ZenyaMetadata.FromBlobMetadata) - sourced from
+    // custom blob metadata, not the PDF itself (see ZenyaMetadata's comment for why). All
+    // null is the expected default until whoever uploads a PDF starts setting this metadata;
+    // that's a real traceability gap for a chunk built from this document, not a bug.
+    string? ZenyaDocumentId,
+    string? ZenyaVersion,
+    string? ZenyaStatus,
+    string? ZenyaUrl,
+
     // Raw bookmark/outline tree (Breadcrumb below is the resolved per-page projection of
     // this - kept here too since the tree itself, e.g. full depth/structure, is lossy to
     // collapse into a single breadcrumb string).
