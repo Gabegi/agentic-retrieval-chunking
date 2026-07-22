@@ -39,7 +39,7 @@ public class BlobStore : IBlobStore
         var result = new List<(string, DateTimeOffset?, long?, IReadOnlyDictionary<string, string>)>();
         await foreach (var item in container.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, ct))
             result.Add((item.Name, item.Properties.LastModified, item.Properties.ContentLength,
-                item.Metadata ?? new Dictionary<string, string>()));
+                (IReadOnlyDictionary<string, string>)(item.Metadata ?? new Dictionary<string, string>())));
         return result;
     }
 

@@ -21,6 +21,10 @@ public class ExtractionServiceTests
         CreatedAt:             null,
         PageCount:             null,
         LastModifiedDate:      null,
+        ZenyaDocumentId:       null,
+        ZenyaVersion:          null,
+        ZenyaStatus:           null,
+        ZenyaUrl:              null,
         Bookmarks:             [],
         Sections:              [],
         Breadcrumb:            null,
@@ -55,8 +59,20 @@ public class ExtractionServiceTests
     private static Mock<IBlobStore> MockBlobStore(params (string Name, DateTimeOffset LastModified)[] blobs)
     {
         var store = new Mock<IBlobStore>();
+        var empty = (IReadOnlyDictionary<string, string>)new Dictionary<string, string>();
         store.Setup(s => s.ListBlobsAsync(It.IsAny<BlobContainerClient>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(blobs.Select(b => (b.Name, (DateTimeOffset?)b.LastModified, (long?)null)).ToList());
+            .ReturnsAsync(blobs.Select(b => (b.Name, (DateTimeOffset?)b.LastModified, (long?)null, empty)).ToList());
+        return store;
+    }
+
+    // Variant that lets a test attach blob metadata (e.g. zenya_status) per blob - used for
+    // the Zenya-inactive exclusion tests.
+    private static Mock<IBlobStore> MockBlobStoreWithMetadata(
+        params (string Name, DateTimeOffset LastModified, IReadOnlyDictionary<string, string> Metadata)[] blobs)
+    {
+        var store = new Mock<IBlobStore>();
+        store.Setup(s => s.ListBlobsAsync(It.IsAny<BlobContainerClient>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blobs.Select(b => (b.Name, (DateTimeOffset?)b.LastModified, (long?)null, b.Metadata)).ToList());
         return store;
     }
 
@@ -229,6 +245,58 @@ public class ExtractionServiceTests
 
         Assert.AreEqual(0, docs.Count);
         Assert.AreEqual(0, stats.DocsNew);
+    }
+
+    [TestMethod]
+    public async Task ZenyaInactiveNewDocument_IsNeverProcessed()
+    {
+        // A new blob whose zenya_status metadata is already "ingetrokken" (withdrawn) must
+        // never be processed - Zenya said it's invalid before it was ever indexed.
+        var metadata  = new Dictionary<string, string> { ["zenya_status"] = "ingetrokken" };
+        var blobStore = MockBlobStoreWithMetadata(("doc1.pdf", DateTimeOffset.Parse("2024-01-01"), metadata));
+        var extractor = MockExtractor();
+        var indexService = MockIndexService([]);
+        var service   = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
+
+        var (docs, stats) = await service.ExtractAsync(forceReindex: false);
+
+        Assert.AreEqual(0, docs.Count);
+        Assert.AreEqual(0, stats.DocsNew);
+        Assert.AreEqual(0, stats.DocsDeleted);
+    }
+
+    [TestMethod]
+    public async Task ZenyaInactiveIndexedDocument_IsTornDownLikeRemoved()
+    {
+        // Currently indexed, still present as a blob, but Zenya now marks it withdrawn -
+        // must be deleted from the index even though the blob itself is still there.
+        var metadata  = new Dictionary<string, string> { ["zenya_status"] = "vervangen" };
+        var blobStore = MockBlobStoreWithMetadata(("doc1.pdf", DateTimeOffset.Parse("2024-06-01"), metadata));
+        var extractor = MockExtractor();
+        var indexService = MockIndexService(new() { ["doc1.pdf"] = DateTimeOffset.Parse("2024-01-01") });
+        var service   = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
+
+        var (docs, stats) = await service.ExtractAsync(forceReindex: false);
+
+        Assert.AreEqual(0, docs.Count);
+        Assert.AreEqual(1, stats.DocsDeleted);
+        CollectionAssert.Contains(stats.StaleDocumentIds.ToList(), "doc1.pdf");
+    }
+
+    [TestMethod]
+    public async Task NoZenyaMetadataSet_IsTreatedAsActive()
+    {
+        // Fail-open: a blob with no zenya_status at all (today's default, since uploads are
+        // manual) must still be indexed normally, not excluded.
+        var blobStore = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
+        var extractor = MockExtractor();
+        var indexService = MockIndexService([]);
+        var service   = BuildService(blobStore, extractor, indexService, MockReportWriter(isEnabled: false));
+
+        var (docs, stats) = await service.ExtractAsync(forceReindex: false);
+
+        Assert.AreEqual(1, docs.Count);
+        Assert.AreEqual(1, stats.DocsNew);
     }
 
     [TestMethod]

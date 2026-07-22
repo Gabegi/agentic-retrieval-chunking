@@ -57,4 +57,18 @@ public class IndexServiceTests
         var vectorField = captured!.Fields.Single(f => f.Name == "content_vector");
         Assert.AreEqual(3072, vectorField.VectorSearchDimensions);
     }
+
+    [TestMethod]
+    public async Task RecreateIndexAsync_DeletesThenRecreatesTheConfiguredIndex()
+    {
+        var (service, store) = BuildService();
+        store.Setup(s => s.DeleteIndexAsync("my-index", It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        store.Setup(s => s.EnsureIndexAsync(It.IsAny<SearchIndex>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        await service.RecreateIndexAsync();
+
+        store.Verify(s => s.DeleteIndexAsync("my-index", It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(s => s.EnsureIndexAsync(
+            It.Is<SearchIndex>(i => i.Name == "my-index"), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

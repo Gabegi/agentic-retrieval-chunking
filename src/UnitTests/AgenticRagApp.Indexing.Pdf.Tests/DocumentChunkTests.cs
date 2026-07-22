@@ -101,7 +101,9 @@ public class DocumentChunkTests
         var actualKeys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet();
         var expectedKeys = new HashSet<string>
         {
-            "id", "document_id", "title", "last_modified_date", "content", "heading",
+            "id", "document_id", "title", "last_modified_date",
+            "zenya_document_id", "zenya_version", "zenya_status", "zenya_url",
+            "content", "heading",
             "page_number", "chunk_index", "content_vector",
             "table_count", "has_table", "page_quality", "figure_captions",
         };

@@ -63,6 +63,31 @@ public class SearchIndexStoreTests
     }
 
     [TestMethod]
+    public async Task DeleteIndexAsync_IndexExists_DeletesAndReturnsTrue()
+    {
+        var (store, client) = BuildStore();
+        client.Setup(c => c.DeleteIndexAsync("my-index", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Mock.Of<Response>());
+
+        var deleted = await store.DeleteIndexAsync("my-index");
+
+        Assert.IsTrue(deleted);
+        client.Verify(c => c.DeleteIndexAsync("my-index", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task DeleteIndexAsync_IndexMissing_ReturnsFalseWithoutThrowing()
+    {
+        var (store, client) = BuildStore();
+        client.Setup(c => c.DeleteIndexAsync("my-index", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(404, "not found"));
+
+        var deleted = await store.DeleteIndexAsync("my-index");
+
+        Assert.IsFalse(deleted);
+    }
+
+    [TestMethod]
     public async Task GetStatisticsAsync_ReturnsDocumentCountAndStorageSize()
     {
         var (store, client) = BuildStore();
