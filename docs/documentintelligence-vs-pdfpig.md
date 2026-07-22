@@ -8,7 +8,7 @@ built a careful, well-engineered PdfPig pipeline, and the artifact of that effor
 trail of eight deferred, rejected, or placeholder features — five of which Document
 Intelligence solves natively, out of the box, in code you've already written. The one
 thing I'd still do before flipping the switch is a single `PdfBackendComparisonRunner`
-run over real Cordaan samples (weighted toward table-heavy docs) as a confirmation
+run over real Contoso samples (weighted toward table-heavy docs) as a confirmation
 gate, not a decision input.
 
 **Confidence: high.** The one finding that could reverse it: if the comparison run
@@ -58,7 +58,7 @@ digital-born PDFs), but it's pre-1.0 by its own declaration — "While the versi
 below 1.0.0 minor versions will change the public API without warning (SemVer will not
 be followed until 1.0.0)" — and the layout-analysis namespace you depend on (segmenter,
 reading order, decoration classifier) is the experimental part. Your repo pins 0.1.9
-(`ProtocolsIndexer.csproj:25`); upstream is at 0.1.15. One small correction to the
+(`AgenticRag.csproj:25`); upstream is at 0.1.15. One small correction to the
 brief's premise: issue #736 (`TryGetBookmarks` returning `true` with zero entries) has
 since been closed upstream via PR #930 — but the fix postdates your pinned version, and
 bookmarks were only ever an additive signal anyway.
@@ -128,7 +128,7 @@ wide margin.
 
 ## Recommended follow-ups (in order, none executed — nothing was committed)
 
-1. **Confirmation run:** point `PdfBackendComparisonRunner` at a real Cordaan sample
+1. **Confirmation run:** point `PdfBackendComparisonRunner` at a real Contoso sample
    batch weighted toward table-heavy and 1–2-page docs; expect table-flattening
    warnings and missing-title counts to separate the backends decisively.
 2. **Fix `CostPerPage` to `0.01m`** so all future cost telemetry is honest.
