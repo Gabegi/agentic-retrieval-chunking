@@ -75,27 +75,31 @@ public class ExtractionService : IExtractionService
         return (diff.ToProcess, BuildStats(diff));
     }
 
-    // Cheap listing of every PDF blob's name + LastModified only — no download, no
-    // Document Intelligence call. This is the "source" side of the diff in ExtractAsync;
-    // PdfExtractionOrchestrator's ExtractDocumentsAsync does the expensive download +
-    // extraction, only for whatever CompareSourceListingToIndex decides is actually needed.
-    private async Task<Dictionary<string, DateTimeOffset>> ListDocumentsInBlobAsync(CancellationToken ct)
+    private sealed record BlobListingEntry(DateTimeOffset LastModified, ZenyaMetadata Zenya);
+
+    // Cheap listing of every PDF blob's name + LastModified + Zenya metadata only — no
+    // download, no Document Intelligence call. This is the "source" side of the diff in
+    // ExtractAsync; PdfExtractionOrchestrator's ExtractDocumentsAsync does the expensive
+    // download + extraction, only for whatever CompareSourceListingToIndex decides is
+    // actually needed.
+    private async Task<Dictionary<string, BlobListingEntry>> ListDocumentsInBlobAsync(CancellationToken ct)
     {
-        var result = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, BlobListingEntry>(StringComparer.OrdinalIgnoreCase);
         var blobs  = await _blobStore.ListBlobsAsync(_container, ct: ct);
 
-        foreach (var (name, lastModified, _) in blobs)
+        foreach (var (name, lastModified, _, metadata) in blobs)
         {
             if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
-            result[name] = lastModified ?? DateTimeOffset.MinValue;
+            result[name] = new BlobListingEntry(lastModified ?? DateTimeOffset.MinValue, ZenyaMetadata.FromBlobMetadata(metadata));
         }
 
         return result;
     }
 
-    // Compares the cheap source listing (id + LastModified, no content) against what's
-    // already indexed - BEFORE any extraction happens, so a doc that's unchanged never
-    // costs a paid extraction call:
+    // Compares the cheap source listing (id + LastModified + Zenya metadata, no content)
+    // against what's already indexed - BEFORE any extraction happens, so a doc that's
+    // unchanged never costs a paid extraction call:
+    // - Zenya-inactive (ZenyaMetadata.IsActive false)      -> never processed; torn down like removed if currently indexed
     // - not in the index yet                              -> new, process
     // - in the index, forceReindex or newer last_modified  -> updated, process, delete old chunks
     // - in the index, not newer and not forceReindex       -> skip
@@ -105,19 +109,34 @@ public class ExtractionService : IExtractionService
     // successfully extracted, a doc that merely fails extraction this run is never
     // mistaken for one withdrawn from the source.
     private static (HashSet<string> SourceIdsToProcess, List<string> RemovedSourceIds, List<string> ToDeleteChunks,
-        int NewCount, int Updated, int Skipped) CompareSourceListingToIndex(
-            IReadOnlyDictionary<string, DateTimeOffset> sourceListing,
-            Dictionary<string, DateTimeOffset>          indexedDates,
-            bool                                        forceReindex)
+        int NewCount, int Updated, int Skipped, int Inactive) CompareSourceListingToIndex(
+            IReadOnlyDictionary<string, BlobListingEntry> sourceListing,
+            Dictionary<string, DateTimeOffset>            indexedDates,
+            bool                                          forceReindex)
     {
         var sourceIdsToProcess = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var removedSourceIds   = new List<string>();
         var toDeleteChunks     = new List<string>();
         var newCount           = 0;
         var updated            = 0;
         var skipped            = 0;
+        var inactive           = 0;
 
-        foreach (var (sourceId, lastModified) in sourceListing)
+        foreach (var (sourceId, entry) in sourceListing)
         {
+            // Zenya says this document is no longer valid - never process it, and if it's
+            // currently indexed, tear it down the same way a removed-from-blob doc would be.
+            if (!entry.Zenya.IsActive)
+            {
+                inactive++;
+                if (indexedDates.ContainsKey(sourceId))
+                {
+                    removedSourceIds.Add(sourceId);
+                    toDeleteChunks.Add(sourceId);
+                }
+                continue;
+            }
+
             // checks if document ID is already indexed
             if (!indexedDates.TryGetValue(sourceId, out var indexedDate))
             {
@@ -131,7 +150,7 @@ public class ExtractionService : IExtractionService
             // same way here keeps this comparison consistent with what's actually indexed;
             // comparing full blob-timestamp precision against a date-truncated indexed value
             // would make every unchanged doc look "updated" on every run.
-            var lastModifiedDate = DateTimeOffset.Parse(lastModified.ToString("yyyy-MM-dd"));
+            var lastModifiedDate = DateTimeOffset.Parse(entry.LastModified.ToString("yyyy-MM-dd"));
 
             // if document is already indexed and not newer, skip adding it to the index
             if (!forceReindex && lastModifiedDate <= indexedDate)
@@ -146,10 +165,15 @@ public class ExtractionService : IExtractionService
         }
 
         // Docs that were previously indexed but no longer appear in the source listing at all
-        var removedSourceIds = indexedDates.Keys.Where(id => !sourceListing.ContainsKey(id)).ToList();
-        toDeleteChunks.AddRange(removedSourceIds);
+        // (an inactive-but-still-present doc was already handled and added above, so exclude
+        // it here to avoid double-counting it as both "inactive" and "removed").
+        var removedFromBlob = indexedDates.Keys
+            .Where(id => !sourceListing.ContainsKey(id))
+            .ToList();
+        removedSourceIds.AddRange(removedFromBlob);
+        toDeleteChunks.AddRange(removedFromBlob);
 
-        return (sourceIdsToProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped);
+        return (sourceIdsToProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped, inactive);
     }
 
     // Emit instrumentation metrics from the diff result, and (dev-only) write a
