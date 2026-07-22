@@ -11,12 +11,12 @@ namespace AgenticRagApp.Indexing.Csv.Services;
 // One bad page becomes a CleaningError; it never aborts the whole run.
 public class DataCleaner : IDataCleaner
 {
-    // Standalone "cordaan"/"CORDAAN" logo lines only — lowercase and all-caps are
-    // both confirmed logo text; mixed-case "Cordaan" is left untouched since that's
+    // Standalone "contoso"/"CONTOSO" logo lines only — lowercase and all-caps are
+    // both confirmed logo text; mixed-case "Contoso" is left untouched since that's
     // where real prose (org charts, sentences) shows up. Leading/trailing
     // spaces/tabs around the logo line are tolerated.
-    private static readonly Regex CordaanBoilerplate =
-        new(@"^[ \t]*(cordaan|CORDAAN)[ \t]*$\n?", RegexOptions.Multiline | RegexOptions.Compiled);
+    private static readonly Regex ContosoBoilerplate =
+        new(@"^[ \t]*(contoso|CONTOSO)[ \t]*$\n?", RegexOptions.Multiline | RegexOptions.Compiled);
 
     // Markdown image placeholders, e.g. ![alt](path) — carry no text value.
     private static readonly Regex ImagePlaceholder =
@@ -155,7 +155,7 @@ public class DataCleaner : IDataCleaner
             mojibakeFixed = true;
         }
 
-        text = CordaanBoilerplate.Replace(text, "");
+        text = ContosoBoilerplate.Replace(text, "");
         text = ImagePlaceholder.Replace(text, "");
         text = ExcessBlankLines.Replace(text, "\n\n");
         return (text.Trim(), mojibakeFixed);
