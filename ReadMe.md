@@ -39,7 +39,10 @@ test
 - Add IP to Function App and to Storage account
 ```
 az functionapp config access-restriction add --resource-group cor-cap-data-dev-we-001 --name cor-func-idx-cap-dev-we-001 --rule-name AllowMyIP --action Allow --ip-address 62.194.97.137/32 --priority 100 && az functionapp config access-restriction add --resource-group cor-cap-data-dev-we-001 --name cor-func-idx-cap-dev-we-001 --rule-name AllowMyIP-SCM --action Allow --ip-address 62.194.97.137/32 --priority 100 --scm-site true
+
+az storage account network-rule add --resource-group cor-cap-data-dev-we-001 --account-name corstdatacapdevwe --ip-address 62.194.97.137
 ```
+
 -  https://cor-func-idx-cap-dev-we-001.scm.azurewebsites.net
 - Debug console → CMD
 - Browse to D:\home\LogFiles\Application\Functions\Host\ and open the most recent .log file there — paste me what's in it (or at least the last exception/error block)
