@@ -61,8 +61,10 @@ stages:
           # subnet's (platform-owned) NSG rules, both private endpoints'
           # provisioning state + DNS zone groups, the actual private DNS A
           # records, and the content share's storage account config.
-          # Dev-environment names hardcoded since this is a diagnostic aid,
-          # not part of the deploy itself.
+          # FUNC_APP/FUNC_RG stay dev-hardcoded (no functionAppName/functionAppRg
+          # variable in this file, unlike ../pipeline.yml) since this is a
+          # diagnostic aid, not part of the deploy itself. NET_RG/VNET are
+          # parametrized so the blocking check below is correct on prod runs too.
           - task: AzureCLI@2
             displayName: 'DIAGNOSTIC: full Function App + networking state'
             inputs:
@@ -72,8 +74,8 @@ stages:
               inlineScript: |
                 FUNC_APP="cor-func-idx-cap-dev-we-001"
                 FUNC_RG="cor-cap-data-dev-we-001"
-                NET_RG="cor-cap-network-dev-we-001"
-                VNET="cor-vnet-cap-dev-we-001"
+                NET_RG="$(networkRg)"
+                VNET="$(vnetName)"
                 ROUTE_TABLE="cor-rt-spoke-cap-dev-we-001"
                 PE_NSG="cor-nsg-cap-dev-we-001"
                 FUNC_STORAGE="corstfunccapdevwe"
