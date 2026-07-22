@@ -32,7 +32,12 @@ public class QueryingFunction
         {
             body = await req.ReadFromJsonAsync<QueryRequest>();
         }
-        catch (JsonException ex)
+        // ReadFromJsonAsync surfaces malformed-JSON failures as an AggregateException
+        // wrapping the JsonException rather than a bare JsonException, so a plain
+        // `catch (JsonException)` never fires. GetBaseException() unwraps single-inner
+        // exception chains (which is what a Task-continuation fault produces here) down
+        // to the root cause.
+        catch (Exception ex) when (ex.GetBaseException() is JsonException)
         {
             _logger.LogWarning(ex, "Query request body was not valid JSON");
             var malformed = req.CreateResponse(HttpStatusCode.BadRequest);
