@@ -5,7 +5,11 @@ public sealed record RetrievedChunk(
     string? Title, string? Summary, string Content,
     string? QuickCode = null, string? RelativePath = null,
     string? ZenyaDocumentId = null, string? ZenyaVersion = null,
-    string? ZenyaStatus = null, string? ZenyaUrl = null)
+    string? ZenyaStatus = null, string? ZenyaUrl = null,
+    // Native PDF metadata (PdfNativeMetadataExtractor) - null for CSV rows and for
+    // neighbor-expanded chunks (ChunkNeighborExpander doesn't select these, since only
+    // the original matched chunk per document feeds a Citation - see AgenticRagQueryService).
+    int? PageCount = null, DateTimeOffset? CreatedAt = null, DateTimeOffset? ModDate = null)
 {
     public string ToContextText()
     {

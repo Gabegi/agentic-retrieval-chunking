@@ -28,6 +28,19 @@ public class DocumentChunk : ISnapshotSource, IChunkStatsSource
     [JsonPropertyName("last_modified_date")]
     public DateTimeOffset? LastModifiedDate { get; set; }
 
+    // Native PDF Info-dictionary facts (PdfNativeMetadataExtractor via ExtractionDocument)
+    // - CreatedAt/ModDate are the file's own authored/last-edited timestamps, distinct from
+    // LastModifiedDate above (blob re-upload timing). ModDate is the real "is this policy
+    // current" signal for citations in this HR-compliance app.
+    [JsonPropertyName("created_at")]
+    public DateTimeOffset? CreatedAt { get; set; }
+
+    [JsonPropertyName("mod_date")]
+    public DateTimeOffset? ModDate { get; set; }
+
+    [JsonPropertyName("page_count")]
+    public int? PageCount { get; set; }
+
     // Zenya's own identity/lifecycle facts (see ExtractionDocument/ZenyaMetadata) - null
     // until whoever uploads this chunk's PDF sets the corresponding blob metadata. A null
     // zenya_document_id here is what marks a passage as untraceable back to Zenya.
@@ -89,10 +102,11 @@ public class DocumentChunk : ISnapshotSource, IChunkStatsSource
     // (chunks.json) and the Stage 2 archive, silently losing this data before it could
     // ever reach either. See SearchUploadChunk for the actual Search-only projection,
     // built right before the upload call instead.
+    //
+    // Author is the Word-exporting user's login (e.g. "mherbst"), not a real policy
+    // owner - kept for traceability/debugging but deliberately not Search-indexed.
 
     public string?         Author { get; set; }
-    public DateTimeOffset? CreatedAt { get; set; }
-    public int?            PageCount { get; set; }
     public IReadOnlyList<Bookmark>    Bookmarks { get; set; } = [];
     public IReadOnlyList<SectionInfo> Sections  { get; set; } = [];
 

@@ -99,6 +99,10 @@ public class QueryingFunction
                     title         = c.Title,
                     quick_code    = c.QuickCode,
                     relative_path = c.RelativePath,
+                    page          = c.Page,
+                    page_count    = c.PageCount,
+                    created_at    = c.CreatedAt,
+                    mod_date      = c.ModDate,
                 }),
                 telemetry = new
                 {

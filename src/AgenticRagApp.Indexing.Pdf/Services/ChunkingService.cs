@@ -75,6 +75,7 @@ public class ChunkingService : IChunkingService
                     ChunkIndex            = docChunkIndex,
                     Author                = doc.Author,
                     CreatedAt             = doc.CreatedAt,
+                    ModDate               = doc.ModDate,
                     PageCount             = doc.PageCount,
                     Bookmarks             = doc.Bookmarks,
                     Sections              = doc.Sections,

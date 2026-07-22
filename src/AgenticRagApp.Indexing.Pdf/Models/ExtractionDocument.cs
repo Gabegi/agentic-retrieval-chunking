@@ -23,6 +23,10 @@ namespace AgenticRagApp.Indexing.Pdf.Models;
 //   - PDFExtractionResult.PageErrors/Warnings - not dropped data, already fully surfaced
 //     through PdfPipelineValidator -> ExtractionOutput.Issues -> the run report.
 //     Duplicating either here would repackage identical data, not add anything new.
+//   - DocMetadata.Producer/Creator/Subject/Keywords - diagnostics-only signals (pipeline
+//     provenance/QA, e.g. flagging a PDF with no Producer as a non-standard export path -
+//     see PdfNativeMetadataExtractor's Producer-missing warning). Not chunk-worthy, same
+//     reasoning as FileSizeBytes/PdfSpecVersion above.
 public record ExtractionDocument(
     string SourceId,   // grouping/chunking boundary — the chunker never blends chunks across different SourceIds; blobName for PDF
     int    Ordinal,    // page number — used for ordering only
@@ -38,6 +42,10 @@ public record ExtractionDocument(
     // Native PDF Info-dictionary facts (PdfNativeMetadataExtractor).
     string?         Author,
     DateTimeOffset? CreatedAt,
+    // The PDF's own ModDate - when the file's content was actually last edited, distinct
+    // from LastModifiedDate below (which only reflects blob re-upload timing, not content
+    // changes). The real "is this policy current" signal for citations.
+    DateTimeOffset? ModDate,
     int?            PageCount,
 
     // The blob's own storage LastModified, full precision (not date-truncated - that

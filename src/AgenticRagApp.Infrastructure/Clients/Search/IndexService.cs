@@ -82,6 +82,14 @@ public class IndexService : IIndexService
                 new SimpleField("relative_path",      SearchFieldDataType.String)         { IsFilterable = true },
                 // The blob's own storage LastModified (PDF) or LAST_MODIFIED_DATETIME (CSV).
                 new SimpleField("last_modified_date", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                // PDF-only — the PDF's own native Info-dictionary CreationDate/ModDate
+                // (PdfNativeMetadataExtractor). ModDate is the real "is this policy current"
+                // signal (when the content was actually last edited), distinct from
+                // last_modified_date above (blob re-upload timing). Null for CSV rows.
+                new SimpleField("created_at",         SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                new SimpleField("mod_date",           SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                // PDF-only — native page count (PdfNativeMetadataExtractor). Null for CSV rows.
+                new SimpleField("page_count",         SearchFieldDataType.Int32)         { IsFilterable = true },
                 // PDF-only — Zenya's own identity/lifecycle facts, sourced from custom blob
                 // metadata set by whoever uploads the PDF (Zenya doesn't export these into the
                 // PDF itself - see ZenyaMetadata's comment). Null until that metadata is set.

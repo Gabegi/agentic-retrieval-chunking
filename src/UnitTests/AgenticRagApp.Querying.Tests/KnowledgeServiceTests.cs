@@ -44,6 +44,23 @@ public class KnowledgeServiceTests
     }
 
     [TestMethod]
+    public async Task EnsureKnowledgeSourceAsync_SourceDataFieldsIncludeNativePdfMetadata()
+    {
+        var (service, store) = BuildService();
+        SearchIndexKnowledgeSource? captured = null;
+        store.Setup(s => s.CreateOrUpdateKnowledgeSourceAsync(It.IsAny<SearchIndexKnowledgeSource>(), It.IsAny<CancellationToken>()))
+            .Callback<SearchIndexKnowledgeSource, CancellationToken>((ks, _) => captured = ks)
+            .Returns(Task.CompletedTask);
+
+        await service.EnsureKnowledgeSourceAsync();
+
+        Assert.IsNotNull(captured);
+        var fieldNames = ((SearchIndexKnowledgeSourceParameters)captured!.SearchIndexParameters)
+            .SourceDataFields.Select(f => f.Name).ToList();
+        CollectionAssert.IsSubsetOf(new[] { "page_count", "created_at", "mod_date" }, fieldNames);
+    }
+
+    [TestMethod]
     public async Task EnsureKnowledgeBaseAsync_CreatesOrUpdatesWithConfiguredName()
     {
         var (service, store) = BuildService();

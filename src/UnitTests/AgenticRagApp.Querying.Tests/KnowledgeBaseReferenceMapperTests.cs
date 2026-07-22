@@ -65,6 +65,9 @@ public class KnowledgeBaseReferenceMapperTests
             ["quick_code"]    = "QC-1",
             ["relative_path"] = "a/b.pdf",
             ["content"]       = "The chunk content",
+            ["page_count"]    = 12,
+            ["created_at"]    = "2018-02-01T00:00:00Z",
+            ["mod_date"]      = "2023-06-15T00:00:00Z",
         });
 
         var chunks = KnowledgeBaseReferenceMapper.Map([reference]);
@@ -80,6 +83,22 @@ public class KnowledgeBaseReferenceMapperTests
         Assert.AreEqual("QC-1", chunk.QuickCode);
         Assert.AreEqual("a/b.pdf", chunk.RelativePath);
         Assert.AreEqual("The chunk content", chunk.Content);
+        Assert.AreEqual(12, chunk.PageCount);
+        Assert.AreEqual(DateTimeOffset.Parse("2018-02-01T00:00:00Z"), chunk.CreatedAt);
+        Assert.AreEqual(DateTimeOffset.Parse("2023-06-15T00:00:00Z"), chunk.ModDate);
+    }
+
+    [TestMethod]
+    public void Reference_MissingNativeMetadataFields_AreNull_NotZeroDate()
+    {
+        var reference = Reference(new() { ["content"] = "text only" });
+
+        var chunks = KnowledgeBaseReferenceMapper.Map([reference]);
+
+        Assert.AreEqual(1, chunks.Count);
+        Assert.IsNull(chunks[0].PageCount);
+        Assert.IsNull(chunks[0].CreatedAt);
+        Assert.IsNull(chunks[0].ModDate);
     }
 
     [TestMethod]

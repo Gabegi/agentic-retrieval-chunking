@@ -354,6 +354,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                     Title:                 r.Title,
                     Author:                nativeMetadata?.Author,
                     CreatedAt:             nativeMetadata?.CreatedAt,
+                    ModDate:               nativeMetadata?.ModDate,
                     PageCount:             nativeMetadata?.PageCount,
                     LastModifiedDate:      lastModifiedByBlob.TryGetValue(r.BlobName, out var lm) ? lm : null,
                     ZenyaDocumentId:       zenya.DocumentId,

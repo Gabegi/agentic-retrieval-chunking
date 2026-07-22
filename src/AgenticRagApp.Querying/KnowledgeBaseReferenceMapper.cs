@@ -32,6 +32,9 @@ public static class KnowledgeBaseReferenceMapper
             r.SourceData.TryGetValue("zenya_version", out var zenyaVersionRaw);
             r.SourceData.TryGetValue("zenya_status", out var zenyaStatusRaw);
             r.SourceData.TryGetValue("zenya_url", out var zenyaUrlRaw);
+            r.SourceData.TryGetValue("page_count", out var pageCountRaw);
+            r.SourceData.TryGetValue("created_at", out var createdAtRaw);
+            r.SourceData.TryGetValue("mod_date", out var modDateRaw);
 
             chunks.Add(new RetrievedChunk(
                 Id:              AsText(idRaw) ?? "",
@@ -46,7 +49,10 @@ public static class KnowledgeBaseReferenceMapper
                 ZenyaDocumentId: AsText(zenyaDocIdRaw),
                 ZenyaVersion:    AsText(zenyaVersionRaw),
                 ZenyaStatus:     AsText(zenyaStatusRaw),
-                ZenyaUrl:        AsText(zenyaUrlRaw)));
+                ZenyaUrl:        AsText(zenyaUrlRaw),
+                PageCount:       AsNullableInt(pageCountRaw),
+                CreatedAt:       AsDateTimeOffset(createdAtRaw),
+                ModDate:         AsDateTimeOffset(modDateRaw)));
         }
         return chunks;
     }
@@ -63,5 +69,22 @@ public static class KnowledgeBaseReferenceMapper
         null => 0,
         BinaryData bd => bd.ToObjectFromJson<int>(),
         _ => Convert.ToInt32(value),
+    };
+
+    private static int? AsNullableInt(object? value) => value switch
+    {
+        null => null,
+        BinaryData bd => bd.ToObjectFromJson<int?>(),
+        _ => Convert.ToInt32(value),
+    };
+
+    // created_at/mod_date are absent (null, not 0) as often as they're set - unlike
+    // page_number/chunk_index (AsInt above), a 0-default here would read as a real,
+    // wildly-wrong date rather than "unknown".
+    private static DateTimeOffset? AsDateTimeOffset(object? value) => value switch
+    {
+        null => null,
+        BinaryData bd => bd.ToObjectFromJson<DateTimeOffset?>(),
+        _ => DateTimeOffset.Parse(value.ToString()!),
     };
 }

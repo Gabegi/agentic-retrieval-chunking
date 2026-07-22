@@ -125,6 +125,31 @@ public class AgenticRagQueryServiceTests
     }
 
     [TestMethod]
+    public async Task AskAsync_CitationCarriesNativePdfMetadataFromFirstReference()
+    {
+        var references = new[]
+        {
+            new Dictionary<string, object?>
+            {
+                ["id"] = "c1", ["document_id"] = "doc1", ["title"] = "Gedragscode",
+                ["content"] = "content", ["page_number"] = 3,
+                ["page_count"] = 12, ["created_at"] = "2018-02-01T00:00:00Z", ["mod_date"] = "2023-06-15T00:00:00Z",
+            },
+        };
+        var client  = MockRetrievalClient(references, "answer");
+        var service = BuildService(client);
+
+        var result = await service.AskAsync("question");
+
+        Assert.AreEqual(1, result.Citations.Count);
+        var citation = result.Citations[0];
+        Assert.AreEqual(3, citation.Page);
+        Assert.AreEqual(12, citation.PageCount);
+        Assert.AreEqual(DateTimeOffset.Parse("2018-02-01T00:00:00Z"), citation.CreatedAt);
+        Assert.AreEqual(DateTimeOffset.Parse("2023-06-15T00:00:00Z"), citation.ModDate);
+    }
+
+    [TestMethod]
     public async Task AskAsync_ProviderAndOperationNameAreFixed()
     {
         var client  = MockRetrievalClient([], "answer");

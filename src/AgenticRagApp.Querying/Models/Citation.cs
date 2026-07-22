@@ -10,7 +10,14 @@ public sealed record Citation(
     string? ZenyaDocumentId = null,
     string? ZenyaVersion    = null,
     string? ZenyaStatus     = null,
-    string? ZenyaUrl        = null)
+    string? ZenyaUrl        = null,
+    // Native PDF metadata (PdfNativeMetadataExtractor) - null for CSV citations. ModDate
+    // is the real "is this policy current" signal (content last edited), distinct from
+    // any blob re-upload timing.
+    int?            Page       = null,
+    int?            PageCount  = null,
+    DateTimeOffset? CreatedAt  = null,
+    DateTimeOffset? ModDate    = null)
 {
     // A citation with neither a Zenya document id (PDF's mechanism) nor a relative path
     // (CSV's own, pre-existing mechanism) can't be traced back to its source - this is the

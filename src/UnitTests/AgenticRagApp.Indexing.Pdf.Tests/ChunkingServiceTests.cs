@@ -26,6 +26,7 @@ public class ChunkingServiceTests
         string                  title            = "",
         string?                 author           = null,
         DateTimeOffset?         createdAt        = null,
+        DateTimeOffset?         modDate          = null,
         int?                    pageCount        = null,
         DateTimeOffset?         lastModifiedDate = null,
         string?                 zenyaDocumentId  = null,
@@ -50,6 +51,7 @@ public class ChunkingServiceTests
             Title:                 title,
             Author:                author,
             CreatedAt:             createdAt,
+            ModDate:               modDate,
             PageCount:             pageCount,
             LastModifiedDate:      lastModifiedDate,
             ZenyaDocumentId:       zenyaDocumentId,
@@ -202,12 +204,14 @@ public class ChunkingServiceTests
     {
         var service   = BuildService(MockStrategy());
         var createdAt = DateTimeOffset.Parse("2020-01-01T00:00:00Z");
+        var modDate   = DateTimeOffset.Parse("2023-06-15T00:00:00Z");
         var lastMod   = DateTimeOffset.Parse("2024-05-01T00:00:00Z");
         var table     = new TableInfo(2, 2, [], Offset: null, PageNumber: 0);
         var doc       = Doc("doc1", 0, "content",
             title:            "Title",
             author:           "J. Doe",
             createdAt:        createdAt,
+            modDate:          modDate,
             pageCount:        12,
             lastModifiedDate: lastMod,
             tables:           [table],
@@ -219,6 +223,7 @@ public class ChunkingServiceTests
         Assert.AreEqual("Title", result.Title);
         Assert.AreEqual("J. Doe", result.Author);
         Assert.AreEqual(createdAt, result.CreatedAt);
+        Assert.AreEqual(modDate, result.ModDate);
         Assert.AreEqual(12, result.PageCount);
         Assert.AreEqual(lastMod, result.LastModifiedDate);
         Assert.AreEqual(1, result.Tables.Count);

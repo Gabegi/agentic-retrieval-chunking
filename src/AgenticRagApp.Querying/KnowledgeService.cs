@@ -56,6 +56,12 @@ public class KnowledgeService : IKnowledgeService
                     // expansion in ChunkNeighborExpander (page-boundary continuations).
                     new SearchIndexFieldReference("page_number"),
                     new SearchIndexFieldReference("chunk_index"),
+                    // Native PDF metadata (PdfNativeMetadataExtractor) — page_count for
+                    // "page X of Y" citations, created_at/mod_date so a citation can show
+                    // how current a policy is. Null for CSV rows.
+                    new SearchIndexFieldReference("page_count"),
+                    new SearchIndexFieldReference("created_at"),
+                    new SearchIndexFieldReference("mod_date"),
                 }
                 // note: content_vector is excluded — not needed for LLM context
             }

@@ -27,6 +27,7 @@ public class DocumentChunkTests
         ContentVector         = [0.1f, 0.2f, 0.3f],
         Author                = "Cordaan P&O",
         CreatedAt             = DateTimeOffset.Parse("2018-02-01T00:00:00Z"),
+        ModDate               = DateTimeOffset.Parse("2023-06-15T00:00:00Z"),
         PageCount             = 12,
         Bookmarks             = [new Bookmark("Inleiding", 0, 1, false)],
         Sections              = [new SectionInfo([new SectionSpan(0, 100)], ["/paragraphs/0"])],
@@ -63,6 +64,7 @@ public class DocumentChunkTests
         // Everything the chunking rewrite added - the fields the bug lost
         Assert.AreEqual(original.Author, restored.Author);
         Assert.AreEqual(original.CreatedAt, restored.CreatedAt);
+        Assert.AreEqual(original.ModDate, restored.ModDate);
         Assert.AreEqual(original.PageCount, restored.PageCount);
         Assert.AreEqual(1, restored.Bookmarks.Count);
         Assert.AreEqual(original.Bookmarks[0].Title, restored.Bookmarks[0].Title);
@@ -102,6 +104,7 @@ public class DocumentChunkTests
         var expectedKeys = new HashSet<string>
         {
             "id", "document_id", "title", "last_modified_date",
+            "created_at", "mod_date", "page_count",
             "zenya_document_id", "zenya_version", "zenya_status", "zenya_url",
             "content", "heading",
             "page_number", "chunk_index", "content_vector",
@@ -120,5 +123,16 @@ public class DocumentChunkTests
         Assert.IsTrue(upload.HasTable);
         Assert.AreEqual(0.97, upload.PageQuality);
         CollectionAssert.AreEqual(new[] { "Organogram Cordaan" }, upload.FigureCaptions.ToList());
+    }
+
+    [TestMethod]
+    public void SearchUploadChunk_CarriesNativeMetadataFieldValuesCorrectly()
+    {
+        var original = FullyPopulated();
+        var upload   = SearchUploadChunk.From(original);
+
+        Assert.AreEqual(original.CreatedAt, upload.CreatedAt);
+        Assert.AreEqual(original.ModDate, upload.ModDate);
+        Assert.AreEqual(original.PageCount, upload.PageCount);
     }
 }

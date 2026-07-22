@@ -19,6 +19,7 @@ public class ExtractionServiceTests
         Title:                 "",
         Author:                null,
         CreatedAt:             null,
+        ModDate:               null,
         PageCount:             null,
         LastModifiedDate:      null,
         ZenyaDocumentId:       null,

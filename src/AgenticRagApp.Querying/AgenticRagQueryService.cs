@@ -57,7 +57,8 @@ public class AgenticRagQueryService : IRagQueryService
             .GroupBy(c => c.DocumentId)
             .Select(g => new Citation(
                 g.Key, g.First().Title, g.First().QuickCode, g.First().RelativePath,
-                g.First().ZenyaDocumentId, g.First().ZenyaVersion, g.First().ZenyaStatus, g.First().ZenyaUrl))
+                g.First().ZenyaDocumentId, g.First().ZenyaVersion, g.First().ZenyaStatus, g.First().ZenyaUrl,
+                g.First().Page, g.First().PageCount, g.First().CreatedAt, g.First().ModDate))
             .ToList();
 
         var answer = string.Join("\n", result.Response
