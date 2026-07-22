@@ -62,6 +62,13 @@ public record PdfIndexRunReport(
     // and is the primary BM25 signal in retrieval. Zero is ideal; investigate any non-zero count.
     int MissingTitleCount,
 
+    // Quality signal: documents with no zenya_document_id blob metadata set. Non-zero means
+    // every citation built from them will show Citation.TraceabilityGap - this is the one
+    // metric that tells you, without waiting for a query, how much of the corpus is
+    // currently untraceable back to Zenya. Expected to be the full corpus count until
+    // whoever uploads PDFs starts setting this metadata.
+    int? TraceabilityGapCount,
+
     // ── Chunking ─────────────────────────────────────────────────────────────
 
     int ChunksProduced,

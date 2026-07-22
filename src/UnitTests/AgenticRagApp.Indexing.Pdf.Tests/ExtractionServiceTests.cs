@@ -49,6 +49,7 @@ public class ExtractionServiceTests
         MissingTitleCount:      0,
         MissingVersionCount:    0,
         MissingDepartmentCount: 0,
+        TraceabilityGapCount:   0,
         Issues:                 [],
         RedFlags:               [],
         SpotCheckSample:        []);
@@ -314,6 +315,7 @@ public class ExtractionServiceTests
             MissingTitleCount:      1,
             MissingVersionCount:    2,
             MissingDepartmentCount: 3,
+            TraceabilityGapCount:   9,
             Issues:                 [],
             RedFlags:               ["some flag"],
             SpotCheckSample:        []);
@@ -334,6 +336,7 @@ public class ExtractionServiceTests
         Assert.AreEqual(1, stats.MissingTitleCount);
         Assert.AreEqual(2, stats.MissingVersionCount);
         Assert.AreEqual(3, stats.MissingDepartmentCount);
+        Assert.AreEqual(9, stats.TraceabilityGapCount);
         CollectionAssert.Contains(stats.RedFlags.ToList(), "some flag");
     }
 

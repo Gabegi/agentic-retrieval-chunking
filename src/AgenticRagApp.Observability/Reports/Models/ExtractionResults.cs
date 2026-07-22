@@ -20,8 +20,10 @@ public record ExtractionResults(
     int DetectedTableCount,
     int DocsWithoutHeadings,
     int MissingTitleCount,
-    int? MissingVersionCount,    // null = source has no equivalent concept, not "verified zero"
+    int? MissingVersionCount,    // PDF: real count now (ZenyaVersion missing) - see PdfExtractionPipeline
     int? MissingDepartmentCount, // null = source has no equivalent concept, not "verified zero"
+    // Documents with no zenya_document_id blob metadata set - see ExtractionOutput's own comment.
+    int? TraceabilityGapCount,
     IReadOnlyList<ValidationIssueEntry> Issues,
     IReadOnlyList<string>               RedFlags,
     IReadOnlyList<SpotCheckEntry>       SpotCheckSample

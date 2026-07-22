@@ -386,6 +386,20 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                 r.PageContent.Length > 300 ? r.PageContent[..300] + "…" : r.PageContent))
             .ToList();
 
+        // Zenya metadata is file-level (same lookup used above, per BlobName) - a document
+        // only counts as missing if the field genuinely isn't set, not per-page like
+        // missingTitle above (which reads a per-page column on cleanResult.Records).
+        var okBlobNames = fileResults.Where(f => f.Ok).Select(f => f.BlobName)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var traceabilityGapCount = okBlobNames.Count(b => (zenyaByBlob.GetValueOrDefault(b) ?? ZenyaMetadata.Empty).DocumentId is null);
+        var missingVersionCount  = okBlobNames.Count(b => (zenyaByBlob.GetValueOrDefault(b) ?? ZenyaMetadata.Empty).Version is null);
+
+        var redFlags = report.RedFlags.ToList();
+        if (traceabilityGapCount > 0)
+            redFlags.Add(
+                $"{traceabilityGapCount} document(s) have no zenya_document_id blob metadata set — " +
+                "citations built from these will show a traceability gap (Citation.TraceabilityGap).");
+
         return new ExtractionOutput(
             Docs:                   extractionDocs,
             ValidationErrors:       errors,
@@ -396,10 +410,11 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
             DetectedTableCount:     report.DetectedTableCount,
             DocsWithoutHeadings:    report.DocumentsNeedingFallbackChunking.Count,
             MissingTitleCount:      missingTitle,
-            MissingVersionCount:    null,  // no version data for PDFs
+            MissingVersionCount:    missingVersionCount,
             MissingDepartmentCount: null,  // no folder/department concept for PDFs
+            TraceabilityGapCount:   traceabilityGapCount,
             Issues:                 issues,
-            RedFlags:               report.RedFlags.ToList(),
+            RedFlags:               redFlags,
             SpotCheckSample:        spotCheck);
     }
 

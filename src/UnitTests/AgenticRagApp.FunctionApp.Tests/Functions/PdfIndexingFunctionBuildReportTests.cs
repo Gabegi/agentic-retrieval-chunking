@@ -48,6 +48,7 @@ public class PdfIndexingFunctionBuildReportTests
         MissingTitleCount:      10,
         MissingVersionCount:    null,
         MissingDepartmentCount: null,
+        TraceabilityGapCount:   11,
         Issues:                 [new ValidationIssueEntry("Extract", "Error", "doc1", "bad row")],
         RedFlags:               redFlags ?? ["extraction flag"],
         SpotCheckSample:        [new SpotCheckEntry("doc1", "Title", "preview...")]);
@@ -104,6 +105,7 @@ public class PdfIndexingFunctionBuildReportTests
         Assert.AreEqual(2_000_000L, report.IndexStorageSizeBytesSnapshot);
         Assert.AreEqual(1, report.Issues.Count);
         Assert.AreEqual(1, report.SpotCheckSample.Count);
+        Assert.AreEqual(11, report.TraceabilityGapCount);
     }
 
     [TestMethod]
@@ -124,6 +126,7 @@ public class PdfIndexingFunctionBuildReportTests
         Assert.AreEqual(0, report.Issues.Count);
         Assert.AreEqual(0, report.RedFlags.Count);
         Assert.AreEqual(0, report.SpotCheckSample.Count);
+        Assert.AreEqual(0, report.TraceabilityGapCount);
     }
 
     [TestMethod]

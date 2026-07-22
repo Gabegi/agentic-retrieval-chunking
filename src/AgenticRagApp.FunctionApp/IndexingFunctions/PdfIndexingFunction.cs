@@ -406,6 +406,7 @@ public class PdfIndexingFunction
             DetectedTableCount:      ext?.DetectedTableCount      ?? 0,
             DocsWithoutHeadings:     ext?.DocsWithoutHeadings     ?? 0,
             MissingTitleCount:       ext?.MissingTitleCount       ?? 0,
+            TraceabilityGapCount:    ext?.TraceabilityGapCount    ?? 0,
             ChunksProduced:          chunk?.ChunksProduced        ?? 0,
             DocsWithZeroChunks:      chunk?.DocsWithZeroChunks    ?? 0,
             DuplicateChunks:         chunk?.DuplicateChunks       ?? 0,

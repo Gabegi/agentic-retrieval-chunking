@@ -147,6 +147,7 @@ public class ExtractionService : IExtractionService
         DocsUpdated:            diff.Updated,
         DocsDeleted:            diff.RemovedSourceIds.Count,
         StaleDocumentIds:       diff.StaleDocumentIds,
+        TraceabilityGapCount:   null, // CSV traces back to Zenya via relative_path instead - see ExtractionOutput's comment
         ValidationErrors:       diff.Output.ValidationErrors,
         ValidationWarnings:     diff.Output.ValidationWarnings,
         ReconciliationProblems: diff.Output.ReconciliationProblems,

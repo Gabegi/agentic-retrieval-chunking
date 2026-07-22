@@ -224,6 +224,7 @@ public class ExtractionService : IExtractionService
         MissingTitleCount:      diff.Output.MissingTitleCount,
         MissingVersionCount:    diff.Output.MissingVersionCount,
         MissingDepartmentCount: diff.Output.MissingDepartmentCount,
+        TraceabilityGapCount:   diff.Output.TraceabilityGapCount,
         Issues:                 diff.Output.Issues,
         RedFlags:               diff.Output.RedFlags,
         SpotCheckSample:        diff.Output.SpotCheckSample);

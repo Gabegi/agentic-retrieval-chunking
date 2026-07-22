@@ -12,9 +12,10 @@ public sealed record Citation(
     string? ZenyaStatus     = null,
     string? ZenyaUrl        = null)
 {
-    // A citation with no Zenya document id can't be traced back to its source in Zenya -
-    // this is the "meetgat" (measurement gap) the traceability scenario calls for, not
-    // something to silently paper over. True for every PDF citation today until whoever
-    // uploads a document starts setting zenya_document_id as blob metadata.
-    public bool TraceabilityGap => ZenyaDocumentId is null;
+    // A citation with neither a Zenya document id (PDF's mechanism) nor a relative path
+    // (CSV's own, pre-existing mechanism) can't be traced back to its source - this is the
+    // "meetgat" (measurement gap) the traceability scenario calls for, not something to
+    // silently paper over. True for every PDF citation today until whoever uploads a
+    // document starts setting zenya_document_id as blob metadata.
+    public bool TraceabilityGap => ZenyaDocumentId is null && RelativePath is null;
 }
