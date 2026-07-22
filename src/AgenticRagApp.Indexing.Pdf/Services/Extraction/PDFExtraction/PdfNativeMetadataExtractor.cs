@@ -24,9 +24,14 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 var info = pdf.Information;
                 var bookmarks = TryGetBookmarks(pdf, blobName, logger, warnings);
 
-                var title     = string.IsNullOrWhiteSpace(info.Title)  ? null : info.Title;
-                var author    = string.IsNullOrWhiteSpace(info.Author) ? null : info.Author;
-                var createdAt = TryParsePdfDate(info.CreationDate, blobName, warnings);
+                var title     = string.IsNullOrWhiteSpace(info.Title)     ? null : info.Title;
+                var author    = string.IsNullOrWhiteSpace(info.Author)    ? null : info.Author;
+                var producer  = string.IsNullOrWhiteSpace(info.Producer)  ? null : info.Producer;
+                var creator   = string.IsNullOrWhiteSpace(info.Creator)   ? null : info.Creator;
+                var subject   = string.IsNullOrWhiteSpace(info.Subject)   ? null : info.Subject;
+                var keywords  = string.IsNullOrWhiteSpace(info.Keywords)  ? null : info.Keywords;
+                var createdAt = TryParsePdfDate(info.CreationDate, blobName, warnings, "CreationDate");
+                var modDate   = TryParsePdfDate(info.ModifiedDate, blobName, warnings, "ModDate");
 
                 if (title is null)
                     warnings.Add(new ExtractionWarning
@@ -37,6 +42,13 @@ namespace AgenticRagApp.Indexing.Pdf.Services
 
                 if (author is null)
                     warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = "No native Author in the PDF's Info dictionary." });
+
+                if (producer is null)
+                    warnings.Add(new ExtractionWarning
+                    {
+                        DocumentId = blobName,
+                        Message    = "No native Producer in the PDF's Info dictionary — possible non-standard export pipeline.",
+                    });
 
                 if (bookmarks is { Count: > 0 })
                     warnings.Add(new ExtractionWarning
@@ -49,12 +61,17 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                     Title:     title,
                     Author:    author,
                     CreatedAt: createdAt,
+                    ModDate:   modDate,
+                    Producer:  producer,
+                    Creator:   creator,
+                    Subject:   subject,
+                    Keywords:  keywords,
                     PageCount: pdf.NumberOfPages,
                     Bookmarks: bookmarks);
 
                 logger.LogDebug(
-                    "PdfNativeMetadataExtractor: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}",
-                    blobName, metadata.PageCount, metadata.Title, metadata.Author, metadata.CreatedAt);
+                    "PdfNativeMetadataExtractor: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}, modified={Modified}, producer={Producer}",
+                    blobName, metadata.PageCount, metadata.Title, metadata.Author, metadata.CreatedAt, metadata.ModDate, metadata.Producer);
 
                 diagnostics = new PdfStepDiagnostics(warnings, []);
                 return metadata;
