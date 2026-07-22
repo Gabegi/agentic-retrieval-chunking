@@ -13,9 +13,11 @@
 # Both are private-endpoint-only (no public network access). Each private
 # endpoint below attaches its private_dns_zone_group directly rather than
 # waiting on the platform team's policy-based zone linking
-# (docs/platform-team-dns-verzoek.md). Their traffic is kept VNet-local by
-# azurerm_route.pe_subnet_local (network.tf) rather than hairpinning through
-# the hub firewall.
+# (docs/platform-team-dns-verzoek.md). Their traffic stays VNet-local without
+# any override: Azure's default system route for the VNet's own address space
+# is a longer, more specific prefix than the spoke route table's sole
+# 0.0.0.0/0 -> firewall UDR, so under longest-prefix-match routing, intra-VNet
+# communication (this subnet <-> the pe subnet) takes precedence over that UDR.
 # ---------------------------------------------------------------------------
 
 resource "azurerm_storage_account" "func" {

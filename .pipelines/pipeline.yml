@@ -54,6 +54,10 @@ variables:
         value: 'cor-func-idx-cap-prd-we-001'
       - name: functionAppRg
         value: 'cor-cap-data-prd-we-001'
+      - name: networkRg
+        value: 'cor-cap-network-prd-we-001'
+      - name: vnetName
+        value: 'cor-vnet-cap-prd-we-001'
   - ${{ else }}:
       - name: envName
         value: 'development'
@@ -73,6 +77,10 @@ variables:
         value: 'cor-func-idx-cap-dev-we-001'
       - name: functionAppRg
         value: 'cor-cap-data-dev-we-001'
+      - name: networkRg
+        value: 'cor-cap-network-dev-we-001'
+      - name: vnetName
+        value: 'cor-vnet-cap-dev-we-001'
 
 stages:
 
@@ -159,8 +167,6 @@ stages:
           # subnet's (platform-owned) NSG rules, both private endpoints'
           # provisioning state + DNS zone groups, the actual private DNS A
           # records, and the content share's storage account config.
-          # Dev-environment names hardcoded since this is a diagnostic aid,
-          # not part of the deploy itself.
           - task: AzureCLI@2
             displayName: 'DIAGNOSTIC: full Function App + networking state'
             inputs:
@@ -168,10 +174,10 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                FUNC_APP="cor-func-idx-cap-dev-we-001"
-                FUNC_RG="cor-cap-data-dev-we-001"
-                NET_RG="cor-cap-network-dev-we-001"
-                VNET="cor-vnet-cap-dev-we-001"
+                FUNC_APP="$(functionAppName)"
+                FUNC_RG="$(functionAppRg)"
+                NET_RG="$(networkRg)"
+                VNET="$(vnetName)"
                 ROUTE_TABLE="cor-rt-spoke-cap-dev-we-001"
                 PE_NSG="cor-nsg-cap-dev-we-001"
                 FUNC_STORAGE="corstfunccapdevwe"
