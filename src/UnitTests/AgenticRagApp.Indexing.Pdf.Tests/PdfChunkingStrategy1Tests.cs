@@ -81,13 +81,17 @@ public class PdfChunkingStrategy1Tests
     public void ShortMiddleParagraph_IsNotMerged()
     {
         // A short paragraph in the middle (not the last chunk) is real structure and must
-        // NOT be absorbed into its neighbor, even if it's shorter than minTail.
-        var strategy = new PdfChunkingStrategy1(targetSize: 5, maxSize: 15, minTail: 50, overlapSize: 0);
-        var content  = "AAAA\n\nBB\n\nCCCCCCCCCCCCCCCCCCCC";
+        // NOT be absorbed into its neighbor, even if it's shorter than minTail - only the
+        // trailing chunk is ever a merge candidate. The last chunk here (10 chars) is kept
+        // above minTail (3) so MergeTinyTrailingChunk has no reason to fire at all, isolating
+        // the "is BB preserved as its own chunk" behavior from the tail-merge behavior.
+        var strategy = new PdfChunkingStrategy1(targetSize: 5, maxSize: 8, minTail: 3, overlapSize: 0);
+        var content  = "AAAAAAAA\n\nBB\n\nCCCCCCCCCC";
 
         var chunks = strategy.Chunk(content);
 
-        Assert.IsTrue(chunks.Count >= 2, "Expected multiple chunks given the small targetSize/maxSize.");
+        Assert.AreEqual(3, chunks.Count);
+        Assert.AreEqual("BB", chunks[1].Content);
     }
 
     [TestMethod]

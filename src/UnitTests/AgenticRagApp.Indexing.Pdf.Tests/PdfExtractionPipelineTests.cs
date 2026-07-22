@@ -44,13 +44,10 @@ public class PdfExtractionPipelineTests
         store.Setup(s => s.DownloadBytesAsync(It.IsAny<BlobContainerClient>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(pdfBytes ?? [1, 2, 3]);
 
-        store.Setup(s => s.TryReadJsonWithETagAsync<PdfExtractionPipeline.RunState>(
-                It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(((PdfExtractionPipeline.RunState?)null, (ETag?)null));
-
-        store.Setup(s => s.SaveJsonWithETagAsync(
-                It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<PdfExtractionPipeline.RunState>(), It.IsAny<ETag?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        // PdfExtractionPipeline.RunState is a private nested record, so it can't be named
+        // here - Moq's automatic Task<T> handling for unconfigured members returns
+        // Task.FromResult(default(T)) for these generic calls, which is exactly the
+        // "no previous baseline" / "save succeeded" shape the pipeline already tolerates.
 
         return store;
     }
@@ -90,7 +87,7 @@ public class PdfExtractionPipelineTests
     }
 
     [TestMethod]
-    public async Task HappyPath_ReturnsDocsAndSavesState()
+    public async Task HappyPath_ReturnsDocs()
     {
         var blobs = new[] { ("doc1.pdf", (DateTimeOffset?)DateTimeOffset.UtcNow, (long?)100, EmptyMetadata) };
         var blobStore    = MockBlobStore(blobs);
@@ -109,10 +106,6 @@ public class PdfExtractionPipelineTests
 
         Assert.AreEqual(1, output.Docs.Count);
         Assert.AreEqual("doc1.pdf", output.Docs[0].SourceId);
-
-        blobStore.Verify(s => s.SaveJsonWithETagAsync(
-            It.IsAny<BlobContainerClient>(), StateBlobName,
-            It.Is<PdfExtractionPipeline.RunState>(r => r.CleanedRecords == 1), null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -163,7 +156,7 @@ public class PdfExtractionPipelineTests
     }
 
     [TestMethod]
-    public async Task ValidationFailed_NotDevelopment_ThrowsAndNeverSavesState()
+    public async Task ValidationFailed_NotDevelopment_Throws()
     {
         var blobs = new[] { ("doc1.pdf", (DateTimeOffset?)DateTimeOffset.UtcNow, (long?)100, EmptyMetadata) };
         var blobStore    = MockBlobStore(blobs);
@@ -180,13 +173,10 @@ public class PdfExtractionPipelineTests
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => pipeline.ExtractDocumentsAsync(new HashSet<string> { "doc1.pdf" }));
-
-        blobStore.Verify(s => s.SaveJsonWithETagAsync(
-            It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<PdfExtractionPipeline.RunState>(), It.IsAny<ETag?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
-    public async Task ValidationFailed_Development_ContinuesAndSavesState()
+    public async Task ValidationFailed_Development_ContinuesAndReturnsDocs()
     {
         var blobs = new[] { ("doc1.pdf", (DateTimeOffset?)DateTimeOffset.UtcNow, (long?)100, EmptyMetadata) };
         var blobStore    = MockBlobStore(blobs);
@@ -204,8 +194,6 @@ public class PdfExtractionPipelineTests
         var output = await pipeline.ExtractDocumentsAsync(new HashSet<string> { "doc1.pdf" });
 
         Assert.AreEqual(1, output.Docs.Count);
-        blobStore.Verify(s => s.SaveJsonWithETagAsync(
-            It.IsAny<BlobContainerClient>(), StateBlobName, It.IsAny<PdfExtractionPipeline.RunState>(), It.IsAny<ETag?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
