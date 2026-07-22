@@ -110,11 +110,11 @@ namespace AgenticRagApp.Indexing.Pdf.Services
         // (+01'00' above) is discarded and the result is always treated as UTC
         // (AssumeUniversal) - fine for CreatedAt as a display value, but don't use it for
         // precise time-of-day diffing, since it can be off by the source PDF's real offset.
-        private static DateTimeOffset? TryParsePdfDate(string? raw, string blobName, List<ExtractionWarning> warnings)
+        private static DateTimeOffset? TryParsePdfDate(string? raw, string blobName, List<ExtractionWarning> warnings, string fieldName)
         {
             if (string.IsNullOrEmpty(raw))
             {
-                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = "No native CreationDate in the PDF's Info dictionary." });
+                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"No native {fieldName} in the PDF's Info dictionary." });
                 return null;
             }
 
@@ -122,12 +122,12 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             if (!DateTimeOffset.TryParseExact(s[..Math.Min(14, s.Length)], "yyyyMMddHHmmss",
                     null, System.Globalization.DateTimeStyles.AssumeUniversal, out var dt))
             {
-                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"CreationDate '{raw}' could not be parsed." });
+                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"{fieldName} '{raw}' could not be parsed." });
                 return null;
             }
 
             if (dt > DateTimeOffset.UtcNow)
-                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"CreationDate '{dt:O}' is in the future." });
+                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"{fieldName} '{dt:O}' is in the future." });
 
             return dt;
         }
