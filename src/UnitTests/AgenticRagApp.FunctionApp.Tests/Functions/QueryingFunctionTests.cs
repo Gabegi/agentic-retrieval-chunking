@@ -60,11 +60,6 @@ public class QueryingFunctionTests
     private static QueryingFunction BuildFunction(Mock<IRagQueryService> ragService, Mock<IRunReportWriter>? reportWriter = null) =>
         new(ragService.Object, (reportWriter ?? MockReportWriter()).Object, NullLogger<QueryingFunction>.Instance);
 
-    private static (FakeHttpRequestData Request, FakeFunctionContext Context) BuildRequest(string body) =>
-        (new FakeHttpRequestData(new FakeFunctionContext(), body), (FakeFunctionContext)null!) is var _
-            ? throw new InvalidOperationException() // unreachable, kept for tuple shape below
-            : default;
-
     [TestMethod]
     public async Task RunQuery_MalformedJsonBody_ReturnsBadRequest()
     {
