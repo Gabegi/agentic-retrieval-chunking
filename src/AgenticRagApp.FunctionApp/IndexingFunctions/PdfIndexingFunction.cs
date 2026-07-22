@@ -262,6 +262,109 @@ public class PdfIndexingFunction
             report.InstanceId, report.DocsToProcess, report.ChunksProduced, report.Success);
     }
 
+    // Recovery entrypoint, distinct from StartIndexing/force=true: wipes the index outright
+    // (RecreateIndexActivity) and repopulates it from the rolling full-corpus snapshot
+    // (RestoreFromSnapshotActivity) instead of re-extracting/re-chunking/re-embedding every
+    // source document. Use when the index itself is suspected corrupt/incomplete, not just stale.
+    [Function("StartRestore")]
+    public async Task<HttpResponseData> StartRestore(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "index/restore")] HttpRequestData req,
+        [DurableClient] DurableTaskClient client)
+    {
+        var instanceId = await client.ScheduleNewOrchestrationInstanceAsync("RestoreOrchestrator", new object());
+        _logger.LogWarning("Index restore started — instance {InstanceId}. Index will be wiped and repopulated from the latest snapshot.", instanceId);
+        return client.CreateCheckStatusResponse(req, instanceId);
+    }
+
+    [Function("RestoreOrchestrator")]
+    public async Task RunRestoreOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    {
+        var startedAt = context.CurrentUtcDateTime;
+
+        RestoreResult? result  = null;
+        bool           success = false;
+        string?        error   = null;
+
+        try
+        {
+            await context.CallActivityAsync("RecreateIndexActivity");
+            result  = await context.CallActivityAsync<RestoreResult>("RestoreFromSnapshotActivity");
+            success = true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.ToString();
+        }
+
+        await context.CallActivityAsync("SaveRestoreReportActivity",
+            BuildRestoreReport(context, startedAt, result, success, error));
+
+        if (!success)
+            throw new InvalidOperationException(error ?? "Index restore failed");
+    }
+
+    [Function("RecreateIndexActivity")]
+    public async Task RecreateIndexActivity([ActivityTrigger] object? _, FunctionContext context)
+    {
+        try
+        {
+            await _indexService.RecreateIndexAsync();
+        }
+        catch (Exception ex)
+        {
+            Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "restore-recreate-index"));
+            _logger.LogError(ex, "RecreateIndexActivity failed");
+            throw new InvalidOperationException($"RecreateIndexActivity failed: {ex.Message}");
+        }
+    }
+
+    [Function("RestoreFromSnapshotActivity")]
+    public async Task<RestoreResult> RestoreFromSnapshotActivity([ActivityTrigger] object? _, FunctionContext context)
+    {
+        try
+        {
+            return await _restoreService.RestoreFromLatestSnapshotAsync(context.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Instrumentation.PipelineFailures.Add(1, new KeyValuePair<string, object?>("stage", "restore-upload"));
+            _logger.LogError(ex, "RestoreFromSnapshotActivity failed");
+            throw new InvalidOperationException($"RestoreFromSnapshotActivity failed: {ex.Message}");
+        }
+    }
+
+    [Function("SaveRestoreReportActivity")]
+    public async Task SaveRestoreReportActivity([ActivityTrigger] PdfRestoreRunReport report, FunctionContext context)
+    {
+        if (!_reportWriter.IsEnabled) return;
+
+        await _reportWriter.WriteReportAsync(
+            $"restore/{report.StartedAt:yyyy/MM/dd}/{report.InstanceId}.json", report, context.CancellationToken);
+        _logger.LogInformation(
+            "Index restore report saved — instance={InstanceId}, restored={Restored}, success={Success}",
+            report.InstanceId, report.ChunksRestored, report.Success);
+    }
+
+    private static PdfRestoreRunReport BuildRestoreReport(
+        TaskOrchestrationContext context,
+        DateTimeOffset           startedAt,
+        RestoreResult?           result,
+        bool                     success,
+        string?                  error) => new(
+            InstanceId:                    context.InstanceId,
+            StartedAt:                     startedAt,
+            FinishedAt:                    context.CurrentUtcDateTime,
+            Success:                       success,
+            ErrorMessage:                  error,
+            SnapshotInstanceId:            result?.SnapshotInstanceId,
+            ChunksRestored:                result?.ChunksRestored       ?? 0,
+            ChunksMissingVector:           result?.ChunksMissingVector  ?? 0,
+            IndexDocumentCountSnapshot:    result?.IndexDocumentCountSnapshot,
+            IndexStorageSizeBytesSnapshot: result?.IndexStorageSizeBytesSnapshot,
+            SearchIndexName:               result?.SearchIndexName      ?? "",
+            EmbeddingModel:                result?.EmbeddingModel       ?? "",
+            EmbeddingDeployment:           result?.EmbeddingDeployment  ?? "");
+
     [Function("SetupKnowledgeBase")]
     public async Task<HttpResponseData> RunSetupKnowledgeBase(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "setup-knowledge-base")] HttpRequestData req,
