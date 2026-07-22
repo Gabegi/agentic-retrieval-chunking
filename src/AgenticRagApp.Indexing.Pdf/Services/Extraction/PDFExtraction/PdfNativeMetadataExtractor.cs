@@ -8,7 +8,8 @@ namespace AgenticRagApp.Indexing.Pdf.Services
     // The PDF's own Info-dictionary + bookmark tree, read via PdfPig.
     internal static class PdfNativeMetadataExtractor
     {
-        // Reads pdf native Title/Author/CreationDate + the bookmark tree off an open pdf.
+        // Reads pdf native Title/Author/CreationDate/ModDate/Producer/Creator/Subject/
+        // Keywords + the bookmark tree off an open pdf.
         // - Takes ownership of pdf's lifetime (disposes it here, not in the caller).
         // - Called once, by DocumentIntelligenceExtractor, after preflight opens pdf.
         // diagnostics is report/diagnostic material only (see PdfStepDiagnostics) - never
