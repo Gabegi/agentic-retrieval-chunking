@@ -1,3 +1,0 @@
-namespace ProtocolsIndexer.Models;
-
-public sealed record Citation(string DocumentId, string? Title, string? QuickCode, string? RelativePath);
