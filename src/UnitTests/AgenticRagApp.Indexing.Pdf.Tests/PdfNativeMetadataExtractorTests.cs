@@ -164,4 +164,58 @@ public class PdfNativeMetadataExtractorTests
         Assert.AreEqual(1, metadata.Bookmarks!.Count);
         Assert.IsTrue(diagnostics.Warnings.Any(w => w.Message.Contains("1 bookmark(s) found")));
     }
+
+    [TestMethod]
+    public void NoProducer_ProducesWarning()
+    {
+        var metadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(OpenPdf(), "doc.pdf", NullLogger.Instance, out var diagnostics);
+
+        Assert.IsNull(metadata.Producer);
+        Assert.IsTrue(diagnostics.Warnings.Any(w => w.Message.Contains("No native Producer")));
+    }
+
+    [TestMethod]
+    public void HasProducer_NoProducerWarning()
+    {
+        var metadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(
+            OpenPdf(producer: "Microsoft Word"), "doc.pdf", NullLogger.Instance, out var diagnostics);
+
+        Assert.AreEqual("Microsoft Word", metadata.Producer);
+        Assert.IsFalse(diagnostics.Warnings.Any(w => w.Message.Contains("No native Producer")));
+    }
+
+    [TestMethod]
+    public void ValidModDate_IsParsed_NoWarning()
+    {
+        var metadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(
+            OpenPdf(modDate: "D:20200115093000"), "doc.pdf", NullLogger.Instance, out var diagnostics);
+
+        Assert.AreEqual(new DateTimeOffset(2020, 1, 15, 9, 30, 0, TimeSpan.Zero), metadata.ModDate);
+        Assert.IsFalse(diagnostics.Warnings.Any(w => w.Message.Contains("ModDate") && w.Message.Contains("could not be parsed")));
+    }
+
+    [TestMethod]
+    public void UnparseableModDate_ProducesWarningWithRawValue()
+    {
+        var metadata = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(
+            OpenPdf(modDate: "not-a-date"), "doc.pdf", NullLogger.Instance, out var diagnostics);
+
+        Assert.IsNull(metadata.ModDate);
+        Assert.IsTrue(diagnostics.Warnings.Any(w => w.Message.Contains("ModDate") && w.Message.Contains("could not be parsed") && w.Message.Contains("not-a-date")));
+    }
+
+    [TestMethod]
+    public void SubjectAndKeywords_ReadWhenPresent_NullWhenAbsent()
+    {
+        var absent = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(OpenPdf(), "doc.pdf", NullLogger.Instance, out _);
+        Assert.IsNull(absent.Subject);
+        Assert.IsNull(absent.Keywords);
+        Assert.IsNull(absent.Creator);
+
+        var present = PdfNativeMetadataExtractor.ExtractPdfNativeMetadata(
+            OpenPdf(subject: "HR Policy", keywords: "gedragscode, hr", creator: "Microsoft Word"), "doc.pdf", NullLogger.Instance, out _);
+        Assert.AreEqual("HR Policy", present.Subject);
+        Assert.AreEqual("gedragscode, hr", present.Keywords);
+        Assert.AreEqual("Microsoft Word", present.Creator);
+    }
 }
