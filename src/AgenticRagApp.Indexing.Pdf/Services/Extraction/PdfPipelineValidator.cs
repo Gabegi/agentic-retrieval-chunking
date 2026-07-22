@@ -70,6 +70,16 @@ public class PdfPipelineValidator : IPdfPipelineValidator
             // - Cleaning
         var issues = GetIssuesFromExtractionNCleaning(pagesExtraction, cleanResult);
 
+        // 3b. Native-metadata diagnostics (PdfNativeMetadataExtractor's missing-Title/
+        // Author/Producer and unparseable-CreationDate/ModDate warnings, plus the
+        // bookmark-count note) - file-level, so read straight off fileResults rather than
+        // pagesExtraction. Previously captured into MetadataDiagnostics but never folded
+        // into a report anywhere (see PDFExtractionResult.MetadataDiagnostics's own
+        // comment) - added here as advisory Warnings, same severity tier as the Parse/
+        // Clean warnings above, so a run missing native metadata on several files is
+        // actually visible in validation-report.json instead of silently discarded.
+        issues.AddRange(GetIssuesFromMetadataDiagnostics(fileResults));
+
         // 4. Checks difference between Extraction count and Cleaning count
         var diffExtractionNCleaning = CheckDiffExtractNCleaning(pagesExtraction, cleanResult);
         diffExtractionNCleaning.AddRange(similarNamingProblems);
@@ -205,6 +215,17 @@ public class PdfPipelineValidator : IPdfPipelineValidator
 
         return issues;
     }
+
+    // 3b. Folds each file's MetadataDiagnostics.Warnings (native Title/Author/Producer/
+    // CreationDate/ModDate/bookmark-count facts - see PdfNativeMetadataExtractor) into the
+    // same Issues list the Parse/Clean warnings land in. Always Severity="Warning" - never
+    // gates the run (errorRate above only counts Severity="Error"), purely advisory.
+    private static List<ValidationIssue> GetIssuesFromMetadataDiagnostics(
+        IReadOnlyList<PDFExtractionResult> fileResults) =>
+        fileResults
+            .SelectMany(f => f.MetadataDiagnostics.Warnings.Select(w => new ValidationIssue
+                { Stage = "Metadata", Severity = "Warning", DocumentId = w.DocumentId ?? f.BlobName, Message = w.Message }))
+            .ToList();
 
     // 4. Every extracted page must land in exactly one Clean bucket, an empty run never
     // passes (the diff step would delete the entire index), and the extractor must not

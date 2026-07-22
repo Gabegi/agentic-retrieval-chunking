@@ -33,7 +33,8 @@ public class PdfPipelineValidatorTests
     // test needs - the validator flattens this (and any other files) internally now,
     // so this is the only fixture shape tests build.
     private static PDFExtractionResult FileResult(
-        string blobName, IReadOnlyList<PdfPageRecord> pages, PdfDocumentStructure? structure = null) => new(
+        string blobName, IReadOnlyList<PdfPageRecord> pages, PdfDocumentStructure? structure = null,
+        PdfStepDiagnostics? metadataDiagnostics = null) => new(
             Ok:               true,
             BlobName:         blobName,
             FileSizeBytes:    1024,
@@ -43,7 +44,10 @@ public class PdfPipelineValidatorTests
             Pages:            pages,
             Structure:        structure,
             EstimatedCostUsd: null,
-            Error:            null);
+            Error:            null)
+        {
+            MetadataDiagnostics = metadataDiagnostics ?? PdfStepDiagnostics.Empty,
+        };
 
     // Builds a clean, all-good pipeline: one page, cleaned, no errors anywhere - the
     // baseline every test below perturbs one piece of.
@@ -86,6 +90,31 @@ public class PdfPipelineValidatorTests
         var report = BuildValidator().Validate([FileResult("doc1.pdf", [page])], clean);
 
         CollectionAssert.Contains(report.DocumentsNeedingFallbackChunking.ToList(), "doc1.pdf");
+    }
+
+    [TestMethod]
+    public void MetadataDiagnosticsWarnings_AreFoldedIntoIssues_AsAdvisoryNotGating()
+    {
+        var page = Page("doc1.pdf", "## Heading\nSome markdown content");
+        var clean = BuildCleaner().CleanPdf([page]);
+        var metadataDiagnostics = new PdfStepDiagnostics(
+            [
+                new ExtractionWarning { DocumentId = "doc1.pdf", Message = "No native Title in the PDF's Info dictionary - falls back to a filename-derived title downstream." },
+                new ExtractionWarning { DocumentId = "doc1.pdf", Message = "No native Producer in the PDF's Info dictionary — possible non-standard export pipeline." },
+            ],
+            []);
+
+        var report = BuildValidator().Validate(
+            [FileResult("doc1.pdf", [page], metadataDiagnostics: metadataDiagnostics)], clean);
+
+        var metadataIssues = report.Issues.Where(i => i.Stage == "Metadata").ToList();
+        Assert.AreEqual(2, metadataIssues.Count);
+        Assert.IsTrue(metadataIssues.All(i => i.Severity == "Warning"));
+        Assert.IsTrue(metadataIssues.All(i => i.DocumentId == "doc1.pdf"));
+        Assert.IsTrue(metadataIssues.Any(i => i.Message.Contains("No native Title")));
+        Assert.IsTrue(metadataIssues.Any(i => i.Message.Contains("No native Producer")));
+        // Warnings never gate - the happy-path content above still passes despite these.
+        Assert.IsTrue(report.Passed);
     }
 
     [TestMethod]
