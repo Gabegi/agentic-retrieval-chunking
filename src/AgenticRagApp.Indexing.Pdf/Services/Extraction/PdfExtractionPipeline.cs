@@ -196,13 +196,14 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
     // PDF. Also captures each blob's storage LastModified — that's what downstream
     // diffing in ExtractionService needs to detect new/updated/removed documents, not
     // anything parsed out of the PDF's own text.
-    private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified)> ExtractPdfsFromBlobAsync(
+    private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified, Dictionary<string, ZenyaMetadata> Zenya)> ExtractPdfsFromBlobAsync(
         IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct)
     {
-        // Declares two thread-safe collections:
+        // Declares thread-safe collections:
         // One to accumulate per-blob extraction results => ConcurrentBag<T> is a thread-safe, unordered collection, multiple threads can call .Add() on it at once without locking
         var results      = new ConcurrentBag<PDFExtractionResult>();
         var lastModified = new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        var zenya        = new ConcurrentDictionary<string, ZenyaMetadata>(StringComparer.OrdinalIgnoreCase);
 
 
         var blobs = await _blobStore.ListBlobsAsync(_container, ct: ct);
@@ -213,7 +214,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
             new ParallelOptions { MaxDegreeOfParallelism = MaxExtractionParallelism, CancellationToken = ct },
             async (blob, cancellationToken) =>
             {
-                var (name, lastModifiedProp, contentLength) = blob;
+                var (name, lastModifiedProp, contentLength, metadata) = blob;
 
                 // Skips any blob item whose name doesn't end in .pdf (case-insensitive), so non-PDF files in the container are ignored.
                 if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
@@ -221,6 +222,8 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                 // Already up to date in the index (per ExtractionService's own pre-extraction
                 // blob listing/diff) - skip the paid download + Document Intelligence call entirely.
                 if (!sourceIdsToProcess.Contains(name)) return;
+
+                zenya[name] = ZenyaMetadata.FromBlobMetadata(metadata);
 
                 // we need a lastmodified date to tell new/updated docs apart from unchanged ones.
                 // Recorded here, before the try block below, so failed downloads/extractions
@@ -271,7 +274,9 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                 }
             });
 
-        return (results.ToList(), new Dictionary<string, DateTimeOffset>(lastModified, StringComparer.OrdinalIgnoreCase));
+        return (results.ToList(),
+            new Dictionary<string, DateTimeOffset>(lastModified, StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, ZenyaMetadata>(zenya, StringComparer.OrdinalIgnoreCase));
     }
 
     // Dev-only (see IRunReportWriter.IsEnabled): the validation report (same shape
@@ -328,7 +333,8 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         int                                 errors,
         int                                 warnings,
         int                                 missingTitle,
-        Dictionary<string, DateTimeOffset>  lastModifiedByBlob)
+        Dictionary<string, DateTimeOffset>  lastModifiedByBlob,
+        Dictionary<string, ZenyaMetadata>   zenyaByBlob)
     {
         var nativeMetadataByBlob = BuildNativeMetadataLookup(fileResults);
         var sectionsByBlob       = BuildSectionsLookup(fileResults);
