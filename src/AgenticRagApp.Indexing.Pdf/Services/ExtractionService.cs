@@ -54,12 +54,15 @@ public class ExtractionService : IExtractionService
             // 1. It's new — sourceId isn't in indexedDates at all, or
             // 2. It's updated — it is in indexedDates, but sourceListing's LastModified is newer than what's recorded there, or
             // 3. forceReindex is true — process everything regardless.
-        var (sourceIdsToProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped) =
+        // A document Zenya marks inactive (ZenyaMetadata.IsActive false) is excluded from
+        // processing even if new/updated, and torn down like a removed one if it's currently
+        // indexed - see CompareSourceListingToIndex.
+        var (sourceIdsToProcess, removedSourceIds, toDeleteChunks, newCount, updated, skipped, inactive) =
             CompareSourceListingToIndex(sourceListing, indexedDates, forceReindex);
 
         _logger.LogInformation(
-            "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped (of {Total} available)",
-            _extractor.Source, newCount, updated, removedSourceIds.Count, skipped, sourceListing.Count);
+            "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped, {Inactive} inactive (of {Total} available)",
+            _extractor.Source, newCount, updated, removedSourceIds.Count, skipped, inactive, sourceListing.Count);
 
         // Only pays for extraction (Document Intelligence, etc.) on what's actually new/updated.
         var extractionOutput = await _extractor.ExtractDocumentsAsync(sourceIdsToProcess, ct);
