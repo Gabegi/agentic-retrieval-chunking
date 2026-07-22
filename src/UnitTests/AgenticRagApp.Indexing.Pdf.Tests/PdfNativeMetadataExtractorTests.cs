@@ -13,7 +13,9 @@ public class PdfNativeMetadataExtractorTests
     // an optional single-item outline/bookmark - byte offsets computed here, not hand-typed
     // (same approach as PdfDocumentValidatorTests, for the same reason: correctness by
     // construction rather than manual arithmetic).
-    private static PdfDocument OpenPdf(string? title = null, string? author = null, string? creationDate = null, bool withBookmark = false)
+    private static PdfDocument OpenPdf(
+        string? title = null, string? author = null, string? creationDate = null, bool withBookmark = false,
+        string? modDate = null, string? producer = null, string? creator = null, string? subject = null, string? keywords = null)
     {
         var sb      = new StringBuilder();
         var offsets = new List<int>();
@@ -41,6 +43,11 @@ public class PdfNativeMetadataExtractorTests
         if (title is not null)        infoParts.Add($"/Title ({EscapePdfString(title)})");
         if (author is not null)       infoParts.Add($"/Author ({EscapePdfString(author)})");
         if (creationDate is not null) infoParts.Add($"/CreationDate ({creationDate})");
+        if (modDate is not null)      infoParts.Add($"/ModDate ({modDate})");
+        if (producer is not null)     infoParts.Add($"/Producer ({EscapePdfString(producer)})");
+        if (creator is not null)      infoParts.Add($"/Creator ({EscapePdfString(creator)})");
+        if (subject is not null)      infoParts.Add($"/Subject ({EscapePdfString(subject)})");
+        if (keywords is not null)     infoParts.Add($"/Keywords ({EscapePdfString(keywords)})");
 
         var hasInfo   = infoParts.Count > 0;
         var infoObjId = withBookmark ? 6 : 4;
