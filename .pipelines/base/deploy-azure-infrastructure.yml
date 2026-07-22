@@ -24,6 +24,10 @@ variables:
         value: 'corsttfcapprdwe'
       - name: backendContainer
         value: 'terraform-state-app'
+      - name: networkRg
+        value: 'cor-cap-network-prd-we-001'
+      - name: vnetName
+        value: 'cor-vnet-cap-prd-we-001'
   - ${{ else }}:
       - name: envName
         value: 'development'
