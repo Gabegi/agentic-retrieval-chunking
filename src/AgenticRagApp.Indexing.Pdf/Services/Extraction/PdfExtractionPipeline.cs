@@ -345,6 +345,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
             {
                 var nativeMetadata = nativeMetadataByBlob.GetValueOrDefault(r.BlobName);
                 var pageContext    = pageContextByKey.GetValueOrDefault((r.BlobName, r.PageNumber)) ?? PdfPageContext.Empty;
+                var zenya          = zenyaByBlob.GetValueOrDefault(r.BlobName) ?? ZenyaMetadata.Empty;
 
                 return new ExtractionDocument(
                     SourceId:              r.BlobName,
@@ -355,6 +356,10 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                     CreatedAt:             nativeMetadata?.CreatedAt,
                     PageCount:             nativeMetadata?.PageCount,
                     LastModifiedDate:      lastModifiedByBlob.TryGetValue(r.BlobName, out var lm) ? lm : null,
+                    ZenyaDocumentId:       zenya.DocumentId,
+                    ZenyaVersion:          zenya.Version,
+                    ZenyaStatus:           zenya.Status,
+                    ZenyaUrl:              zenya.Url,
                     Bookmarks:             nativeMetadata?.Bookmarks ?? [],
                     Sections:              sectionsByBlob.GetValueOrDefault(r.BlobName) ?? [],
                     Breadcrumb:            pageContext.Breadcrumb,
