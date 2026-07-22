@@ -40,6 +40,7 @@ public class PdfIndexingFunction
     private readonly IPipelineArtifactWriter   _artifactWriter;
     private readonly ISnapshotService          _snapshotService;
     private readonly IVectorCache              _vectorCache;
+    private readonly IRestoreService           _restoreService;
     private readonly ILogger<PdfIndexingFunction> _logger;
 
     public PdfIndexingFunction(
@@ -55,6 +56,7 @@ public class PdfIndexingFunction
         IPipelineArtifactWriter   artifactWriter,
         ISnapshotService          snapshotService,
         IVectorCache              vectorCache,
+        IRestoreService           restoreService,
         ILogger<PdfIndexingFunction> logger)
     {
         _extractionService = extractionService;
@@ -69,6 +71,7 @@ public class PdfIndexingFunction
         _artifactWriter    = artifactWriter;
         _snapshotService   = snapshotService;
         _vectorCache       = vectorCache;
+        _restoreService    = restoreService;
         _logger            = logger;
     }
 
