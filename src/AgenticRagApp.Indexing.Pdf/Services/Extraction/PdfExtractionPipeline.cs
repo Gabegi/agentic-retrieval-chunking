@@ -94,7 +94,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         try
         {
             // 1/ Extract Data from PDFs
-            var (fileResults, lastModifiedByBlob) = await ExtractPdfsFromBlobAsync(sourceIdsToProcess, ct);
+            var (fileResults, lastModifiedByBlob, zenyaByBlob) = await ExtractPdfsFromBlobAsync(sourceIdsToProcess, ct);
 
 
             // 2/ Clean pages
