@@ -21,10 +21,12 @@ public interface IBlobStore
 
     Task<bool> DeleteIfExistsAsync(BlobContainerClient container, string blobName, CancellationToken ct = default);
 
-    // Cheap listing — blob name, storage LastModified, and content length only, no content download.
-    // prefix narrows the listing server-side (e.g. "snapshots/pdf/") when only one folder within
-    // the container is of interest; null lists the whole container.
-    Task<IReadOnlyList<(string Name, DateTimeOffset? LastModified, long? ContentLength)>> ListBlobsAsync(
+    // Cheap listing — blob name, storage LastModified, content length, and custom metadata
+    // only, no content download. prefix narrows the listing server-side (e.g. "snapshots/pdf/")
+    // when only one folder within the container is of interest; null lists the whole container.
+    // Metadata is whatever custom key/value pairs were set on the blob (e.g. by whoever
+    // uploaded it) - empty dictionary, never null, when none were set.
+    Task<IReadOnlyList<(string Name, DateTimeOffset? LastModified, long? ContentLength, IReadOnlyDictionary<string, string> Metadata)>> ListBlobsAsync(
         BlobContainerClient container, string? prefix = null, CancellationToken ct = default);
 
     Task<T> DownloadJsonAsync<T>(BlobContainerClient container, string blobName, CancellationToken ct = default);
