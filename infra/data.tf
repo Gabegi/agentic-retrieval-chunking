@@ -41,19 +41,6 @@ data "azurerm_application_insights" "main" {
   resource_group_name = data.azurerm_resource_group.ai.name
 }
 
-# Foundry project provisioned by the platform team specifically for this
-# app on the shared account above. Doesn't follow this repo's naming convention (naming.tf) 
-# Model deployments (ai_deployments.tf) stay parented to the account - a project
-# can't own a deployment, it just gets automatic visibility into every
-# deployment on its parent account - so this is only used to scope RBAC
-# (app_service.tf, function_app.tf) down to the project instead of the
-# whole account.
-data "azurerm_cognitive_account_project" "rag" {
-  name                    = var.foundry_project_name
-  cognitive_account_name  = data.azurerm_cognitive_account.foundry.name
-  resource_group_name     = data.azurerm_resource_group.ai.name
-}
-
 # --- Data tier ------------------------------------------------------------
 
 data "azurerm_resource_group" "data" {
