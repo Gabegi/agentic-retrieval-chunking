@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace RagApp.UnitTests.Functions;
 
@@ -14,8 +15,14 @@ internal sealed class FakeFunctionContext : FunctionContext
     public override string FunctionId { get; } = "test-function";
     public override TraceContext TraceContext => throw new NotSupportedException();
     public override BindingContext BindingContext => throw new NotSupportedException();
-    public override RetryContext RetryContext => throw new NotSupportedException();
-    public override IServiceProvider InstanceServices { get; set; } = null!;
+    public override Microsoft.Azure.Functions.Worker.RetryContext RetryContext => throw new NotSupportedException();
+    // HttpRequestDataExtensions.ReadFromJsonAsync resolves IOptions<WorkerOptions>.Serializer
+    // via InstanceServices - a null provider throws before it even gets to "service not
+    // found", and no Serializer configured throws its own "not configured for the worker".
+    public override IServiceProvider InstanceServices { get; set; } =
+        new ServiceCollection()
+            .Configure<WorkerOptions>(o => o.Serializer = new JsonObjectSerializer())
+            .BuildServiceProvider();
     public override FunctionDefinition FunctionDefinition => throw new NotSupportedException();
     public override IDictionary<object, object> Items { get; set; } = new Dictionary<object, object>();
     public override IInvocationFeatures Features => throw new NotSupportedException();
@@ -53,6 +60,7 @@ internal sealed class FakeHttpResponseData : HttpResponseData
     public override System.Net.HttpStatusCode StatusCode { get; set; }
     public override HttpHeadersCollection      Headers { get; set; }
     public override Stream                     Body { get; set; }
+    public override HttpCookies                Cookies => throw new NotSupportedException();
 
     public string ReadBodyAsString()
     {
