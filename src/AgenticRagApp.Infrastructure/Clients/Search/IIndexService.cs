@@ -8,4 +8,10 @@ namespace AgenticRagApp.Infrastructure.Clients.Search;
 public interface IIndexService
 {
     Task EnsureIndexAsync();
+
+    // Deletes the index (all documents, gone) and recreates it from scratch with the current
+    // schema - the "index is corrupt" recovery path, distinct from EnsureIndexAsync's
+    // get-or-create. Callers must repopulate afterwards (full reindex or restore-from-snapshot)
+    // - this alone leaves the index empty.
+    Task RecreateIndexAsync();
 }

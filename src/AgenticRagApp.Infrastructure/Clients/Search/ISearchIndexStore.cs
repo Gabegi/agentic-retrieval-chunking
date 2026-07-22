@@ -15,6 +15,10 @@ public interface ISearchIndexStore
     // false if it already existed.
     Task<bool> EnsureIndexAsync(SearchIndex definition, CancellationToken ct = default);
 
+    // Deletes the index outright, all documents included. Returns false (no-op, not an
+    // error) if it didn't exist.
+    Task<bool> DeleteIndexAsync(string indexName, CancellationToken ct = default);
+
     Task<(long DocumentCount, long StorageSizeBytes)> GetStatisticsAsync(string indexName, CancellationToken ct = default);
 
     Task CreateOrUpdateKnowledgeSourceAsync(SearchIndexKnowledgeSource source, CancellationToken ct = default);

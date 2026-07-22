@@ -25,4 +25,11 @@ public interface ISnapshotService
         IReadOnlyList<string> staleDocumentIds,
         string                instanceId,
         CancellationToken     ct = default) where T : ISnapshotSource;
+
+    // Reads the single most recent snapshot for a source, for index recovery - the same
+    // rolling full-corpus picture UpdateAsync maintains, but read back instead of merged
+    // into. InstanceId identifies which run's snapshot generation was used (empty chunks +
+    // null InstanceId means no snapshot exists yet for this source).
+    Task<(IReadOnlyList<SnapshotChunk> Chunks, string? InstanceId)> ReadLatestAsync(
+        string source, CancellationToken ct = default);
 }

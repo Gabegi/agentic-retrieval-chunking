@@ -25,6 +25,19 @@ public class SearchIndexStore : ISearchIndexStore
         return true;
     }
 
+    public async Task<bool> DeleteIndexAsync(string indexName, CancellationToken ct = default)
+    {
+        try
+        {
+            await _client.DeleteIndexAsync(indexName, ct);
+            return true;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return false;
+        }
+    }
+
     public async Task<(long DocumentCount, long StorageSizeBytes)> GetStatisticsAsync(string indexName, CancellationToken ct = default)
     {
         var response = await _client.GetIndexStatisticsAsync(indexName, ct);

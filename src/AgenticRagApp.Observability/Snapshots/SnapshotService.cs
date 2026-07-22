@@ -58,6 +58,19 @@ public class SnapshotService : ISnapshotService
         return merged.Select(c => c.ContentHash).ToHashSet();
     }
 
+    public async Task<(IReadOnlyList<SnapshotChunk> Chunks, string? InstanceId)> ReadLatestAsync(
+        string source, CancellationToken ct = default)
+    {
+        var prefix   = $"snapshots/{source}/";
+        var existing = await ListSnapshotBlobsAsync(prefix, ct);
+        if (existing.Count == 0) return ([], null);
+
+        var latest     = existing[0];
+        var chunks     = await ReadSnapshotAsync(latest.Path, ct);
+        var instanceId = latest.Path[prefix.Length..^($"/{FileName}".Length)];
+        return (chunks, instanceId);
+    }
+
     private async Task<List<(string Path, DateTimeOffset LastModified)>> ListSnapshotBlobsAsync(string prefix, CancellationToken ct)
     {
         var blobs = await _blobStore.ListBlobsAsync(_container, prefix, ct);

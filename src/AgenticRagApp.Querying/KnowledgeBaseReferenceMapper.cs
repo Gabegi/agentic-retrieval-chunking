@@ -28,17 +28,25 @@ public static class KnowledgeBaseReferenceMapper
             r.SourceData.TryGetValue("chunk_index", out var chunkIndexRaw);
             r.SourceData.TryGetValue("quick_code", out var quickCodeRaw);
             r.SourceData.TryGetValue("relative_path", out var relativePathRaw);
+            r.SourceData.TryGetValue("zenya_document_id", out var zenyaDocIdRaw);
+            r.SourceData.TryGetValue("zenya_version", out var zenyaVersionRaw);
+            r.SourceData.TryGetValue("zenya_status", out var zenyaStatusRaw);
+            r.SourceData.TryGetValue("zenya_url", out var zenyaUrlRaw);
 
             chunks.Add(new RetrievedChunk(
-                Id:           AsText(idRaw) ?? "",
-                DocumentId:   AsText(docIdRaw) ?? "",
-                Page:         AsInt(pageRaw),
-                ChunkIndex:   AsInt(chunkIndexRaw),
-                Title:        AsText(titleRaw),
-                Summary:      AsText(summaryRaw),
-                Content:      content,
-                QuickCode:    AsText(quickCodeRaw),
-                RelativePath: AsText(relativePathRaw)));
+                Id:              AsText(idRaw) ?? "",
+                DocumentId:      AsText(docIdRaw) ?? "",
+                Page:            AsInt(pageRaw),
+                ChunkIndex:      AsInt(chunkIndexRaw),
+                Title:           AsText(titleRaw),
+                Summary:         AsText(summaryRaw),
+                Content:         content,
+                QuickCode:       AsText(quickCodeRaw),
+                RelativePath:    AsText(relativePathRaw),
+                ZenyaDocumentId: AsText(zenyaDocIdRaw),
+                ZenyaVersion:    AsText(zenyaVersionRaw),
+                ZenyaStatus:     AsText(zenyaStatusRaw),
+                ZenyaUrl:        AsText(zenyaUrlRaw)));
         }
         return chunks;
     }

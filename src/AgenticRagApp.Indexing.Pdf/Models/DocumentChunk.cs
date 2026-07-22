@@ -28,6 +28,21 @@ public class DocumentChunk : ISnapshotSource, IChunkStatsSource
     [JsonPropertyName("last_modified_date")]
     public DateTimeOffset? LastModifiedDate { get; set; }
 
+    // Zenya's own identity/lifecycle facts (see ExtractionDocument/ZenyaMetadata) - null
+    // until whoever uploads this chunk's PDF sets the corresponding blob metadata. A null
+    // zenya_document_id here is what marks a passage as untraceable back to Zenya.
+    [JsonPropertyName("zenya_document_id")]
+    public string? ZenyaDocumentId { get; set; }
+
+    [JsonPropertyName("zenya_version")]
+    public string? ZenyaVersion { get; set; }
+
+    [JsonPropertyName("zenya_status")]
+    public string? ZenyaStatus { get; set; }
+
+    [JsonPropertyName("zenya_url")]
+    public string? ZenyaUrl { get; set; }
+
     [JsonPropertyName("content")]
     public string Content { get; set; } = "";
 

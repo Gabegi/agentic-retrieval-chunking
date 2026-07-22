@@ -55,7 +55,9 @@ public class AgenticRagQueryService : IRagQueryService
         // pages never introduce a new document, only new pages of ones already here.
         var citations = initialChunks
             .GroupBy(c => c.DocumentId)
-            .Select(g => new Citation(g.Key, g.First().Title, g.First().QuickCode, g.First().RelativePath))
+            .Select(g => new Citation(
+                g.Key, g.First().Title, g.First().QuickCode, g.First().RelativePath,
+                g.First().ZenyaDocumentId, g.First().ZenyaVersion, g.First().ZenyaStatus, g.First().ZenyaUrl))
             .ToList();
 
         var answer = string.Join("\n", result.Response

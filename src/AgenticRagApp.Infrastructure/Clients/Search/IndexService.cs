@@ -31,6 +31,18 @@ public class IndexService : IIndexService
         _logger.LogInformation(created ? "Index '{Name}' created" : "Index '{Name}' already exists — skipping creation", _config.SearchIndexName);
     }
 
+    public async Task RecreateIndexAsync()
+    {
+        var deleted = await _indexStore.DeleteIndexAsync(_config.SearchIndexName);
+        _logger.LogWarning(deleted
+            ? "Index '{Name}' deleted — all previously indexed documents are gone until a restore or reindex repopulates it"
+            : "Index '{Name}' didn't exist to delete", _config.SearchIndexName);
+
+        var index = BuildIndexDefinition(BuildVectorSearch(), BuildSemanticSearch());
+        await _indexStore.EnsureIndexAsync(index);
+        _logger.LogInformation("Index '{Name}' recreated empty", _config.SearchIndexName);
+    }
+
     // Assembles the full index schema: fields, vector search config, and semantic search config.
     private SearchIndex BuildIndexDefinition(VectorSearch vectorSearch, SemanticSearch semanticSearch) =>
         new SearchIndex(_config.SearchIndexName)
@@ -70,6 +82,13 @@ public class IndexService : IIndexService
                 new SimpleField("relative_path",      SearchFieldDataType.String)         { IsFilterable = true },
                 // The blob's own storage LastModified (PDF) or LAST_MODIFIED_DATETIME (CSV).
                 new SimpleField("last_modified_date", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                // PDF-only — Zenya's own identity/lifecycle facts, sourced from custom blob
+                // metadata set by whoever uploads the PDF (Zenya doesn't export these into the
+                // PDF itself - see ZenyaMetadata's comment). Null until that metadata is set.
+                new SimpleField("zenya_document_id", SearchFieldDataType.String)          { IsFilterable = true },
+                new SimpleField("zenya_version",     SearchFieldDataType.String)          { IsFilterable = true },
+                new SimpleField("zenya_status",       SearchFieldDataType.String)         { IsFilterable = true, IsFacetable = true },
+                new SimpleField("zenya_url",          SearchFieldDataType.String)         { },
                 // CSV-only — from CHECK_DATE, the next review/expiry date. Null for PDF rows.
                 new SimpleField("check_date",         SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
                 // CSV-only — VERSION.REVISION (e.g. "7.0"). Null for PDF rows.
