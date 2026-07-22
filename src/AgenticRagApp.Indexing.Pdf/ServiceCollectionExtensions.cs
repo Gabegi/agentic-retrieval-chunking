@@ -70,6 +70,10 @@ public static class ServiceCollectionExtensions
             new VectorCache(
                 sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient("pipeline-artifacts")));
 
+        // Index-recovery path — reads Observability's rolling snapshot (registered by the
+        // host, see Program.cs) instead of re-extracting from source.
+        services.AddSingleton<IRestoreService, RestoreService>();
+
         return services;
     }
 }
