@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using Azure.Core.Serialization;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -20,9 +21,13 @@ internal sealed class FakeFunctionContext : FunctionContext
     // HttpRequestDataExtensions.ReadFromJsonAsync resolves IOptions<WorkerOptions>.Serializer
     // via InstanceServices - a null provider throws before it even gets to "service not
     // found", and no Serializer configured throws its own "not configured for the worker".
+    // Matches Microsoft.Azure.Functions.Worker's own AddFunctionsWorkerDefaults() worker
+    // options - JsonSerializerDefaults.Web (case-insensitive property names, camelCase) -
+    // not the plain JsonSerializerOptions default, which is case-sensitive and would make
+    // {"question": ...} fail to bind onto QueryRequest(string Question).
     public override IServiceProvider InstanceServices { get; set; } =
         new ServiceCollection()
-            .Configure<WorkerOptions>(o => o.Serializer = new JsonObjectSerializer())
+            .Configure<WorkerOptions>(o => o.Serializer = new JsonObjectSerializer(new JsonSerializerOptions(JsonSerializerDefaults.Web)))
             .BuildServiceProvider();
     public override FunctionDefinition FunctionDefinition => throw new NotSupportedException();
     public override IDictionary<object, object> Items { get; set; } = new Dictionary<object, object>();

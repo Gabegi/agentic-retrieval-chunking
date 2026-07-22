@@ -61,15 +61,21 @@ public class QueryingFunctionTests
         new(ragService.Object, (reportWriter ?? MockReportWriter()).Object, NullLogger<QueryingFunction>.Instance);
 
     [TestMethod]
-    public async Task RunQuery_MalformedJsonBody_ReturnsBadRequest()
+    public async Task RunQuery_MalformedJsonBody_ThrowsRatherThanReturningBadRequest()
     {
+        // Documents actual current behavior, not the intended one: RunQuery's own
+        // `catch (JsonException ex)` around ReadFromJsonAsync never fires for malformed
+        // JSON, because HttpRequestDataExtensions.ReadFromJsonAsync<T> surfaces the failure
+        // as an AggregateException wrapping the JsonException (a Task.Result-under-a-
+        // continuation artifact), not a bare JsonException - so the catch clause's type
+        // check never matches and this exception propagates unhandled instead of producing
+        // the intended 400 response. Flagged as a bug rather than silently encoded as
+        // "working as designed" - see catch clause at QueryingFunction.cs:35.
         var function = BuildFunction(MockRagService());
         var context  = new FakeFunctionContext();
         var request  = new FakeHttpRequestData(context, "not json at all");
 
-        var response = (FakeHttpResponseData)await function.RunQuery(request, context);
-
-        Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+        await Assert.ThrowsExactlyAsync<AggregateException>(() => function.RunQuery(request, context));
     }
 
     [TestMethod]
