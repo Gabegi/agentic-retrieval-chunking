@@ -233,13 +233,13 @@ stages:
                 echo "=== private DNS A records: privatelink.azurewebsites.net ==="
                 az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" -o table
 
-                echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.file.core.windows.net? (A record existing isn't enough - the zone must be linked to this VNet for its resolver to consult it) ==="
+                echo "=== is $VNET actually LINKED to privatelink.file.core.windows.net? (A record existing isn't enough - the zone must be linked to this VNet for its resolver to consult it) ==="
                 az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.file.core.windows.net --subscription "$HUB_SUB" \
-                  --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+                  --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
 
-                echo "=== is cor-vnet-cap-dev-we-001 actually LINKED to privatelink.azurewebsites.net? ==="
+                echo "=== is $VNET actually LINKED to privatelink.azurewebsites.net? ==="
                 az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" \
-                  --query "[?virtualNetwork.id.ends_with(@, 'cor-vnet-cap-dev-we-001')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+                  --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
 
                 echo "=== VNet custom DNS servers (expect empty/null - Azure default 168.63.129.16 path; a custom server here must itself resolve the privatelink zones) ==="
                 az network vnet show -g "$NET_RG" -n "$VNET" --query "dhcpOptions.dnsServers" -o json
@@ -252,6 +252,38 @@ stages:
                 ACCOUNT_KEY=$(az storage account keys list -g "$FUNC_RG" -n "$FUNC_STORAGE" --query "[0].value" -o tsv)
                 az storage share exists --account-name "$FUNC_STORAGE" --account-key "$ACCOUNT_KEY" --name "$FUNC_APP" -o json \
                   || echo "(failed as expected - this runner has no network path to the storage account's data plane)"
+
+          # Blocking (unlike the diagnostic above): fails the stage if this
+          # environment's VNet isn't actually linked to the private DNS zones
+          # our private endpoints depend on. A private_dns_zone_group only
+          # writes the A record into the zone - it doesn't link the zone to a
+          # VNet, so a missing/pending link here means in-VNet resources
+          # silently fall back to public DNS, which the target resource (e.g.
+          # a storage account with public_network_access_enabled = false)
+          # then rejects. Same two zones the diagnostic above already checks.
+          - task: AzureCLI@2
+            displayName: 'Check: private DNS zones linked to VNet'
+            inputs:
+              azureSubscription: '$(serviceConnection)'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                HUB_SUB="c8e46005-ce0e-4be5-9ded-0178e19fbe28"
+                HUB_DNS_RG="cor-connectivity-dns-prd-we-001"
+                FAILED=0
+
+                for ZONE in privatelink.file.core.windows.net privatelink.azurewebsites.net; do
+                  STATE=$(az network private-dns link vnet list -g "$HUB_DNS_RG" -z "$ZONE" --subscription "$HUB_SUB" \
+                    --query "[?virtualNetwork.id.ends_with(@, '$(vnetName)')].virtualNetworkLinkState" -o tsv)
+                  if [ "$STATE" != "Completed" ]; then
+                    echo "##vso[task.logissue type=error]$(vnetName) is not linked (state: '${STATE:-missing}') to $ZONE - DNS resolution for this zone falls back to public DNS, which public_network_access_enabled=false on the target resource then rejects. Ask the platform team to link it in cor-connectivity-prd."
+                    FAILED=1
+                  else
+                    echo "OK: $(vnetName) is linked to $ZONE (Completed)"
+                  fi
+                done
+
+                [ "$FAILED" -eq 0 ] || exit 1
 
           - template: templates/install-terraform.yml
 
