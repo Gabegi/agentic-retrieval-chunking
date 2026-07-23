@@ -93,24 +93,29 @@ public class PdfIndexingFunction
     // separate polling logic is needed here. Fixed instance ID makes this a singleton: a run
     // longer than the timer interval just causes the next tick(s) to skip rather than overlap,
     // which is what keeps SnapshotService's read-merge-write safe - runs never race each other.
-    [Function("ScheduledIndexing")]
-    public async Task RunScheduled(
-        [TimerTrigger("0 */15 * * * *")] TimerInfo timer,
-        [DurableClient] DurableTaskClient client)
-    {
-        const string instanceId = "PdfIndexing";
-
-        var existing = await client.GetInstanceAsync(instanceId, getInputsAndOutputs: false);
-        if (existing is null
-            || existing.RuntimeStatus is OrchestrationRuntimeStatus.Completed
-                or OrchestrationRuntimeStatus.Failed
-                or OrchestrationRuntimeStatus.Terminated)
-        {
-            await client.ScheduleNewOrchestrationInstanceAsync(
-                "IndexingOrchestrator", new IndexRequest(false),
-                new StartOrchestrationOptions { InstanceId = instanceId });
-        }
-    }
+    //
+    // Commented out until Document Intelligence's private link is in place - without it every
+    // tick fails immediately (PdfExtractionPipeline can't resolve IPdfExtractor), spamming
+    // failed orchestration instances every 15 minutes for no benefit. Uncomment once DI is
+    // reachable.
+    // [Function("ScheduledIndexing")]
+    // public async Task RunScheduled(
+    //     [TimerTrigger("0 */15 * * * *")] TimerInfo timer,
+    //     [DurableClient] DurableTaskClient client)
+    // {
+    //     const string instanceId = "PdfIndexing";
+    //
+    //     var existing = await client.GetInstanceAsync(instanceId, getInputsAndOutputs: false);
+    //     if (existing is null
+    //         || existing.RuntimeStatus is OrchestrationRuntimeStatus.Completed
+    //             or OrchestrationRuntimeStatus.Failed
+    //             or OrchestrationRuntimeStatus.Terminated)
+    //     {
+    //         await client.ScheduleNewOrchestrationInstanceAsync(
+    //             "IndexingOrchestrator", new IndexRequest(false),
+    //             new StartOrchestrationOptions { InstanceId = instanceId });
+    //     }
+    // }
 
     [Function("IndexingOrchestrator")]
     public async Task RunOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)

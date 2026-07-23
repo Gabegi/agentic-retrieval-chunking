@@ -6,7 +6,7 @@ namespace AgenticRagApp.Common.Models;
 // Implements IChunkStatsSource so Observability's ChunkingResults.Compute can work
 // generically without referencing this (or any other doc-type's) chunk type directly -
 // see docs/260721 for why. Not ISnapshotSource - CSV doesn't use the rolling snapshot today.
-public class ProtocolDocument : IChunkStatsSource
+public class ChunkStatsSource : IChunkStatsSource
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
