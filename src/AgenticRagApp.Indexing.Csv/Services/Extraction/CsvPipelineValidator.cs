@@ -278,16 +278,16 @@ public class PipelineValidator : IPipelineValidator
                 c is not ('\n' or '\r' or '\t')
                 && CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.Control or UnicodeCategory.OtherNotAssigned);
             if (corruptCharCount > 0)
-                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
-                    DocumentId = record.DocumentId,
-                    Message    = $"Page {record.PageIndex}: {corruptCharCount} control/unassigned character(s) — likely encoding corruption." });
+                issues.Add(new ValidationIssue(Stage: "TextQuality", Severity: "Error",
+                    DocumentId: record.DocumentId,
+                    Message:    $"Page {record.PageIndex}: {corruptCharCount} control/unassigned character(s) — likely encoding corruption."));
 
             // Flags any page whose Language field isn't Dutch
             if (!string.IsNullOrEmpty(record.Language) &&
                 !record.Language.StartsWith("nl", StringComparison.OrdinalIgnoreCase))
-                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
-                    DocumentId = record.DocumentId,
-                    Message    = $"Page {record.PageIndex}: language '{record.Language}' — nl.microsoft analyzer will tokenize this poorly." });
+                issues.Add(new ValidationIssue(Stage: "TextQuality", Severity: "Warning",
+                    DocumentId: record.DocumentId,
+                    Message:    $"Page {record.PageIndex}: language '{record.Language}' — nl.microsoft analyzer will tokenize this poorly."));
 
             //  any table whose rows have inconsistent column count?
             // a well-formed markdown table has the same number of | delimiters on every row
@@ -303,9 +303,9 @@ public class PipelineValidator : IPipelineValidator
                     .ToList();
                 if (pipeCounts.Count > 1 && pipeCounts.Distinct().Count() > 1)
                 {
-                    issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Warning",
-                        DocumentId = record.DocumentId,
-                        Message    = $"Page {record.PageIndex}: markdown table has inconsistent column counts across rows." });
+                    issues.Add(new ValidationIssue(Stage: "TextQuality", Severity: "Warning",
+                        DocumentId: record.DocumentId,
+                        Message:    $"Page {record.PageIndex}: markdown table has inconsistent column counts across rows."));
                     break; // one warning per page is enough
                 }
             }
