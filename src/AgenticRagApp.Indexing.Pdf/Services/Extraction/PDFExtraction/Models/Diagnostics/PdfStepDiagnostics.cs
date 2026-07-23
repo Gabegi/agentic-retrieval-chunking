@@ -1,3 +1,5 @@
+using AgenticRagApp.Common.Models;
+
 namespace AgenticRagApp.Indexing.Pdf.Models;
 
 // One pipeline step's non-fatal findings for one PDF file (PdfDocumentValidator,

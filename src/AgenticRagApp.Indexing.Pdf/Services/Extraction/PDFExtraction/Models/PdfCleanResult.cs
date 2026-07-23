@@ -1,3 +1,5 @@
+using AgenticRagApp.Common.Models;
+
 namespace AgenticRagApp.Indexing.Pdf.Models;
 
 // Mirrors CSV's CleanResult. Reuses the existing (source-agnostic) CleaningError/

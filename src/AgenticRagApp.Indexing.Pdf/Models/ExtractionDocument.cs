@@ -1,3 +1,5 @@
+using AgenticRagApp.Common.Models;
+
 namespace AgenticRagApp.Indexing.Pdf.Models;
 
 // One PDF page handed to the chunking pipeline. Fully typed on purpose - PDF is this
@@ -27,7 +29,7 @@ namespace AgenticRagApp.Indexing.Pdf.Models;
 //     provenance/QA, e.g. flagging a PDF with no Producer as a non-standard export path -
 //     see PdfNativeMetadataExtractor's Producer-missing warning). Not chunk-worthy, same
 //     reasoning as FileSizeBytes/PdfSpecVersion above.
-public record ExtractionDocument(
+public sealed record ExtractionDocument(
     string SourceId,   // grouping/chunking boundary — the chunker never blends chunks across different SourceIds; blobName for PDF
     int    Ordinal,    // page number — used for ordering only
 
@@ -103,4 +105,4 @@ public record ExtractionDocument(
     // Average OCR word-confidence for this page - a data-quality signal, not a
     // chunk-boundary one. Null when DI didn't report a score for this page.
     double? AverageWordConfidence
-);
+) : ExtractionDocumentBase(SourceId, Ordinal, Content);

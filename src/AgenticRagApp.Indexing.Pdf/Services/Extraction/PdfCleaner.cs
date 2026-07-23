@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Text.RegularExpressions;
 using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Common.Models;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 
@@ -89,25 +90,21 @@ public class PdfCleaner : IPdfCleaner
             if (mojibakeFixed)
             {
                 result.CountMojibakeRepaired();
-                result.AddWarning(new CleaningWarning
-                {
-                    DocumentId = page.BlobName,
-                    Message    = $"Page {page.PageNumber}: repaired mojibake in source text (round-trip re-decode).",
-                });
+                result.AddWarning(new CleaningWarning(
+                    DocumentId: page.BlobName,
+                    Message:    $"Page {page.PageNumber}: repaired mojibake in source text (round-trip re-decode)."));
             }
 
             if (string.IsNullOrWhiteSpace(content))
-                result.AddWarning(new CleaningWarning
-                {
-                    DocumentId = page.BlobName,
-                    Message    = $"PageContent is empty after cleanup (page {page.PageNumber}) - likely a blank source page.",
-                });
+                result.AddWarning(new CleaningWarning(
+                    DocumentId: page.BlobName,
+                    Message:    $"PageContent is empty after cleanup (page {page.PageNumber}) - likely a blank source page."));
 
             result.AddRecord(ToCleanedRecord(page, content));
         }
         catch (Exception ex)
         {
-            result.AddError(new CleaningError { DocumentId = page.BlobName, Message = ex.Message });
+            result.AddError(new CleaningError(DocumentId: page.BlobName, Message: ex.Message));
         }
     }
 
