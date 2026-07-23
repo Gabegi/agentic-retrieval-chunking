@@ -181,6 +181,8 @@ stages:
                 ROUTE_TABLE="cor-rt-spoke-cap-dev-we-001"
                 PE_NSG="cor-nsg-cap-dev-we-001"
                 FUNC_STORAGE="corstfunccapdevwe"
+                AI_RG="cor-cap-ai-dev-we-001"
+                AI_ACCOUNT="cor-ais-cap-dev-we-001"
                 HUB_SUB="c8e46005-ce0e-4be5-9ded-0178e19fbe28"
                 HUB_DNS_RG="cor-connectivity-dns-prd-we-001"
 
@@ -241,6 +243,24 @@ stages:
                 az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" \
                   --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
 
+                echo "=== AI Services (Foundry) account: public network access + network ACLs (ExtractActivity's Document Intelligence calls target this account - see PdfIndexingFunction.cs) ==="
+                az cognitiveservices account show -g "$AI_RG" -n "$AI_ACCOUNT" \
+                  --query "{publicNetworkAccess:properties.publicNetworkAccess, defaultAction:properties.networkAcls.defaultAction, disableLocalAuth:properties.disableLocalAuth}" -o json
+
+                echo "=== private DNS A records: privatelink.cognitiveservices.azure.com ==="
+                az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.cognitiveservices.azure.com --subscription "$HUB_SUB" -o table
+
+                echo "=== private DNS A records: privatelink.openai.azure.com ==="
+                az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.openai.azure.com --subscription "$HUB_SUB" -o table
+
+                echo "=== is $VNET actually LINKED to privatelink.cognitiveservices.azure.com? ==="
+                az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.cognitiveservices.azure.com --subscription "$HUB_SUB" \
+                  --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+
+                echo "=== is $VNET actually LINKED to privatelink.openai.azure.com? ==="
+                az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.openai.azure.com --subscription "$HUB_SUB" \
+                  --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+
                 echo "=== VNet custom DNS servers (expect empty/null - Azure default 168.63.129.16 path; a custom server here must itself resolve the privatelink zones) ==="
                 az network vnet show -g "$NET_RG" -n "$VNET" --query "dhcpOptions.dnsServers" -o json
 
@@ -260,7 +280,13 @@ stages:
           # VNet, so a missing/pending link here means in-VNet resources
           # silently fall back to public DNS, which the target resource (e.g.
           # a storage account with public_network_access_enabled = false)
-          # then rejects. Same two zones the diagnostic above already checks.
+          # then rejects. Same four zones the diagnostic above already checks -
+          # the cognitiveservices/openai pair added after ExtractActivity's
+          # Document Intelligence calls 403'd: the account (data.azurerm_
+          # cognitive_account.foundry) has public_network_access disabled and
+          # each API surface (Document Intelligence, OpenAI) resolves through
+          # its own separate zone even though it's the same account, so a
+          # zone link added for one doesn't cover the other.
           - task: AzureCLI@2
             displayName: 'Check: private DNS zones linked to VNet'
             inputs:
@@ -272,7 +298,7 @@ stages:
                 HUB_DNS_RG="cor-connectivity-dns-prd-we-001"
                 FAILED=0
 
-                for ZONE in privatelink.file.core.windows.net privatelink.azurewebsites.net; do
+                for ZONE in privatelink.file.core.windows.net privatelink.azurewebsites.net privatelink.cognitiveservices.azure.com privatelink.openai.azure.com; do
                   STATE=$(az network private-dns link vnet list -g "$HUB_DNS_RG" -z "$ZONE" --subscription "$HUB_SUB" \
                     --query "[?virtualNetwork.id.ends_with(@, '$(vnetName)')].virtualNetworkLinkState" -o tsv)
                   if [ "$STATE" != "Completed" ]; then

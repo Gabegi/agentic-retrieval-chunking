@@ -83,6 +83,8 @@ stages:
                 ROUTE_TABLE="cor-rt-spoke-cap-dev-we-001"
                 PE_NSG="cor-nsg-cap-dev-we-001"
                 FUNC_STORAGE="corstfunccapdevwe"
+                AI_RG="cor-cap-ai-dev-we-001"
+                AI_ACCOUNT="cor-ais-cap-dev-we-001"
                 HUB_SUB="c8e46005-ce0e-4be5-9ded-0178e19fbe28"
                 HUB_DNS_RG="cor-connectivity-dns-prd-we-001"
 
@@ -141,6 +143,24 @@ stages:
 
                 echo "=== is $VNET actually LINKED to privatelink.azurewebsites.net? ==="
                 az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.azurewebsites.net --subscription "$HUB_SUB" \
+                  --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+
+                echo "=== AI Services (Foundry) account: public network access + network ACLs (ExtractActivity's Document Intelligence calls target this account - see PdfIndexingFunction.cs) ==="
+                az cognitiveservices account show -g "$AI_RG" -n "$AI_ACCOUNT" \
+                  --query "{publicNetworkAccess:properties.publicNetworkAccess, defaultAction:properties.networkAcls.defaultAction, disableLocalAuth:properties.disableLocalAuth}" -o json
+
+                echo "=== private DNS A records: privatelink.cognitiveservices.azure.com ==="
+                az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.cognitiveservices.azure.com --subscription "$HUB_SUB" -o table
+
+                echo "=== private DNS A records: privatelink.openai.azure.com ==="
+                az network private-dns record-set a list -g "$HUB_DNS_RG" -z privatelink.openai.azure.com --subscription "$HUB_SUB" -o table
+
+                echo "=== is $VNET actually LINKED to privatelink.cognitiveservices.azure.com? ==="
+                az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.cognitiveservices.azure.com --subscription "$HUB_SUB" \
+                  --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
+
+                echo "=== is $VNET actually LINKED to privatelink.openai.azure.com? ==="
+                az network private-dns link vnet list -g "$HUB_DNS_RG" -z privatelink.openai.azure.com --subscription "$HUB_SUB" \
                   --query "[?virtualNetwork.id.ends_with(@, '$VNET')] | [].{vnet:virtualNetwork.id, state:virtualNetworkLinkState}" -o table
 
                 echo "=== VNet custom DNS servers (expect empty/null - Azure default 168.63.129.16 path; a custom server here must itself resolve the privatelink zones) ==="
