@@ -3,6 +3,7 @@ using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AgenticRagApp.Indexing.Csv.Models;
+using AgenticRagApp.Common.Models;
 
 namespace AgenticRagApp.Indexing.Csv.Services;
 
@@ -70,11 +71,9 @@ public class DataCleaner : IDataCleaner
     private static void ReportDuplicatePage(JoinedPageRecord page, CleanResult result)
     {
         result.CountDuplicateSkipped();
-        result.AddWarning(new CleaningWarning
-        {
-            DocumentId = page.DocumentId,
-            Message    = $"Duplicate page {page.PageIndex} in source — kept the first occurrence.",
-        });
+        result.AddWarning(new CleaningWarning(
+            DocumentId: page.DocumentId,
+            Message:    $"Duplicate page {page.PageIndex} in source — kept the first occurrence."));
     }
 
     // Cleans one page and adds it to the result.
@@ -88,25 +87,21 @@ public class DataCleaner : IDataCleaner
             if (mojibakeFixed)
             {
                 result.CountMojibakeRepaired();
-                result.AddWarning(new CleaningWarning
-                {
-                    DocumentId = page.DocumentId,
-                    Message    = $"Page {page.PageIndex}: repaired mojibake in source text (e.g. 'â€™' -> \"'\").",
-                });
+                result.AddWarning(new CleaningWarning(
+                    DocumentId: page.DocumentId,
+                    Message:    $"Page {page.PageIndex}: repaired mojibake in source text (e.g. 'â€™' -> \"'\")."));
             }
 
             if (string.IsNullOrWhiteSpace(content))
-                result.AddWarning(new CleaningWarning
-                {
-                    DocumentId = page.DocumentId,
-                    Message    = $"PageContent is empty after cleanup (page {page.PageIndex}) — likely a blank source page.",
-                });
+                result.AddWarning(new CleaningWarning(
+                    DocumentId: page.DocumentId,
+                    Message:    $"PageContent is empty after cleanup (page {page.PageIndex}) — likely a blank source page."));
 
             result.AddRecord(ToCleanedRecord(page, content));
         }
         catch (Exception ex)
         {
-            result.AddError(new CleaningError { DocumentId = page.DocumentId, Message = ex.Message });
+            result.AddError(new CleaningError(DocumentId: page.DocumentId, Message: ex.Message));
         }
     }
 

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using AgenticRagApp.Indexing.Csv.Models;
+using AgenticRagApp.Common.Models;
 
 namespace AgenticRagApp.Indexing.Csv.Services;
 
@@ -130,39 +131,37 @@ public class PipelineValidator : IPipelineValidator
         var issues = new List<ValidationIssue>();
 
         //     pagesExtraction.Errors                    (Error,   Stage=Parse:Pages)
-        issues.AddRange(pagesExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Pages", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"Row {e.RowNumber}: {e.Message}" }));
+        issues.AddRange(pagesExtraction.Errors.Select(e => new ValidationIssue(
+            Stage: "Parse:Pages", Severity: "Error", DocumentId: e.DocumentId ?? "", Message: $"Row {e.RowNumber}: {e.Message}")));
 
         //   + indexExtraction.Errors                    (Error,   Stage=Parse:Index)
-        issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue
-            { Stage = "Parse:Index", Severity = "Error", DocumentId = e.DocumentId ?? "", Message = $"Row {e.RowNumber}: {e.Message}" }));
+        issues.AddRange(indexExtraction.Errors.Select(e => new ValidationIssue(
+            Stage: "Parse:Index", Severity: "Error", DocumentId: e.DocumentId ?? "", Message: $"Row {e.RowNumber}: {e.Message}")));
 
         //   + joinResult.Errors                         (Error,   Stage=Join)
-        issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue
-            { Stage = "Join", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
+        issues.AddRange(joinResult.Errors.Select(e => new ValidationIssue(
+            Stage: "Join", Severity: "Error", DocumentId: e.DocumentId, Message: e.Message)));
 
         //   + joinResult.DataQualityWarnings            (Warning, Stage=Join)
-        issues.AddRange(joinResult.DataQualityWarnings.Select(w => new ValidationIssue
-            { Stage = "Join", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
+        issues.AddRange(joinResult.DataQualityWarnings.Select(w => new ValidationIssue(
+            Stage: "Join", Severity: "Warning", DocumentId: w.DocumentId, Message: w.Message)));
 
         //   + cleanResult.Errors                        (Error,   Stage=Clean)
-        issues.AddRange(cleanResult.Errors.Select(e => new ValidationIssue
-            { Stage = "Clean", Severity = "Error", DocumentId = e.DocumentId, Message = e.Message }));
+        issues.AddRange(cleanResult.Errors.Select(e => new ValidationIssue(
+            Stage: "Clean", Severity: "Error", DocumentId: e.DocumentId, Message: e.Message)));
 
         //   + cleanResult.Warnings                      (Warning, Stage=Clean)
-        issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue
-            { Stage = "Clean", Severity = "Warning", DocumentId = w.DocumentId, Message = w.Message }));
+        issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue(
+            Stage: "Clean", Severity: "Warning", DocumentId: w.DocumentId, Message: w.Message)));
 
         // 1b. Index documents with no pages never reach the search index — make that visible
 
         //   + joinResult.SkippedIndexRecords            (Warning, Stage=Join — "no pages" docs)
-        issues.AddRange(joinResult.SkippedIndexRecords.Select(r => new ValidationIssue
-        {
-            Stage      = "Join",
-            Severity   = "Warning",
-            DocumentId = r.DocumentId,
-            Message    = "Index record has no pages — document will not be indexed.",
-        }));
+        issues.AddRange(joinResult.SkippedIndexRecords.Select(r => new ValidationIssue(
+            Stage:      "Join",
+            Severity:   "Warning",
+            DocumentId: r.DocumentId,
+            Message:    "Index record has no pages — document will not be indexed.")));
         if (joinResult.SkippedIndexRecords.Count > 0)
             redFlags.Add($"{joinResult.SkippedIndexRecords.Count} index document(s) have no pages and will not be indexed.");
 
@@ -268,9 +267,9 @@ public class PipelineValidator : IPipelineValidator
             // Its presence means actual source text was lost during encoding/decoding somewhere upstream
             var replacementCount = record.PageContent.Count(c => c == ReplacementChar);
             if (replacementCount > 0)
-                issues.Add(new ValidationIssue { Stage = "TextQuality", Severity = "Error",
-                    DocumentId = record.DocumentId,
-                    Message    = $"Page {record.PageIndex}: {replacementCount} U+FFFD char(s) — source text is corrupted." });
+                issues.Add(new ValidationIssue(Stage: "TextQuality", Severity: "Error",
+                    DocumentId: record.DocumentId,
+                    Message:    $"Page {record.PageIndex}: {replacementCount} U+FFFD char(s) — source text is corrupted."));
 
             // Control characters (outside normal whitespace) and unassigned code points — corruption
             // U+FFFD doesn't catch, because the decoder didn't fail outright, it just produced a
