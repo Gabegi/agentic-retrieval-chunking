@@ -17,6 +17,10 @@ public abstract record ExtractionOutputBase
     public int MissingTitleCount { get; init; }
     public int? MissingVersionCount { get; init; }    // null = source has no equivalent concept, not "verified zero"
     public int? MissingDepartmentCount { get; init; } // null = source has no equivalent concept, not "verified zero"
+    // Documents with no zenya_document_id blob metadata set (PDF-specific traceability gap).
+    // Null = source has no equivalent mechanism (CSV traces back to Zenya via relative_path
+    // instead), not "verified zero".
+    public int? TraceabilityGapCount { get; init; }
     public required IReadOnlyList<ValidationIssueEntry> Issues { get; init; }
     public required IReadOnlyList<string> RedFlags { get; init; }
     public required IReadOnlyList<SpotCheckEntry> SpotCheckSample { get; init; }
