@@ -88,6 +88,30 @@ public class PdfIndexingFunction
         return client.CreateCheckStatusResponse(req, instanceId);
     }
 
+    // Manual-upload path (Zenya source connection isn't live yet) - the timer provides the
+    // cadence, ExtractAsync's own new/updated diff is the "check for changes" step, so no
+    // separate polling logic is needed here. Fixed instance ID makes this a singleton: a run
+    // longer than the timer interval just causes the next tick(s) to skip rather than overlap,
+    // which is what keeps SnapshotService's read-merge-write safe - runs never race each other.
+    [Function("ScheduledIndexing")]
+    public async Task RunScheduled(
+        [TimerTrigger("0 */15 * * * *")] TimerInfo timer,
+        [DurableClient] DurableTaskClient client)
+    {
+        const string instanceId = "PdfIndexing";
+
+        var existing = await client.GetInstanceAsync(instanceId, getInputsAndOutputs: false);
+        if (existing is null
+            || existing.RuntimeStatus is OrchestrationRuntimeStatus.Completed
+                or OrchestrationRuntimeStatus.Failed
+                or OrchestrationRuntimeStatus.Terminated)
+        {
+            await client.ScheduleNewOrchestrationInstanceAsync(
+                "IndexingOrchestrator", new IndexRequest(false),
+                new StartOrchestrationOptions { InstanceId = instanceId });
+        }
+    }
+
     [Function("IndexingOrchestrator")]
     public async Task RunOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
