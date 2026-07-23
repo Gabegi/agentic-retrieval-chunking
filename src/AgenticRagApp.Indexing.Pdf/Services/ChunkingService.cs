@@ -4,7 +4,7 @@ using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
 using AgenticRagApp.Indexing.Pdf.Utils;
-using ExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.ExtractionDocument;
+using PdfExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.PdfExtractionDocument;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 
@@ -33,7 +33,7 @@ public class ChunkingService : IChunkingService
     // Converts ExtractionDocuments into indexed DocumentChunks,
     // computes ChunkingResults, and emits all chunk telemetry in one place.
     public (IReadOnlyList<DocumentChunk> Docs, ChunkingResults Stats) ChunkDocuments(
-        IReadOnlyList<ExtractionDocument> docs)
+        IReadOnlyList<PdfExtractionDocument> docs)
     {
         var result = new List<DocumentChunk>();
 

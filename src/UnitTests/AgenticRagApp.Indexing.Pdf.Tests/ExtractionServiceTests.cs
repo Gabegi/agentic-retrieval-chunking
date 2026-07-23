@@ -12,7 +12,7 @@ namespace RagApp.UnitTests.CsvExtraction;
 [TestClass]
 public class ExtractionServiceTests
 {
-    private static ExtractionDocument Doc(string sourceId) => new(
+    private static PdfExtractionDocument Doc(string sourceId) => new(
         SourceId:              sourceId,
         Ordinal:               0,
         Content:               "content",
@@ -38,7 +38,7 @@ public class ExtractionServiceTests
         Lines:                 [],
         AverageWordConfidence: null);
 
-    private static ExtractionOutput BuildOutput(IEnumerable<ExtractionDocument> docs) => new(docs.ToList())
+    private static PdfExtractionOutput BuildOutput(IEnumerable<PdfExtractionDocument> docs) => new(docs.ToList())
     {
         ValidationErrors       = 0,
         ValidationWarnings     = 0,
@@ -91,9 +91,9 @@ public class ExtractionServiceTests
         return mock;
     }
 
-    // Variant for tests that need a fixed ExtractionOutput (e.g. asserting validation
+    // Variant for tests that need a fixed PdfExtractionOutput (e.g. asserting validation
     // fields propagate) rather than one derived from whatever ids got requested.
-    private static Mock<IExtractionOrchestrator> MockExtractorWithFixedOutput(ExtractionOutput output, string source = "pdf")
+    private static Mock<IExtractionOrchestrator> MockExtractorWithFixedOutput(PdfExtractionOutput output, string source = "pdf")
     {
         var mock = new Mock<IExtractionOrchestrator>();
         mock.SetupGet(m => m.Source).Returns(source);
@@ -305,7 +305,7 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task Stats_PropagatesValidationFieldsFromExtractionOutput()
     {
-        var output = new ExtractionOutput([Doc("doc1.pdf")])
+        var output = new PdfExtractionOutput([Doc("doc1.pdf")])
         {
             ValidationErrors       = 3,
             ValidationWarnings     = 5,

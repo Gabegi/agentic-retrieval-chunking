@@ -12,5 +12,5 @@ public interface IExtractionOrchestrator
     // Extracts only the given source ids - ExtractionService has already listed what's in
     // blob storage and diffed it against the index to determine these are the only ones
     // that are new or changed. Ids outside this set produce no ExtractionDocuments.
-    Task<ExtractionOutput> ExtractDocumentsAsync(IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct = default);
+    Task<PdfExtractionOutput> ExtractDocumentsAsync(IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct = default);
 }

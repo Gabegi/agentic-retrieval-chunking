@@ -4,7 +4,7 @@ using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Indexing.Pdf.Services;
 using AgenticRagApp.Indexing.Pdf.Utils;
 using AgenticRagApp.Common.Models;
-using ExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.ExtractionDocument;
+using PdfExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.PdfExtractionDocument;
 
 namespace RagApp.UnitTests.Indexing;
 
@@ -23,7 +23,7 @@ public class ChunkingServiceTests
     private static ChunkingService BuildService(Mock<IChunkingStrategy> strategy) =>
         new(strategy.Object, NullLogger<ChunkingService>.Instance);
 
-    private static ExtractionDocument Doc(
+    private static PdfExtractionDocument Doc(
         string sourceId, int ordinal, string content,
         string                  title            = "",
         string?                 author           = null,

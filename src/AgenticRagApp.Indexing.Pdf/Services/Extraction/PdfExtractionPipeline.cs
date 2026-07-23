@@ -9,8 +9,8 @@ using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
-using ExtractionOutput = AgenticRagApp.Indexing.Pdf.Models.ExtractionOutput;
-using ExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.ExtractionDocument;
+using PdfExtractionOutput = AgenticRagApp.Indexing.Pdf.Models.PdfExtractionOutput;
+using PdfExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.PdfExtractionDocument;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 
@@ -46,7 +46,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
     // Durable's row-size limit).
     private const int MaxLoggedIssues = 100;
 
-    // Cap on ExtractionOutput.Issues to stay safely under Durable Table Storage's 64KB
+    // Cap on PdfExtractionOutput.Issues to stay safely under Durable Table Storage's 64KB
     // row-size limit — a different constraint from MaxLoggedIssues above, which just caps
     // log volume/cost. Coincidentally the same number today; not the same knob.
     private const int MaxReturnedIssues = 100;
@@ -79,7 +79,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         _logger         = logger;
     }
 
-    public async Task<ExtractionOutput> ExtractDocumentsAsync(
+    public async Task<PdfExtractionOutput> ExtractDocumentsAsync(
         IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct = default)
     {
         var runAt = DateTimeOffset.UtcNow;
@@ -317,19 +317,19 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
             ct);
     }
 
-    // Maps the validated, cleaned records into the source-agnostic ExtractionOutput
-    // returned to the caller. Several ExtractionOutput fields have no PDF equivalent and
+    // Maps the validated, cleaned records into the source-agnostic PdfExtractionOutput
+    // returned to the caller. Several PdfExtractionOutput fields have no PDF equivalent and
     // are always null here (not "verified zero") — see PdfValidationReport's own comment:
     // no Zenya attention-flag (StaleDocCount), no version data (MissingVersionCount -
     // nothing parses/populates Version for PDFs), and no folder/department concept
     // (MissingDepartmentCount).
     //
     // fileResults (chunking-rewrite-plan.md item #1) feeds the lookups below (items #2/#3)
-    // so real section breadcrumbs / DI structure / native metadata reach ExtractionDocument
+    // so real section breadcrumbs / DI structure / native metadata reach PdfExtractionDocument
     // as typed fields, instead of being discarded after validation reads Structure for its
     // own checks. FileSizeBytes/PdfSpecVersion/EstimatedCostUsd and PageErrors/Warnings are
-    // deliberately not threaded through - see ExtractionDocument's own comment for why.
-    private static ExtractionOutput BuildExtractionOutput(
+    // deliberately not threaded through - see PdfExtractionDocument's own comment for why.
+    private static PdfExtractionOutput BuildExtractionOutput(
         IReadOnlyList<PDFExtractionResult> fileResults,
         PdfValidationReport                report,
         PdfCleanResult                      cleanResult,
@@ -350,7 +350,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                 var pageContext    = pageContextByKey.GetValueOrDefault((r.BlobName, r.PageNumber)) ?? PdfPageContext.Empty;
                 var zenya          = zenyaByBlob.GetValueOrDefault(r.BlobName) ?? ZenyaMetadata.Empty;
 
-                return new ExtractionDocument(
+                return new PdfExtractionDocument(
                     SourceId:              r.BlobName,
                     Ordinal:               r.PageNumber,
                     Content:               r.PageContent,
@@ -404,7 +404,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                 $"{traceabilityGapCount} document(s) have no zenya_document_id blob metadata set — " +
                 "citations built from these will show a traceability gap (Citation.TraceabilityGap).");
 
-        return new ExtractionOutput(extractionDocs)
+        return new PdfExtractionOutput(extractionDocs)
         {
             ValidationErrors       = errors,
             ValidationWarnings     = warnings,
@@ -434,7 +434,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
 
     // DI's semantic sections aren't page-scoped (a section's Elements can span pages), so
     // - like NativeMetadata above - this is file-level, duplicated across every page's
-    // ExtractionDocument rather than filtered per page.
+    // PdfExtractionDocument rather than filtered per page.
     private static Dictionary<string, IReadOnlyList<SectionInfo>> BuildSectionsLookup(
         IReadOnlyList<PDFExtractionResult> fileResults) =>
         fileResults

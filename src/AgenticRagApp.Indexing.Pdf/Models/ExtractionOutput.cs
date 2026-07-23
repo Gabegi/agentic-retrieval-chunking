@@ -2,4 +2,4 @@ using AgenticRagApp.Common.Models;
 
 namespace AgenticRagApp.Indexing.Pdf.Models;
 
-public sealed record ExtractionOutput(IReadOnlyList<ExtractionDocument> Docs) : ExtractionOutputBase;
+public sealed record PdfExtractionOutput(IReadOnlyList<PdfExtractionDocument> Docs) : ExtractionOutputBase;
