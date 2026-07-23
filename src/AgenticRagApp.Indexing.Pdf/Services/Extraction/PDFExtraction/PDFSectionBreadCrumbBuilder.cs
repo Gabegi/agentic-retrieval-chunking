@@ -1,4 +1,5 @@
 using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Common.Models;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 
@@ -41,18 +42,16 @@ public static class PdfSectionBreadCrumbBuilder
         var unresolvableInternal = unresolvable.Count - externalCount;
 
         if (unresolvableInternal > 0)
-            warnings.Add(new ExtractionWarning
-            {
-                DocumentId = blobName,
-                Message    = $"{unresolvableInternal} bookmark(s) skipped - no resolvable page.",
-            });
+            warnings.Add(new ExtractionWarning(
+                RowNumber:  null,
+                DocumentId: blobName,
+                Message:    $"{unresolvableInternal} bookmark(s) skipped - no resolvable page."));
 
         if (externalCount > 0)
-            warnings.Add(new ExtractionWarning
-            {
-                DocumentId = blobName,
-                Message    = $"{externalCount} bookmark(s) excluded - point to an external file, not a page in this document.",
-            });
+            warnings.Add(new ExtractionWarning(
+                RowNumber:  null,
+                DocumentId: blobName,
+                Message:    $"{externalCount} bookmark(s) excluded - point to an external file, not a page in this document."));
 
         // Stable sort matters here: two bookmarks on the same page keep their original
         // outline order (OrderBy is guaranteed stable in .NET) - if it weren't, a page
@@ -67,11 +66,10 @@ public static class PdfSectionBreadCrumbBuilder
 
         var outOfRange = ordered.Count(b => b.PageNumber > pageCount);
         if (outOfRange > 0)
-            warnings.Add(new ExtractionWarning
-            {
-                DocumentId = blobName,
-                Message    = $"{outOfRange} bookmark(s) point beyond this document's {pageCount} page(s) - never assigned to a breadcrumb.",
-            });
+            warnings.Add(new ExtractionWarning(
+                RowNumber:  null,
+                DocumentId: blobName,
+                Message:    $"{outOfRange} bookmark(s) point beyond this document's {pageCount} page(s) - never assigned to a breadcrumb."));
 
         var stack           = new List<string>();
         var breakpoints      = new List<(int PageNumber, string Path)>();
@@ -89,11 +87,10 @@ public static class PdfSectionBreadCrumbBuilder
         }
 
         if (skippedLevelGaps > 0)
-            warnings.Add(new ExtractionWarning
-            {
-                DocumentId = blobName,
-                Message    = $"{skippedLevelGaps} bookmark(s) skip an outline level (e.g. Level 2 directly under Level 0) - sloppy outline structure.",
-            });
+            warnings.Add(new ExtractionWarning(
+                RowNumber:  null,
+                DocumentId: blobName,
+                Message:    $"{skippedLevelGaps} bookmark(s) skip an outline level (e.g. Level 2 directly under Level 0) - sloppy outline structure."));
 
         var breakpointIndex = 0;
         string? current = null;
