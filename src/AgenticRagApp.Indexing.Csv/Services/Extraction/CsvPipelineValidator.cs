@@ -148,11 +148,11 @@ public class PipelineValidator : IPipelineValidator
 
         //   + cleanResult.Errors                        (Error,   Stage=Clean)
         issues.AddRange(cleanResult.Errors.Select(e => new ValidationIssue(
-            Stage: "Clean", Severity: "Error", DocumentId: e.DocumentId, Message: e.Message)));
+            Stage: "Clean", Severity: "Error", DocumentId: e.DocumentId ?? "", Message: e.Message)));
 
         //   + cleanResult.Warnings                      (Warning, Stage=Clean)
         issues.AddRange(cleanResult.Warnings.Select(w => new ValidationIssue(
-            Stage: "Clean", Severity: "Warning", DocumentId: w.DocumentId, Message: w.Message)));
+            Stage: "Clean", Severity: "Warning", DocumentId: w.DocumentId ?? "", Message: w.Message)));
 
         // 1b. Index documents with no pages never reach the search index — make that visible
 
