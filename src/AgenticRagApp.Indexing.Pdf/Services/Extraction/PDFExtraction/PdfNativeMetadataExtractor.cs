@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Common.Models;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Outline;
 
@@ -35,28 +36,25 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 var modDate   = TryParsePdfDate(info.ModifiedDate, blobName, warnings, "ModDate");
 
                 if (title is null)
-                    warnings.Add(new ExtractionWarning
-                    {
-                        DocumentId = blobName,
-                        Message    = "No native Title in the PDF's Info dictionary - falls back to a filename-derived title downstream.",
-                    });
+                    warnings.Add(new ExtractionWarning(
+                        RowNumber:  null,
+                        DocumentId: blobName,
+                        Message:    "No native Title in the PDF's Info dictionary - falls back to a filename-derived title downstream."));
 
                 if (author is null)
-                    warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = "No native Author in the PDF's Info dictionary." });
+                    warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: "No native Author in the PDF's Info dictionary."));
 
                 if (producer is null)
-                    warnings.Add(new ExtractionWarning
-                    {
-                        DocumentId = blobName,
-                        Message    = "No native Producer in the PDF's Info dictionary — possible non-standard export pipeline.",
-                    });
+                    warnings.Add(new ExtractionWarning(
+                        RowNumber:  null,
+                        DocumentId: blobName,
+                        Message:    "No native Producer in the PDF's Info dictionary — possible non-standard export pipeline."));
 
                 if (bookmarks is { Count: > 0 })
-                    warnings.Add(new ExtractionWarning
-                    {
-                        DocumentId = blobName,
-                        Message    = $"{bookmarks.Count} bookmark(s) found, max outline depth {bookmarks.Max(b => b.Level) + 1}.",
-                    });
+                    warnings.Add(new ExtractionWarning(
+                        RowNumber:  null,
+                        DocumentId: blobName,
+                        Message:    $"{bookmarks.Count} bookmark(s) found, max outline depth {bookmarks.Max(b => b.Level) + 1}."));
 
                 var metadata = new DocMetadata(
                     Title:     title,
@@ -90,7 +88,7 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 if (!pdf.TryGetBookmarks(out var bookmarks))
                 {
                     logger.LogInformation("No bookmarks/outline found in '{Blob}'.", blobName);
-                    warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = "No bookmarks/outline found." });
+                    warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: "No bookmarks/outline found."));
                     return Array.Empty<Bookmark>();
                 }
 
@@ -101,7 +99,7 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Bookmark extraction failed for '{Blob}'; continuing without bookmarks.", blobName);
-                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"Bookmark extraction failed: {ex.Message}" });
+                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"Bookmark extraction failed: {ex.Message}"));
                 return null;
             }
         }
@@ -115,7 +113,7 @@ namespace AgenticRagApp.Indexing.Pdf.Services
         {
             if (string.IsNullOrEmpty(raw))
             {
-                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"No native {fieldName} in the PDF's Info dictionary." });
+                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"No native {fieldName} in the PDF's Info dictionary."));
                 return null;
             }
 
@@ -123,12 +121,12 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             if (!DateTimeOffset.TryParseExact(s[..Math.Min(14, s.Length)], "yyyyMMddHHmmss",
                     null, System.Globalization.DateTimeStyles.AssumeUniversal, out var dt))
             {
-                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"{fieldName} '{raw}' could not be parsed." });
+                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"{fieldName} '{raw}' could not be parsed."));
                 return null;
             }
 
             if (dt > DateTimeOffset.UtcNow)
-                warnings.Add(new ExtractionWarning { DocumentId = blobName, Message = $"{fieldName} '{dt:O}' is in the future." });
+                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"{fieldName} '{dt:O}' is in the future."));
 
             return dt;
         }

@@ -7,6 +7,7 @@ using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.DocumentIntelligence;
 using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability;
 
 namespace AgenticRagApp.Indexing.Pdf.Services
@@ -201,22 +202,20 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             catch (RequestFailedException ex)
             {
                 _logger.LogWarning(ex, "Document Intelligence rejected the analyze submission for '{Blob}'.", blobName);
-                return new AnalyzeOutcome(false, null, new ExtractionError
-                {
-                    DocumentId = blobName,
-                    Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
-                    Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
-                });
+                return new AnalyzeOutcome(false, null, new ExtractionError(
+                    RowNumber:  0,
+                    DocumentId: blobName,
+                    Message:    $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
+                    Reason:     ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "Unexpected error submitting '{Blob}' to Document Intelligence.", blobName);
-                return new AnalyzeOutcome(false, null, new ExtractionError
-                {
-                    DocumentId = blobName,
-                    Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
-                    Reason = PdfOpenFailureReason.Unknown,
-                });
+                return new AnalyzeOutcome(false, null, new ExtractionError(
+                    RowNumber:  0,
+                    DocumentId: blobName,
+                    Message:    $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
+                    Reason:     PdfOpenFailureReason.Unknown));
             }
 
             var throttleCount = 0;
@@ -244,22 +243,20 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                     else
                         _logger.LogWarning(ex, "Document Intelligence failed while polling '{Blob}'.", blobName);
 
-                    return new AnalyzeOutcome(false, null, new ExtractionError
-                    {
-                        DocumentId = blobName,
-                        Message = $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
-                        Reason = ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError,
-                    });
+                    return new AnalyzeOutcome(false, null, new ExtractionError(
+                        RowNumber:  0,
+                        DocumentId: blobName,
+                        Message:    $"Document Intelligence request failed ({ex.Status}): {ex.Message}",
+                        Reason:     ex.Status == 429 ? PdfOpenFailureReason.Throttled : PdfOpenFailureReason.DiServiceError));
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _logger.LogWarning(ex, "Unexpected error polling '{Blob}' with Document Intelligence.", blobName);
-                    return new AnalyzeOutcome(false, null, new ExtractionError
-                    {
-                        DocumentId = blobName,
-                        Message = $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
-                        Reason = PdfOpenFailureReason.Unknown,
-                    });
+                    return new AnalyzeOutcome(false, null, new ExtractionError(
+                        RowNumber:  0,
+                        DocumentId: blobName,
+                        Message:    $"Document Intelligence analysis failed unexpectedly: {ex.Message}",
+                        Reason:     PdfOpenFailureReason.Unknown));
                 }
 
                 if (!operation.HasCompleted)
@@ -292,12 +289,11 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             if ((result.Pages?.Count ?? 0) == 0)
             {
                 _logger.LogWarning("Document Intelligence returned zero pages for '{Blob}'.", blobName);
-                return new AnalyzeOutcome(false, null, new ExtractionError
-                {
-                    DocumentId = blobName,
-                    Message = "Document Intelligence analysis returned zero pages.",
-                    Reason = PdfOpenFailureReason.EmptyDocument,
-                });
+                return new AnalyzeOutcome(false, null, new ExtractionError(
+                    RowNumber:  0,
+                    DocumentId: blobName,
+                    Message:    "Document Intelligence analysis returned zero pages.",
+                    Reason:     PdfOpenFailureReason.EmptyDocument));
             }
 
             return new AnalyzeOutcome(true, result, null) { Warnings = warnings };
@@ -333,12 +329,11 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 _logger.LogError(
                     "'{Blob}': Document Intelligence analysis reported Ok=false but Error was null - this indicates a bug in DIAnalyzeDocumentAsync/ValidateAnalyzeResult.",
                     blobName);
-                error = new ExtractionError
-                {
-                    DocumentId = blobName,
-                    Message = "Document Intelligence analysis failed with no error details.",
-                    Reason = PdfOpenFailureReason.Unknown,
-                };
+                error = new ExtractionError(
+                    RowNumber:  0,
+                    DocumentId: blobName,
+                    Message:    "Document Intelligence analysis failed with no error details.",
+                    Reason:     PdfOpenFailureReason.Unknown);
                 return false;
             }
 
@@ -354,12 +349,11 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 blobName);
 
             result = null;
-            error = new ExtractionError
-            {
-                DocumentId = blobName,
-                Message = "Document Intelligence analysis reported success but returned no result.",
-                Reason = PdfOpenFailureReason.MissingAnalysisResult,
-            };
+            error = new ExtractionError(
+                RowNumber:  0,
+                DocumentId: blobName,
+                Message:    "Document Intelligence analysis reported success but returned no result.",
+                Reason:     PdfOpenFailureReason.MissingAnalysisResult);
             return false;
         }
 
@@ -372,12 +366,11 @@ namespace AgenticRagApp.Indexing.Pdf.Services
         {
             if (result.ContentFormat == DocumentContentFormat.Markdown) return null;
 
-            return new ExtractionError
-            {
-                DocumentId = blobName,
-                Message = $"Document Intelligence returned content format '{result.ContentFormat}', expected Markdown.",
-                Reason = PdfOpenFailureReason.UnexpectedContentFormat,
-            };
+            return new ExtractionError(
+                RowNumber:  0,
+                DocumentId: blobName,
+                Message:    $"Document Intelligence returned content format '{result.ContentFormat}', expected Markdown.",
+                Reason:     PdfOpenFailureReason.UnexpectedContentFormat);
         }
 
         // Diagnostic only, never fails: flags characters needing a UTF-16 surrogate pair
