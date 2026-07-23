@@ -7,7 +7,7 @@ namespace AgenticRagApp.Indexing.Csv.Models;
 // these as free-text InvalidOperationExceptions - but gives CSV the same structured-
 // reason shape PDF uses (PdfOpenFailureReason), for whichever caller wants to break
 // failures down by cause instead of grepping messages.
-public sealed record CsvOpenFailureReason(string Code) : FailureReasonBase(Code)
+public sealed record CsvOpenFailureReason(string Code) : OpenFailureReasonBase(Code)
 {
     public static readonly CsvOpenFailureReason Unknown = new(nameof(Unknown)); // unexpected exception with no dedicated category below
     public static readonly CsvOpenFailureReason WrongEncoding = new(nameof(WrongEncoding)); // not UTF-8 (CsvExtractor.EnsureHeadersAreCorrect)

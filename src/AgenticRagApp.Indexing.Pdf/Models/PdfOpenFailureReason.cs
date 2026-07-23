@@ -5,7 +5,7 @@ namespace AgenticRagApp.Indexing.Pdf.Models;
 // Structured category for a file-level PDF open/parse failure, set by
 // PdfDocumentValidator.TryOpenAndValidate. Lets PdfValidationReport break down
 // "how many files failed" by cause instead of grepping free-text messages.
-public sealed record PdfOpenFailureReason(string Code) : FailureReasonBase(Code)
+public sealed record PdfOpenFailureReason(string Code) : OpenFailureReasonBase(Code)
 {
     public static readonly PdfOpenFailureReason Unknown = new(nameof(Unknown)); // unexpected exception PdfPig doesn't have a dedicated type for
     public static readonly PdfOpenFailureReason Encrypted = new(nameof(Encrypted)); // PdfDocumentEncryptedException - password-protected/unsupported encryption

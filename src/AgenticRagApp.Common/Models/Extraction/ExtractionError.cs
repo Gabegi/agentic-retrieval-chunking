@@ -9,5 +9,5 @@ public sealed record ExtractionError(
     // open/validate step) - null for row/page-level errors that only have
     // free text (CSV rows, per-page extraction failures). Concrete type is whichever
     // source produced it - PdfOpenFailureReason or CsvOpenFailureReason.
-    FailureReasonBase? Reason = null)
+    OpenFailureReasonBase? Reason = null)
     : PipelineIssueBase(DocumentId, Message);

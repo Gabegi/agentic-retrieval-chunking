@@ -5,4 +5,4 @@ namespace AgenticRagApp.Common.Models;
 // categories that make sense for that source - so each source defines its own sealed
 // record of static instances deriving from this, instead of one shared enum neither
 // source's categories cleanly fit.
-public abstract record FailureReasonBase(string Code);
+public abstract record OpenFailureReasonBase(string Code);

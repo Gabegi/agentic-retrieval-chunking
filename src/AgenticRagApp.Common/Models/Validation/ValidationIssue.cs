@@ -8,5 +8,5 @@ public sealed record ValidationIssue(
     // Structured failure category, carried over from ExtractionError.Reason when
     // present (currently only PDF file-level open failures set it). Concrete type is
     // whichever source produced it - PdfOpenFailureReason or CsvOpenFailureReason.
-    FailureReasonBase? Reason = null)
+    OpenFailureReasonBase? Reason = null)
     : PipelineIssueBase(DocumentId, Message);
