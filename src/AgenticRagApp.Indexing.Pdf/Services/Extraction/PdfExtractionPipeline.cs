@@ -9,8 +9,6 @@ using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
-using PdfExtractionOutput = AgenticRagApp.Indexing.Pdf.Models.PdfExtractionOutput;
-using PdfExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.PdfExtractionDocument;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 

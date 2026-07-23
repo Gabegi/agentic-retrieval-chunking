@@ -4,7 +4,6 @@ using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Indexing.Pdf.Services;
 using AgenticRagApp.Indexing.Pdf.Utils;
 using AgenticRagApp.Common.Models;
-using PdfExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.PdfExtractionDocument;
 
 namespace RagApp.UnitTests.Indexing;
 

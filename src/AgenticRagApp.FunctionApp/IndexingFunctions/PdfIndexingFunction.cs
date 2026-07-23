@@ -184,7 +184,7 @@ public class PdfIndexingFunction
     {
         try
         {
-            var docs           = await ReadBlobAsync<List<ExtractionDocument>>(req.InputBlob, context.CancellationToken);
+            var docs           = await ReadBlobAsync<List<PdfExtractionDocument>>(req.InputBlob, context.CancellationToken);
             var (chunks, stats) = _chunkingService.ChunkDocuments(docs);
             await DeleteBlobAsync(req.InputBlob, context.CancellationToken);
             await WriteBlobAsync(req.OutputBlob, chunks, context.CancellationToken);
