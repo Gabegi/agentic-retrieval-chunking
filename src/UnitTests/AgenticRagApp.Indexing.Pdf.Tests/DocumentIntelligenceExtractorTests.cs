@@ -6,6 +6,7 @@ using Moq;
 using AgenticRagApp.Infrastructure.Clients.DocumentIntelligence;
 using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Indexing.Pdf.Services;
+using AgenticRagApp.Common.Models;
 
 namespace RagApp.UnitTests.PdfExtraction;
 

@@ -6,8 +6,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using AgenticRagApp.Infrastructure.Clients.Blob;
 using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability;
 using AgenticRagApp.Observability.Reports;
+using ExtractionOutput = AgenticRagApp.Indexing.Pdf.Models.ExtractionOutput;
+using ExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.ExtractionDocument;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 
@@ -270,7 +273,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                 {
                     _logger.LogWarning(ex, "Download or extraction failed for '{Blob}'; recording as a file-level error.", name);
                     results.Add(new PDFExtractionResult(false, name, contentLength ?? 0, null, null, null, null, null, null,
-                        new ExtractionError { DocumentId = name, Message = ex.Message, Reason = PdfOpenFailureReason.Unknown }));
+                        new ExtractionError(RowNumber: 0, DocumentId: name, Message: ex.Message, Reason: PdfOpenFailureReason.Unknown)));
                 }
             });
 
@@ -401,22 +404,23 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                 $"{traceabilityGapCount} document(s) have no zenya_document_id blob metadata set — " +
                 "citations built from these will show a traceability gap (Citation.TraceabilityGap).");
 
-        return new ExtractionOutput(
-            Docs:                   extractionDocs,
-            ValidationErrors:       errors,
-            ValidationWarnings:     warnings,
-            ReconciliationProblems: report.ReconciliationProblems.Count,
-            StaleDocCount:          null,  // no Zenya attention-flag equivalent for PDFs
-            MojibakeRepairedPages:  report.MojibakeRepairedPages,
-            DetectedTableCount:     report.DetectedTableCount,
-            DocsWithoutHeadings:    report.DocumentsNeedingFallbackChunking.Count,
-            MissingTitleCount:      missingTitle,
-            MissingVersionCount:    missingVersionCount,
-            MissingDepartmentCount: null,  // no folder/department concept for PDFs
-            TraceabilityGapCount:   traceabilityGapCount,
-            Issues:                 issues,
-            RedFlags:               redFlags,
-            SpotCheckSample:        spotCheck);
+        return new ExtractionOutput(extractionDocs)
+        {
+            ValidationErrors       = errors,
+            ValidationWarnings     = warnings,
+            ReconciliationProblems = report.ReconciliationProblems.Count,
+            StaleDocCount          = null,  // no Zenya attention-flag equivalent for PDFs
+            MojibakeRepairedPages  = report.MojibakeRepairedPages,
+            DetectedTableCount     = report.DetectedTableCount,
+            DocsWithoutHeadings    = report.DocumentsNeedingFallbackChunking.Count,
+            MissingTitleCount      = missingTitle,
+            MissingVersionCount    = missingVersionCount,
+            MissingDepartmentCount = null,  // no folder/department concept for PDFs
+            TraceabilityGapCount   = traceabilityGapCount,
+            Issues                 = issues,
+            RedFlags               = redFlags,
+            SpotCheckSample        = spotCheck,
+        };
     }
 
     // File-level native PDF facts (Author, CreatedAt, PageCount, Bookmarks) - same value

@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Indexing.Pdf.Services;
+using AgenticRagApp.Common.Models;
 
 namespace RagApp.UnitTests.PdfExtraction;
 
@@ -99,8 +100,8 @@ public class PdfPipelineValidatorTests
         var clean = BuildCleaner().CleanPdf([page]);
         var metadataDiagnostics = new PdfStepDiagnostics(
             [
-                new ExtractionWarning { DocumentId = "doc1.pdf", Message = "No native Title in the PDF's Info dictionary - falls back to a filename-derived title downstream." },
-                new ExtractionWarning { DocumentId = "doc1.pdf", Message = "No native Producer in the PDF's Info dictionary — possible non-standard export pipeline." },
+                new ExtractionWarning(RowNumber: null, DocumentId: "doc1.pdf", Message: "No native Title in the PDF's Info dictionary - falls back to a filename-derived title downstream."),
+                new ExtractionWarning(RowNumber: null, DocumentId: "doc1.pdf", Message: "No native Producer in the PDF's Info dictionary — possible non-standard export pipeline."),
             ],
             []);
 

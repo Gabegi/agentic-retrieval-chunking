@@ -2,6 +2,7 @@ using System.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Common.Models;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 
@@ -103,9 +104,8 @@ public class DocumentIntelligenceExtractor : IPdfExtractor
         };
     }
 
-    private static ExtractionWarning ToExtractionWarning(AnalysisWarning warning, string blobName) => new()
-    {
-        DocumentId = blobName,
-        Message = string.IsNullOrEmpty(warning.Code) ? warning.Message ?? "" : $"[{warning.Code}] {warning.Message}",
-    };
+    private static ExtractionWarning ToExtractionWarning(AnalysisWarning warning, string blobName) => new(
+        RowNumber:  null,
+        DocumentId: blobName,
+        Message:    string.IsNullOrEmpty(warning.Code) ? warning.Message ?? "" : $"[{warning.Code}] {warning.Message}");
 }

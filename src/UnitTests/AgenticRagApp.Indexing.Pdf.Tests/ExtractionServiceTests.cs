@@ -38,22 +38,23 @@ public class ExtractionServiceTests
         Lines:                 [],
         AverageWordConfidence: null);
 
-    private static ExtractionOutput BuildOutput(IEnumerable<ExtractionDocument> docs) => new(
-        Docs:                   docs.ToList(),
-        ValidationErrors:       0,
-        ValidationWarnings:     0,
-        ReconciliationProblems: 0,
-        StaleDocCount:          0,
-        MojibakeRepairedPages:  0,
-        DetectedTableCount:     0,
-        DocsWithoutHeadings:    0,
-        MissingTitleCount:      0,
-        MissingVersionCount:    0,
-        MissingDepartmentCount: 0,
-        TraceabilityGapCount:   0,
-        Issues:                 [],
-        RedFlags:               [],
-        SpotCheckSample:        []);
+    private static ExtractionOutput BuildOutput(IEnumerable<ExtractionDocument> docs) => new(docs.ToList())
+    {
+        ValidationErrors       = 0,
+        ValidationWarnings     = 0,
+        ReconciliationProblems = 0,
+        StaleDocCount          = 0,
+        MojibakeRepairedPages  = 0,
+        DetectedTableCount     = 0,
+        DocsWithoutHeadings    = 0,
+        MissingTitleCount      = 0,
+        MissingVersionCount    = 0,
+        MissingDepartmentCount = 0,
+        TraceabilityGapCount   = 0,
+        Issues                 = [],
+        RedFlags               = [],
+        SpotCheckSample        = [],
+    };
 
     // Fakes the "documents" container's listing - what ExtractionService's own
     // ListDocumentsInBlobAsync reads (via IBlobStore) to build the "source" side of the
@@ -304,22 +305,23 @@ public class ExtractionServiceTests
     [TestMethod]
     public async Task Stats_PropagatesValidationFieldsFromExtractionOutput()
     {
-        var output = new ExtractionOutput(
-            Docs:                   [Doc("doc1.pdf")],
-            ValidationErrors:       3,
-            ValidationWarnings:     5,
-            ReconciliationProblems: 1,
-            StaleDocCount:          2,
-            MojibakeRepairedPages:  6,
-            DetectedTableCount:     7,
-            DocsWithoutHeadings:    4,
-            MissingTitleCount:      1,
-            MissingVersionCount:    2,
-            MissingDepartmentCount: 3,
-            TraceabilityGapCount:   9,
-            Issues:                 [],
-            RedFlags:               ["some flag"],
-            SpotCheckSample:        []);
+        var output = new ExtractionOutput([Doc("doc1.pdf")])
+        {
+            ValidationErrors       = 3,
+            ValidationWarnings     = 5,
+            ReconciliationProblems = 1,
+            StaleDocCount          = 2,
+            MojibakeRepairedPages  = 6,
+            DetectedTableCount     = 7,
+            DocsWithoutHeadings    = 4,
+            MissingTitleCount      = 1,
+            MissingVersionCount    = 2,
+            MissingDepartmentCount = 3,
+            TraceabilityGapCount   = 9,
+            Issues                 = [],
+            RedFlags               = ["some flag"],
+            SpotCheckSample        = [],
+        };
         var blobStore    = MockBlobStore(("doc1.pdf", DateTimeOffset.Parse("2024-01-01")));
         var extractor    = MockExtractorWithFixedOutput(output);
         var indexService = MockIndexService([]);

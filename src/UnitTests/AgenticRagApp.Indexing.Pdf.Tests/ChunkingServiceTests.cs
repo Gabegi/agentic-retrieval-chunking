@@ -3,6 +3,8 @@ using Moq;
 using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Indexing.Pdf.Services;
 using AgenticRagApp.Indexing.Pdf.Utils;
+using AgenticRagApp.Common.Models;
+using ExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.ExtractionDocument;
 
 namespace RagApp.UnitTests.Indexing;
 

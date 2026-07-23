@@ -1,5 +1,7 @@
 using AgenticRagApp.Indexing.Pdf.Models;
+using AgenticRagApp.Common.Models;
 using AgenticRagApp.Observability.Reports;
+using ExtractionDocument = AgenticRagApp.Indexing.Pdf.Models.ExtractionDocument;
 
 namespace AgenticRagApp.Indexing.Pdf.Services;
 
