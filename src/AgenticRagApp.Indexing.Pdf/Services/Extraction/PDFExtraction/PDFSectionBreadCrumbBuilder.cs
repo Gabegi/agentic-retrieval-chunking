@@ -104,11 +104,10 @@ public static class PdfSectionBreadCrumbBuilder
         }
 
         if (result.Count == 0)
-            warnings.Add(new ExtractionWarning
-            {
-                DocumentId = blobName,
-                Message    = $"{ordered.Count} bookmark(s) existed but none resolved to a breadcrumb on any page.",
-            });
+            warnings.Add(new ExtractionWarning(
+                RowNumber:  null,
+                DocumentId: blobName,
+                Message:    $"{ordered.Count} bookmark(s) existed but none resolved to a breadcrumb on any page."));
 
         return (result, new PdfStepDiagnostics(warnings, []));
     }
