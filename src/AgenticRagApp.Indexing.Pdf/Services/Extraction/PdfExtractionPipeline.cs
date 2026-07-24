@@ -263,7 +263,8 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
     // is only ever populated by the PdfPig backend, which has been removed; left in place
     // as a report slot for whichever backend picks that reporting back up.
     private async Task WriteReportsAsync(
-        DateTimeOffset runAt, PdfValidationReport report, List<PdfExtractionDiagnostics> diagnostics, CancellationToken ct)
+        DateTimeOffset runAt, PdfValidationReport report, List<PdfExtractionDiagnostics> diagnostics,
+        IReadOnlyList<PDFExtractionResult> fileResults, CancellationToken ct)
     {
         if (!_reportWriter.IsEnabled) return;
 
@@ -273,6 +274,25 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         if (diagnostics.Count > 0)
             await _reportWriter.WriteReportAsync(
                 $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-diagnostics.json", diagnostics, ct);
+
+        // PdfPig facts already read off each file's PdfDocument before it was disposed
+        // (FileSizeBytes/PdfSpecVersion from PdfDocumentValidator, NativeMetadata from
+        // PdfNativeMetadataExtractor) - none of it recomputed here, just the fields that
+        // otherwise get silently dropped (PdfExtractionDocument only carries a subset of
+        // NativeMetadata onward; Producer/Creator/Subject/Keywords never reach any report
+        // today). Useful for corpus-level QA: spec-version/size distribution across a run,
+        // and flagging docs with no Producer/Creator as a non-standard export path.
+        var fileFacts = fileResults.Select(f => new
+        {
+            f.BlobName,
+            f.Ok,
+            f.FileSizeBytes,
+            f.PdfSpecVersion,
+            f.NativeMetadata,
+        }).ToList();
+
+        await _reportWriter.WriteReportAsync(
+            $"{ReportFolder}/{runAt:yyyy/MM/dd}/{runAt:HHmmssfff}-file-facts.json", fileFacts, ct);
     }
 
     private sealed record PdfExtractionFailureReport(
