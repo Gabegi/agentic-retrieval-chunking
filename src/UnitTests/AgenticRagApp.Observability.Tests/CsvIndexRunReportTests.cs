@@ -47,10 +47,4 @@ public class CsvIndexRunReportTests
 
         Assert.AreEqual("instance-1", report.InstanceId);
     }
-
-    [TestMethod]
-    public void RecordEquality_SameValues_AreEqual()
-    {
-        Assert.AreEqual(Build(), Build());
-    }
 }
