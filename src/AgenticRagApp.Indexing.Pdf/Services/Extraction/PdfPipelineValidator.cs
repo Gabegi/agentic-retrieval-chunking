@@ -81,6 +81,14 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         // actually visible in validation-report.json instead of silently discarded.
         issues.AddRange(GetIssuesFromMetadataDiagnostics(fileResults));
 
+        // 3c. PdfDocumentValidator's own soft warnings (old PDF spec version, near the
+        // size/page-count limit, suspiciously-small file) - same "captured but never
+        // folded into a report" gap MetadataDiagnostics had above, now fixed the same way.
+        // Only Warnings here: ValidationDiagnostics.Errors mirrors file.Error, which
+        // SortResultsInto3Buckets above already counted - folding it in too would
+        // double-count the same hard failure.
+        issues.AddRange(GetIssuesFromValidationDiagnostics(fileResults));
+
         // 4. Checks difference between Extraction count and Cleaning count
         var diffExtractionNCleaning = CheckDiffExtractNCleaning(pagesExtraction, cleanResult);
         diffExtractionNCleaning.AddRange(similarNamingProblems);
@@ -228,6 +236,14 @@ public class PdfPipelineValidator : IPdfPipelineValidator
         fileResults
             .SelectMany(f => f.MetadataDiagnostics.Warnings.Select(w => new ValidationIssue(
                 Stage: "Metadata", Severity: "Warning", DocumentId: w.DocumentId ?? f.BlobName, Message: w.Message)))
+            .ToList();
+
+    // See 3c. above - always Severity="Warning", never gates the run.
+    private static List<ValidationIssue> GetIssuesFromValidationDiagnostics(
+        IReadOnlyList<PDFExtractionResult> fileResults) =>
+        fileResults
+            .SelectMany(f => f.ValidationDiagnostics.Warnings.Select(w => new ValidationIssue(
+                Stage: "Validation", Severity: "Warning", DocumentId: w.DocumentId ?? f.BlobName, Message: w.Message)))
             .ToList();
 
     // 4. Every extracted page must land in exactly one Clean bucket, an empty run never
