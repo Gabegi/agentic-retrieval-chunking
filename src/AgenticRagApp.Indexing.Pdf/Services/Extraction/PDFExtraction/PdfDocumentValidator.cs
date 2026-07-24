@@ -48,7 +48,7 @@ public static class PdfDocumentValidator
         pdf = null;
         var warnings = new List<ExtractionWarning>();
 
-        if (!IsPDFSizeOkForDI(pdfBytes, blobName, warnings, out error))
+        if (!IsPDFSizeOkForDI(pdfBytes, blobName, logger, warnings, out error))
         {
             diagnostics = new PdfStepDiagnostics(warnings, [error]);
             return false;
@@ -60,7 +60,7 @@ public static class PdfDocumentValidator
             return false;
         }
 
-        if (!IsPDFPageCountOkForDI(pdf, blobName, warnings, out error))
+        if (!IsPDFPageCountOkForDI(pdf, blobName, logger, warnings, out error))
         {
             pdf.Dispose();
             pdf = null;
