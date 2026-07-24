@@ -52,32 +52,30 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 var createdAt = ResolveDate(info.CreationDate, info.GetCreatedDateTimeOffset(), blobName, "CreationDate", warnings);
                 var modDate   = ResolveDate(info.ModifiedDate, info.GetModifiedDateTimeOffset(), blobName, "ModDate", warnings);
 
+                // Title and Producer get their own message - each explains a real
+                // consequence (Title falls back to a filename-derived value; a missing
+                // Producer suggests a non-standard export pipeline), not just "it's
+                // missing". The rest are plain presence warnings - none of these are
+                // blocking, so there's no reason Author got one before and
+                // Creator/Subject/Keywords didn't; looped so all four are treated the same.
                 if (title is null)
-                    warnings.Add(new ExtractionWarning(
-                        RowNumber:  null,
-                        DocumentId: blobName,
-                        Message:    "No native Title in the PDF's Info dictionary - falls back to a filename-derived title downstream."));
-
-                if (author is null)
-                    warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: "No native Author in the PDF's Info dictionary."));
+                    Warn(warnings, blobName, "No native Title in the PDF's Info dictionary - falls back to a filename-derived title downstream.");
 
                 if (producer is null)
-                    warnings.Add(new ExtractionWarning(
-                        RowNumber:  null,
-                        DocumentId: blobName,
-                        Message:    "No native Producer in the PDF's Info dictionary — possible non-standard export pipeline."));
+                    Warn(warnings, blobName, "No native Producer in the PDF's Info dictionary — possible non-standard export pipeline.");
+
+                foreach (var (fieldName, value) in new (string Name, string? Value)[]
+                {
+                    ("Author", author), ("Creator", creator), ("Subject", subject), ("Keywords", keywords),
+                })
+                    if (value is null)
+                        Warn(warnings, blobName, $"No native {fieldName} in the PDF's Info dictionary.");
 
                 if (bookmarks is { Count: > 0 })
-                    warnings.Add(new ExtractionWarning(
-                        RowNumber:  null,
-                        DocumentId: blobName,
-                        Message:    $"{bookmarks.Count} bookmark(s) found, max outline depth {bookmarks.Max(b => b.Level) + 1}."));
+                    Warn(warnings, blobName, $"{bookmarks.Count} bookmark(s) found, max outline depth {bookmarks.Max(b => b.Level) + 1}.");
 
                 if (pdf.IsEncrypted)
-                    warnings.Add(new ExtractionWarning(
-                        RowNumber:  null,
-                        DocumentId: blobName,
-                        Message:    "PDF carries encryption/permission restrictions (opened successfully - not password-protected)."));
+                    Warn(warnings, blobName, "PDF carries encryption/permission restrictions (opened successfully - not password-protected).");
 
                 var metadata = new DocMetadata(
                     Title:      title,
@@ -114,7 +112,7 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 if (!pdf.TryGetBookmarks(out var bookmarks))
                 {
                     logger.LogInformation("No bookmarks/outline found in '{Blob}'.", blobName);
-                    warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: "No bookmarks/outline found."));
+                    Warn(warnings, blobName, "No bookmarks/outline found.");
                     return Array.Empty<Bookmark>();
                 }
 
@@ -125,7 +123,7 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Bookmark extraction failed for '{Blob}'; continuing without bookmarks.", blobName);
-                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"Bookmark extraction failed: {ex.Message}"));
+                Warn(warnings, blobName, $"Bookmark extraction failed: {ex.Message}");
                 return null;
             }
         }
@@ -149,17 +147,14 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                     .ToList();
 
                 if (fields.Count > 0)
-                    warnings.Add(new ExtractionWarning(
-                        RowNumber:  null,
-                        DocumentId: blobName,
-                        Message:    $"{fields.Count} AcroForm field(s) found."));
+                    Warn(warnings, blobName, $"{fields.Count} AcroForm field(s) found.");
 
                 return fields;
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "AcroForm extraction failed for '{Blob}'; continuing without form fields.", blobName);
-                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"AcroForm extraction failed: {ex.Message}"));
+                Warn(warnings, blobName, $"AcroForm extraction failed: {ex.Message}");
                 return null;
             }
         }
@@ -183,7 +178,7 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 var description = doc.Descendants(RdfNs + "Description").FirstOrDefault();
                 if (description is null)
                 {
-                    warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: "XMP packet found but had no rdf:Description element."));
+                    Warn(warnings, blobName, "XMP packet found but had no rdf:Description element.");
                     return new XmpFacts(null, null, null, null, null, null);
                 }
 
@@ -195,13 +190,13 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                     CreateDate: ParseXmpDate(description.Element(XmpNs + "CreateDate")?.Value),
                     ModifyDate: ParseXmpDate(description.Element(XmpNs + "ModifyDate")?.Value));
 
-                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: "XMP metadata packet found and parsed."));
+                Warn(warnings, blobName, "XMP metadata packet found and parsed.");
                 return facts;
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "XMP metadata extraction failed for '{Blob}'; continuing without XMP.", blobName);
-                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"XMP metadata extraction failed: {ex.Message}"));
+                Warn(warnings, blobName, $"XMP metadata extraction failed: {ex.Message}");
                 return null;
             }
         }
