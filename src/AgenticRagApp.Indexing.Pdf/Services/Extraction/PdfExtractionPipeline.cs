@@ -95,7 +95,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         try
         {
             // 1/ Extract Data from PDFs
-            var (fileResults, lastModifiedByBlob, zenyaByBlob) = await ExtractPdfsFromBlobAsync(sourceIdsToProcess, ct);
+            var (fileResults, lastModifiedByBlob, zenyaByBlob) = await ExtractPdfsFromBlobAsync(sourceEntries, ct);
 
 
             // 2/ Clean pages
@@ -190,15 +190,15 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         }
     }
 
-    // Downloads and extracts every PDF blob in the container that's in sourceIdsToProcess,
-    // up to MaxExtractionParallelism at a time. One file's exception (network blip, an
-    // unexpected extractor bug) shouldn't abort the whole run — it becomes a file-level
-    // ExtractionError instead, same treatment TryOpenAndValidate already gives a corrupt
-    // PDF. Also captures each blob's storage LastModified — that's what downstream
-    // diffing in ExtractionService needs to detect new/updated/removed documents, not
-    // anything parsed out of the PDF's own text.
+    // Downloads and extracts every blob in sourceEntries, up to MaxExtractionParallelism at a
+    // time. One file's exception (network blip, an unexpected extractor bug) shouldn't abort
+    // the whole run — it becomes a file-level ExtractionError instead, same treatment
+    // TryOpenAndValidate already gives a corrupt PDF. sourceEntries already carries each
+    // blob's LastModified/ContentLength/Zenya metadata from ExtractionService's own
+    // pre-extraction listing/diff, so there's no need to list the container again here —
+    // just download and extract whatever's in the set.
     private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified, Dictionary<string, ZenyaMetadata> Zenya)> ExtractPdfsFromBlobAsync(
-        IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct)
+        IReadOnlyDictionary<string, PdfBlobInfo> sourceEntries, CancellationToken ct)
     {
         // Declares thread-safe collections:
         // One to accumulate per-blob extraction results => ConcurrentBag<T> is a thread-safe, unordered collection, multiple threads can call .Add() on it at once without locking
@@ -206,43 +206,16 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         var lastModified = new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
         var zenya        = new ConcurrentDictionary<string, ZenyaMetadata>(StringComparer.OrdinalIgnoreCase);
 
-
-        var blobs = await _blobStore.ListBlobsAsync(_container, ct: ct);
-
-        // Iterates through items in the container, for each one runs the download-and-extract
+        // Iterates through the entries to process, for each one runs the download-and-extract
         await Parallel.ForEachAsync(
-            blobs,
+            sourceEntries,
             new ParallelOptions { MaxDegreeOfParallelism = MaxExtractionParallelism, CancellationToken = ct },
-            async (blob, cancellationToken) =>
+            async (pair, cancellationToken) =>
             {
-                var (name, lastModifiedProp, contentLength, metadata) = blob;
+                var (name, entry) = pair;
 
-                // Skips any blob item whose name doesn't end in .pdf (case-insensitive), so non-PDF files in the container are ignored.
-                if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
-
-                // Already up to date in the index (per ExtractionService's own pre-extraction
-                // blob listing/diff) - skip the paid download + Document Intelligence call entirely.
-                if (!sourceIdsToProcess.Contains(name)) return;
-
-                zenya[name] = ZenyaMetadata.FromBlobMetadata(metadata);
-
-                // we need a lastmodified date to tell new/updated docs apart from unchanged ones.
-                // Recorded here, before the try block below, so failed downloads/extractions
-                // still get an entry. This dictionary only covers sourceIdsToProcess (the
-                // pre-extraction skip already happened above, in ExtractionService), so a
-                // failed file here simply produces no cleaned record and gets retried next
-                // run - its index last_modified_date never advances.
-                if (lastModifiedProp is { } modified)
-                {
-                    lastModified[name] = modified;
-                }
-                else
-                {
-                    _logger.LogWarning(
-                        "'{Blob}' has no LastModified from blob storage — treating as never-modified so it isn't reprocessed every run.",
-                        name);
-                    lastModified[name] = DateTimeOffset.MinValue;
-                }
+                lastModified[name] = entry.LastModified;
+                zenya[name]        = entry.Zenya;
 
                 // Try block covers the download too: a failed download for one blob must not
                 // abort the run - and under Parallel.ForEachAsync an uncaught exception would
@@ -270,7 +243,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Download or extraction failed for '{Blob}'; recording as a file-level error.", name);
-                    results.Add(new PDFExtractionResult(false, name, contentLength ?? 0, null, null, null, null, null, null,
+                    results.Add(new PDFExtractionResult(false, name, entry.ContentLength ?? 0, null, null, null, null, null, null,
                         new ExtractionError(RowNumber: 0, DocumentId: name, Message: ex.Message, Reason: PdfOpenFailureReason.Unknown)));
                 }
             });
