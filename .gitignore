@@ -35,10 +35,10 @@ ScaffoldingReadMe.txt
 *.nupkg
 # NuGet Symbol Packages
 *.snupkg
+.claude
 
 # dotenv environment variables file
 .env
-.claude
 
 # Others
 ~$*
@@ -67,3 +67,5 @@ comparison-output/
 *.sqlite
 /src/.vs
 /.vs
+
+.fake
