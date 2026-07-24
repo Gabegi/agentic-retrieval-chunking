@@ -64,8 +64,12 @@ public class ExtractionService : IExtractionService
             "Extraction diff — source '{Source}': {New} new, {Updated} updated, {Removed} removed, {Skipped} skipped, {Inactive} inactive (of {Total} available)",
             _extractor.Source, newCount, updated, removedSourceIds.Count, skipped, inactive, sourceListing.Count);
 
-        // Only pays for extraction (Document Intelligence, etc.) on what's actually new/updated.
-        var extractionOutput = await _extractor.ExtractDocumentsAsync(sourceIdsToProcess, ct);
+        // Only pays for extraction (Document Intelligence, etc.) on what's actually new/updated -
+        // and hands over the LastModified/ContentLength/Zenya facts already gathered above, so
+        // the orchestrator never has to list the container a second time.
+        var entriesToProcess = sourceIdsToProcess.ToDictionary(
+            id => id, id => sourceListing[id], StringComparer.OrdinalIgnoreCase);
+        var extractionOutput = await _extractor.ExtractDocumentsAsync(entriesToProcess, ct);
 
         var diff = new DiffResult(
             _extractor.Source, extractionOutput, extractionOutput.Docs.ToList(), removedSourceIds, toDeleteChunks, newCount, updated, skipped);
