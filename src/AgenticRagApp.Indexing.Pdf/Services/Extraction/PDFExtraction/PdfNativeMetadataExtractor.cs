@@ -225,6 +225,11 @@ namespace AgenticRagApp.Indexing.Pdf.Services
 
         private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
+        // Every warning in this file is RowNumber=null (RowNumber is a CSV concept, never
+        // set for PDFs) + the same DocumentId - this is the one shape they all share.
+        private static void Warn(List<ExtractionWarning> warnings, string blobName, string message) =>
+            warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: message));
+
         // Resolves one Info-dictionary date field, using PdfPig's own parser (parsed) for
         // the value but the raw string (raw) to tell "field absent" apart from "field
         // present but unparseable" - the library's Nullable<DateTimeOffset> return can't
@@ -234,18 +239,18 @@ namespace AgenticRagApp.Indexing.Pdf.Services
         {
             if (string.IsNullOrEmpty(raw))
             {
-                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"No native {fieldName} in the PDF's Info dictionary."));
+                Warn(warnings, blobName, $"No native {fieldName} in the PDF's Info dictionary.");
                 return null;
             }
 
             if (parsed is null)
             {
-                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"{fieldName} '{raw}' could not be parsed."));
+                Warn(warnings, blobName, $"{fieldName} '{raw}' could not be parsed.");
                 return null;
             }
 
             if (parsed > DateTimeOffset.UtcNow)
-                warnings.Add(new ExtractionWarning(RowNumber: null, DocumentId: blobName, Message: $"{fieldName} '{parsed:O}' is in the future."));
+                Warn(warnings, blobName, $"{fieldName} '{parsed:O}' is in the future.");
 
             return parsed;
         }
