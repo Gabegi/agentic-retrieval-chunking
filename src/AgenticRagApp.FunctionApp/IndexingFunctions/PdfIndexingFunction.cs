@@ -147,7 +147,9 @@ public class PdfIndexingFunction
         // injected-dependency read inside orchestrator code, which Durable Functions'
         // determinism rules warn against. The activity itself is the right place to check.
         await context.CallActivityAsync("SaveIndexReportActivity",
-            BuildReport(context, startedAt, input, extractResults, chunkResults, embedResults, success, error));
+            PdfIndexRunReport.FromResults(
+                context.InstanceId, startedAt, context.CurrentUtcDateTime, input.ForceReindex,
+                extractResults, chunkResults, embedResults, success, error));
 
         if (!success)
             throw new InvalidOperationException(error ?? "Indexing pipeline failed");
