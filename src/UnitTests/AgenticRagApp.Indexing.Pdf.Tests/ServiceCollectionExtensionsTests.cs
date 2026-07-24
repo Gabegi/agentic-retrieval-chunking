@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using AgenticRagApp.Infrastructure.Configuration;
 using AgenticRagApp.Indexing.Pdf.Services;
 
-namespace RagApp.UnitTests.CsvExtraction;
+namespace RagApp.UnitTests.PdfExtraction;
 
 [TestClass]
 public class ServiceCollectionExtensionsTests
