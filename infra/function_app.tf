@@ -1,60 +1,45 @@
-# function_app.tf
-# Windows Function App (zip deploy, Elastic Premium EP1) for the protocols indexer
+# ---------------------------------------------------------------------------
+# Windows Function App (dotnet-isolated, EP1 Premium) - durable indexing
+# pipeline. Reuses the storage account, App Insights, Search, and Foundry
+# resources already defined elsewhere rather than provisioning its own.
+# VNet-integrated into the shared app subnet (outbound) with a private
+# endpoint (inbound), matching the hub-firewall-routed architecture.
+# ---------------------------------------------------------------------------
 
-resource "azurerm_storage_account" "func_indexer" {
-  name                     = "stprotocolindexerfn"
-  resource_group_name      = azurerm_resource_group.main.name
-  location                 = azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-
-  tags = {
-    project     = "agentic-rag-chunking"
-    environment = "dev"
-  }
-}
-
-
-resource "azurerm_application_insights" "func_indexer" {
-  name                = "appi-protocols-indexer"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  workspace_id        = azurerm_log_analytics_workspace.main.id
-  application_type    = "web"
-
-  tags = {
-    project     = "agentic-rag-chunking"
-    environment = "dev"
-  }
-}
-
-resource "azurerm_service_plan" "func_indexer" {
-  name                = "asp-protocols-indexer"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
+resource "azurerm_service_plan" "func" {
+  name                = "cor-plan-func-cap-${local.env}-${local.region}-${local.instance}"
+  resource_group_name = data.azurerm_resource_group.data.name
+  location            = var.location
   os_type             = "Windows"
-  # EP1 (Elastic Premium) instead of P1v3 — the subscription has 0 quota for
-  # P1v3 VMs in eastus, and App Service Plan quota isn't self-service
-  # checkable/requestable (no az CLI/API path found, unlike OpenAI TPM quota).
-  # EP1 draws from a different compute family than P1v3, so it may not hit the
-  # same wall, and unlike Consumption (Y1) it has no function timeout cap and
-  # supports always_on, so it doesn't trade away long-running indexing runs.
-  # Swap back to "P1v3" once P1v3 quota is granted, if preferred.
+  # Elastic Premium, not P1v3 - matches the earlier decision to run the
+  # durable indexing pipeline on a Premium (Elastic) plan.
   sku_name = "EP1"
 
-  tags = {
-    project     = "agentic-rag-chunking"
-    environment = "dev"
-  }
+  tags = local.common_tags
 }
 
-resource "azurerm_windows_function_app" "protocols_indexer" {
-  name                          = "func-protocols-indexer"
-  resource_group_name           = azurerm_resource_group.main.name
-  location                      = azurerm_resource_group.main.location
-  service_plan_id               = azurerm_service_plan.func_indexer.id
-  storage_account_name          = azurerm_storage_account.func_indexer.name
+resource "azurerm_windows_function_app" "indexer" {
+  name                          = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
+  resource_group_name           = data.azurerm_resource_group.data.name
+  location                      = var.location
+  service_plan_id               = azurerm_service_plan.func.id
+  storage_account_name          = azurerm_storage_account.func.name
   storage_uses_managed_identity = true
+  virtual_network_subnet_id     = azurerm_subnet.workload["func"].id
+  # Deny-by-default public access (no ip_restriction/scm_ip_restriction rules
+  # managed here), so the private endpoint stays the only stable path in.
+  # The app-deploy pipeline runs on a Microsoft-hosted agent with no VNet
+  # access, so it opens a scoped Allow rule on the SCM site for its own
+  # runner IP via `az functionapp config access-restriction add`
+  # immediately before the zip deploy, then removes it again immediately
+  # after - see 4-deploy-application.yml.
+  public_network_access_enabled = true
+  # storage_uses_managed_identity only covers AzureWebJobsStorage/Durable
+  # Functions (blob/queue/table). The EP1 plan's content share still needs a
+  # key-based connection string - Azure Files/SMB has no managed-identity
+  # auth path - plus WEBSITE_CONTENTOVERVNET so the platform reaches it via
+  # the private endpoint (azurerm_private_endpoint.stfunc_file in storage.tf)
+  # instead of the public endpoint.
 
   identity {
     type = "SystemAssigned"
@@ -65,8 +50,11 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
       dotnet_version              = "v10.0"
       use_dotnet_isolated_runtime = true
     }
-    always_on                              = true
-    application_insights_connection_string = azurerm_application_insights.func_indexer.connection_string
+    always_on                         = true
+    vnet_route_all_enabled            = true
+    ip_restriction_default_action     = "Deny"
+    scm_ip_restriction_default_action = "Deny"
+
     cors {
       allowed_origins = ["https://portal.azure.com"]
     }
@@ -74,61 +62,82 @@ resource "azurerm_windows_function_app" "protocols_indexer" {
 
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"              = "dotnet-isolated"
-    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.func_indexer.connection_string
-    # Durable Functions managed-identity auth — no connection string needed
-    "AzureWebJobsStorage__accountName" = azurerm_storage_account.func_indexer.name
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = data.azurerm_application_insights.main.connection_string
+    # Durable Functions managed-identity auth - no connection string needed
+    "AzureWebJobsStorage__accountName" = azurerm_storage_account.func.name
     "AzureWebJobsStorage__credential"  = "managedidentity"
-    # Content share: EP1 (unlike Consumption) still needs a key-based
-    # connection string here — Azure Files/SMB has no managed-identity auth
-    # path, even though AzureWebJobsStorage itself is managed-identity above.
-    "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING" = azurerm_storage_account.func_indexer.primary_connection_string
-    "WEBSITE_CONTENTSHARE"                     = azurerm_storage_share.func_indexer.name
-    "ProtocolsStorage__blobServiceUri"          = azurerm_storage_account.documents.primary_blob_endpoint
-    "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.documents.primary_blob_endpoint
+    # Content share: key-based (see note above azurerm_windows_function_app.indexer)
+    "WEBSITE_CONTENTOVERVNET"                  = "1"
+    "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING" = azurerm_storage_account.func.primary_connection_string
+    "WEBSITE_CONTENTSHARE"                     = azurerm_storage_share.func_content.name
+    # WEBSITE_CONTENTOVERVNET alone doesn't make the site's own DNS resolution
+    # (used by Kudu to resolve the content share's *.file.core.windows.net)
+    # honor the VNet-linked private DNS zone - that needs this resolver
+    # explicitly, or it falls back to public DNS and hits the storage
+    # account's public endpoint, which public_network_access_enabled = false
+    # on azurerm_storage_account.func then rejects.
+    "ProtocolsStorage__blobServiceUri" = azurerm_storage_account.data.primary_blob_endpoint
+    "STORAGE_ACCOUNT_URL"              = azurerm_storage_account.data.primary_blob_endpoint
     "SEARCH_ENDPOINT"                  = "https://${azurerm_search_service.main.name}.search.windows.net"
-    "OPENAI_ENDPOINT"                  = "https://${azurerm_cognitive_account.openai.custom_subdomain_name}.openai.azure.com/"
+    "OPENAI_ENDPOINT"                  = data.azurerm_cognitive_account.foundry.endpoint
     "OPENAI_EMBEDDING_DEPLOYMENT"      = var.openai_embedding_deployment
     "OPENAI_GPT_DEPLOYMENT"            = var.openai_gpt_deployment
     "OPENAI_GPT_MODEL_NAME"            = var.openai_gpt_model_name
     "OPENAI_EXTRACTION_DEPLOYMENT"     = var.openai_extraction_deployment
-    # Same account/endpoint the runner/developer role assignment in
-    # document_intelligence.tf targets - setting this is what flips
-    # DocumentIntelligenceExtractor from unregistered to active in program.cs
-    # (config.DocumentIntelligenceEndpoint gate).
-    "DOCUMENT_INTELLIGENCE_ENDPOINT"   = azurerm_cognitive_account.document_intelligence.endpoint
-    "SEARCH_INDEX_NAME"                = var.search_index_name
-    "KNOWLEDGE_SOURCE_NAME"            = var.knowledge_source_name
-    "KNOWLEDGE_BASE_NAME"              = var.knowledge_base_name
+    # Same account/endpoint as OPENAI_ENDPOINT above (document_intelligence.tf) -
+    # setting this is what flips DocumentIntelligenceExtractor from unregistered
+    # to active in program.cs (config.DocumentIntelligenceEndpoint gate).
+    "DOCUMENT_INTELLIGENCE_ENDPOINT" = data.azurerm_cognitive_account.foundry.endpoint
+    "SEARCH_INDEX_NAME"              = var.search_index_name
+    "KNOWLEDGE_SOURCE_NAME"          = var.knowledge_source_name
+    "KNOWLEDGE_BASE_NAME"            = var.knowledge_base_name
   }
 
-  tags = {
-    project     = "agentic-rag-chunking"
-    environment = "dev"
-  }
-
-  lifecycle {
-    ignore_changes = [tags]
-  }
+  tags = local.common_tags
 }
 
-#  needed for any EP1 (Elastic Premium) Windows Function App's content share
-resource "azurerm_storage_share" "func_indexer" {
-  name               = "func-protocols-indexer"
-  storage_account_id = azurerm_storage_account.func_indexer.id
+#  need this on any EP1 Function App 
+resource "azurerm_storage_share" "func_content" {
+  name               = "cor-func-idx-cap-${local.env}-${local.region}-${local.instance}"
+  storage_account_id = azurerm_storage_account.func.id
   quota              = 100
 }
 
-# Temporary blob storage for large Durable payloads (extracted docs + chunks between activities)
+# Temporary blob storage for large Durable payloads (extracted docs + chunks
+# between activities) - lives on the function's own storage, not the shared
+# data storage account.
 resource "azurerm_storage_container" "indexing_pipeline" {
   name                  = "indexing-pipeline"
-  storage_account_id    = azurerm_storage_account.func_indexer.id
+  storage_account_id    = azurerm_storage_account.func.id
   container_access_type = "private"
+}
+
+resource "azurerm_private_endpoint" "func" {
+  name                          = "cor-pep-func-cap-${local.env}-${local.region}-${local.instance}"
+  location                      = var.location
+  resource_group_name           = data.azurerm_resource_group.data.name
+  subnet_id                     = data.azurerm_subnet.pe.id
+  custom_network_interface_name = "cor-pep-func-cap-${local.env}-${local.region}-${local.instance}_nic"
+
+  private_service_connection {
+    name                           = "cor-pep-func-cap-${local.env}-${local.region}-${local.instance}-psc"
+    private_connection_resource_id = azurerm_windows_function_app.indexer.id
+    subresource_names              = ["sites"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [data.azurerm_private_dns_zone.azurewebsites.id]
+  }
+
+  tags = local.common_tags
 }
 
 # Payloads here are intermediate/disposable - expire them rather than let
 # them accumulate indefinitely on an account with no other cleanup.
-resource "azurerm_storage_management_policy" "func_indexer" {
-  storage_account_id = azurerm_storage_account.func_indexer.id
+resource "azurerm_storage_management_policy" "func" {
+  storage_account_id = azurerm_storage_account.func.id
 
   rule {
     name    = "expire-indexing-pipeline"
@@ -150,28 +159,42 @@ resource "azurerm_storage_management_policy" "func_indexer" {
   }
 }
 
-# ── Role assignments ──────────────────────────────────────────────────────────
+# --- Role assignments -------------------------------------------------------
 # All scoped to the same principal (the indexer's identity) and looped via
 # for_each rather than one resource block each - only scope/role vary.
 
 locals {
-  func_indexer_role_assignments = {
+  func_role_assignments = {
+    # Account-wide (not container-scoped): required for AzureWebJobsStorage /
+    # Durable Functions task hub state (storage_uses_managed_identity = true
+    # above) - the Functions host creates and manages its own internal
+    # containers at runtime, and Microsoft's identity-based-connection docs
+    # specify Storage Blob Data Owner at the account level for this, not a
+    # narrower scope. indexing_pipeline_contributor below is already covered
+    # by this grant; it's additive, not a reduction, and only meaningful if
+    # this one is ever narrowed.
     storage_owner = {
-      scope = azurerm_storage_account.func_indexer.id
+      scope = azurerm_storage_account.func.id
       role  = "Storage Blob Data Owner"
+    }
+    indexing_pipeline_contributor = {
+      scope = azurerm_storage_container.indexing_pipeline.id
+      role  = "Storage Blob Data Contributor"
     }
     # Durable Functions store orchestration state in queues and tables
     storage_queue_contributor = {
-      scope = azurerm_storage_account.func_indexer.id
+      scope = azurerm_storage_account.func.id
       role  = "Storage Queue Data Contributor"
     }
     storage_table_contributor = {
-      scope = azurerm_storage_account.func_indexer.id
+      scope = azurerm_storage_account.func.id
       role  = "Storage Table Data Contributor"
     }
-    documents_blob_reader = {
-      scope = azurerm_storage_account.documents.id
-      role  = "Storage Blob Data Reader"
+    # Reads source documents, writes chunks/reports/state back to the data
+    # storage account.
+    data_storage_contributor = {
+      scope = azurerm_storage_account.data.id
+      role  = "Storage Blob Data Contributor"
     }
     search_index_contributor = {
       scope = azurerm_search_service.main.id
@@ -181,20 +204,21 @@ locals {
       scope = azurerm_search_service.main.id
       role  = "Search Service Contributor"
     }
+    # Scoped to the account, not the project: AzureOpenAIClient calls the
+    # account's own endpoint directly (config.OpenAiEndpoint =
+    # data.azurerm_cognitive_account.foundry.endpoint), with no project
+    # routing in the request, so a role granted only on the project
+    # sub-resource wouldn't authorize it (RBAC only inherits downward).
     openai_user = {
-      scope = azurerm_cognitive_account.openai.id
+      scope = data.azurerm_cognitive_account.foundry.id
       role  = "Cognitive Services OpenAI User"
-    }
-    document_intelligence_user = {
-      scope = azurerm_cognitive_account.document_intelligence.id
-      role  = "Cognitive Services User"
     }
   }
 }
 
-resource "azurerm_role_assignment" "func_indexer" {
-  for_each             = local.func_indexer_role_assignments
+resource "azurerm_role_assignment" "func" {
+  for_each             = local.func_role_assignments
   scope                = each.value.scope
   role_definition_name = each.value.role
-  principal_id         = azurerm_windows_function_app.protocols_indexer.identity[0].principal_id
+  principal_id         = azurerm_windows_function_app.indexer.identity[0].principal_id
 }

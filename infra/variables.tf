@@ -1,63 +1,68 @@
-variable "subscription_id" {
-  description = "Azure subscription ID to deploy resources into"
+variable "environment" {
   type        = string
+  description = "Environment name (development, production) - matches 1-infra-deploy.yml's envName. See naming.tf's env_short for the separate dev/prd shorthand baked into resource names."
+}
+
+variable "location" {
+  type        = string
+  description = "Azure region"
+}
+
+variable "project" {
+  type        = string
+  description = "Project name used in resource naming"
+}
+
+variable "tags" {
+  type        = map(string)
+  description = "Tags applied to all resources"
+  default     = {}
 }
 
 variable "openai_embedding_deployment" {
-  description = "Name of the Azure OpenAI embedding deployment"
   type        = string
-  default     = "text-embedding-3-large"
+  description = "Deployment name for the text-embedding-3-large model on the Foundry AI Services account"
+  default     = "embedding-3-large"
 }
 
 variable "openai_gpt_deployment" {
-  description = "Name of the Azure OpenAI GPT deployment"
   type        = string
-  default     = "querying"
-}
-
-variable "openai_gpt_model_name" {
-  description = "Model name for the Azure OpenAI GPT deployment"
-  type        = string
-  default     = "gpt-4.1"
+  description = "Deployment name for the gpt-4.1 model used by the query API"
+  default     = "gpt-4.1-query"
 }
 
 variable "openai_extraction_deployment" {
-  description = "Name of the Azure OpenAI gpt-4.1 deployment used for protocol field extraction"
   type        = string
-  default     = "gpt-41-extraction"
+  description = "Deployment name for the gpt-4.1 model used by the indexing/extraction pipeline"
+  default     = "gpt-4.1-extraction"
 }
 
 variable "openai_eval_deployment" {
-  description = "Name of the Azure OpenAI gpt-4o deployment used as the LLM judge in evaluation tests"
   type        = string
-  default     = "gpt-5-eval"
+  description = "Deployment name for the gpt-4o model used for evaluation"
+  default     = "gpt-4o-eval"
+}
+
+variable "openai_gpt_model_name" {
+  type        = string
+  description = "Human-readable model family name for the query/extraction GPT deployment (distinct from the deployment name)"
+  default     = "gpt-5.4"
 }
 
 variable "search_index_name" {
-  description = "Name of the Azure AI Search index"
   type        = string
-  default     = "protocols"
+  description = "Name of the Azure AI Search index used by the indexing/query pipeline"
+  default     = "protocols-index"
 }
 
 variable "knowledge_source_name" {
-  description = "Name of the AI Search knowledge source"
   type        = string
+  description = "Name of the Azure AI Search knowledge source"
   default     = "protocols-knowledge-source"
 }
 
 variable "knowledge_base_name" {
-  description = "Name of the AI Search knowledge base"
   type        = string
+  description = "Name of the Azure AI Search knowledge base"
   default     = "protocols-knowledge-base"
-}
-
-variable "admin_object_id" {
-  description = "Object ID of the admin user account for portal access to the search service"
-  type        = string
-}
-
-variable "developer_object_id" {
-  description = "Object ID of the developer's user account for local dev blob and Document Intelligence access"
-  type        = string
-  default     = ""
 }
