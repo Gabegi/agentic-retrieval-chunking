@@ -167,8 +167,9 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
 
                 try
                 {
-                    // must always run
-                    await WriteReportsAsync(runAt, validation, diagnostics, CancellationToken.None);
+                    // must always run - fileResults is never null here: it's assigned in
+                    // step 1, before validation (step 4) can be assigned at all.
+                    await WriteReportsAsync(runAt, validation, diagnostics, fileResults!, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
