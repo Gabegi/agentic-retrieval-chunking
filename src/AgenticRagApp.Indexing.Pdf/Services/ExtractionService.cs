@@ -79,22 +79,27 @@ public class ExtractionService : IExtractionService
         return (diff.ToProcess, BuildStats(diff));
     }
 
-    private sealed record BlobListingEntry(DateTimeOffset LastModified, ZenyaMetadata Zenya);
-
-    // Cheap listing of every PDF blob's name + LastModified + Zenya metadata only — no
-    // download, no Document Intelligence call. This is the "source" side of the diff in
-    // ExtractAsync; PdfExtractionOrchestrator's ExtractDocumentsAsync does the expensive
-    // download + extraction, only for whatever CompareSourceListingToIndex decides is
-    // actually needed.
-    private async Task<Dictionary<string, BlobListingEntry>> ListDocumentsInBlobAsync(CancellationToken ct)
+    // Cheap listing of every PDF blob's name + LastModified + ContentLength + Zenya metadata
+    // only — no download, no Document Intelligence call. This is the "source" side of the
+    // diff in ExtractAsync; PdfExtractionOrchestrator's ExtractDocumentsAsync does the
+    // expensive download + extraction, only for whatever CompareSourceListingToIndex decides
+    // is actually needed, using this same data (see entriesToProcess above) instead of
+    // listing the container a second time.
+    private async Task<Dictionary<string, PdfBlobInfo>> ListDocumentsInBlobAsync(CancellationToken ct)
     {
-        var result = new Dictionary<string, BlobListingEntry>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, PdfBlobInfo>(StringComparer.OrdinalIgnoreCase);
         var blobs  = await _blobStore.ListBlobsAsync(_container, ct: ct);
 
-        foreach (var (name, lastModified, _, metadata) in blobs)
+        foreach (var (name, lastModified, contentLength, metadata) in blobs)
         {
             if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
-            result[name] = new BlobListingEntry(lastModified ?? DateTimeOffset.MinValue, ZenyaMetadata.FromBlobMetadata(metadata));
+
+            if (lastModified is null)
+                _logger.LogWarning(
+                    "'{Blob}' has no LastModified from blob storage — treating as never-modified so it isn't reprocessed every run.",
+                    name);
+
+            result[name] = new PdfBlobInfo(lastModified ?? DateTimeOffset.MinValue, contentLength, ZenyaMetadata.FromBlobMetadata(metadata));
         }
 
         return result;
@@ -114,9 +119,9 @@ public class ExtractionService : IExtractionService
     // mistaken for one withdrawn from the source.
     private static (HashSet<string> SourceIdsToProcess, List<string> RemovedSourceIds, List<string> ToDeleteChunks,
         int NewCount, int Updated, int Skipped, int Inactive) CompareSourceListingToIndex(
-            IReadOnlyDictionary<string, BlobListingEntry> sourceListing,
-            Dictionary<string, DateTimeOffset>            indexedDates,
-            bool                                          forceReindex)
+            IReadOnlyDictionary<string, PdfBlobInfo> sourceListing,
+            Dictionary<string, DateTimeOffset>       indexedDates,
+            bool                                     forceReindex)
     {
         var sourceIdsToProcess = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var removedSourceIds   = new List<string>();
