@@ -78,7 +78,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
     }
 
     public async Task<PdfExtractionOutput> ExtractDocumentsAsync(
-        IReadOnlyDictionary<string, PdfBlobInfo> sourceEntries, CancellationToken ct = default)
+        IReadOnlyDictionary<string, PdfBlobInfo> sourceIdsToProcess, CancellationToken ct = default)
     {
         var runAt = DateTimeOffset.UtcNow;
 
@@ -95,7 +95,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         try
         {
             // 1/ Extract Data from PDFs
-            var (fileResults, lastModifiedByBlob, zenyaByBlob) = await ExtractPdfsFromBlobAsync(sourceEntries, ct);
+            var (fileResults, lastModifiedByBlob, zenyaByBlob) = await ExtractPdfsFromBlobAsync(sourceIdsToProcess, ct);
 
 
             // 2/ Clean pages
@@ -190,15 +190,15 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         }
     }
 
-    // Downloads and extracts every blob in sourceEntries, up to MaxExtractionParallelism at a
+    // Downloads and extracts every blob in sourceIdsToProcess, up to MaxExtractionParallelism at a
     // time. One file's exception (network blip, an unexpected extractor bug) shouldn't abort
     // the whole run — it becomes a file-level ExtractionError instead, same treatment
-    // TryOpenAndValidate already gives a corrupt PDF. sourceEntries already carries each
+    // TryOpenAndValidate already gives a corrupt PDF. sourceIdsToProcess already carries each
     // blob's LastModified/ContentLength/Zenya metadata from ExtractionService's own
     // pre-extraction listing/diff, so there's no need to list the container again here —
     // just download and extract whatever's in the set.
     private async Task<(List<PDFExtractionResult> Results, Dictionary<string, DateTimeOffset> LastModified, Dictionary<string, ZenyaMetadata> Zenya)> ExtractPdfsFromBlobAsync(
-        IReadOnlyDictionary<string, PdfBlobInfo> sourceEntries, CancellationToken ct)
+        IReadOnlyDictionary<string, PdfBlobInfo> sourceIdsToProcess, CancellationToken ct)
     {
         // Declares thread-safe collections:
         // One to accumulate per-blob extraction results => ConcurrentBag<T> is a thread-safe, unordered collection, multiple threads can call .Add() on it at once without locking
@@ -208,7 +208,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
 
         // Iterates through the entries to process, for each one runs the download-and-extract
         await Parallel.ForEachAsync(
-            sourceEntries,
+            sourceIdsToProcess,
             new ParallelOptions { MaxDegreeOfParallelism = MaxExtractionParallelism, CancellationToken = ct },
             async (pair, cancellationToken) =>
             {
