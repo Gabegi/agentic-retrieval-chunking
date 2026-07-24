@@ -189,6 +189,33 @@ public class PdfDocumentValidatorTests
     }
 
     [TestMethod]
+    public void TryOpenAndValidate_CalledDirectly_ValidPdf_ReturnsTrueAndOpensDocument()
+    {
+        var bytes    = BuildMinimalPdf(pageCount: 2);
+        var warnings = new List<ExtractionWarning>();
+
+        var ok = PdfDocumentValidator.TryOpenAndValidate(bytes, "doc.pdf", NullLogger.Instance, warnings, out var pdf, out var error);
+
+        Assert.IsTrue(ok);
+        Assert.IsNull(error);
+        Assert.AreEqual(2, pdf!.NumberOfPages);
+        pdf.Dispose();
+    }
+
+    [TestMethod]
+    public void TryOpenAndValidate_CalledDirectly_MalformedBytes_ReturnsFalseWithMalformedReason()
+    {
+        var bytes    = Encoding.ASCII.GetBytes("this is not a pdf at all, just plain text padding to be a reasonable size 0123456789");
+        var warnings = new List<ExtractionWarning>();
+
+        var ok = PdfDocumentValidator.TryOpenAndValidate(bytes, "doc.pdf", NullLogger.Instance, warnings, out var pdf, out var error);
+
+        Assert.IsFalse(ok);
+        Assert.IsNull(pdf);
+        Assert.IsNotNull(error);
+    }
+
+    [TestMethod]
     public void GarbageBytes_FailsToOpen_MirroredIntoDiagnosticsErrors()
     {
         var bytes = Encoding.ASCII.GetBytes("this is not a pdf at all, just plain text padding to be a reasonable size 0123456789");
