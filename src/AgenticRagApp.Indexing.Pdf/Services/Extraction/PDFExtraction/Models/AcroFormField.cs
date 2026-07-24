@@ -16,6 +16,11 @@ namespace AgenticRagApp.Indexing.Pdf.Models;
 // - FieldType is PdfPig's own AcroFieldType.ToString() (Text/CheckBox/RadioButton/
 //   ListBox/ComboBox/PushButton/Signature) - kept as a string here so this model
 //   doesn't need to reference PdfPig's own enum type.
+// - Value is a normalized text representation of whatever the field-type-specific
+//   subclass actually carries - AcroTextField.Value as-is; a checkbox/radio button as
+//   its CurrentValue when checked/selected, else null; a list/combo box as its
+//   SelectedOptions joined with "; ". Push buttons and signature fields have no
+//   value-bearing subclass data, so this is always null for those two.
 public sealed record AcroFormField(
     string? PartialName, string? AlternateName, string? MappingName,
-    string FieldType, uint FieldFlags, int? PageNumber);
+    string FieldType, uint FieldFlags, int? PageNumber, string? Value);

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using AgenticRagApp.Indexing.Pdf.Models;
 using AgenticRagApp.Common.Models;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.AcroForms.Fields;
 using UglyToad.PdfPig.Outline;
 
 namespace AgenticRagApp.Indexing.Pdf.Services
@@ -32,10 +33,11 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             {
                 var warnings = new List<ExtractionWarning>();
 
-                var info       = pdf.Information;
-                var bookmarks  = TryGetBookmarks(pdf, blobName, logger, warnings);
-                var formFields = TryGetFormFields(pdf, blobName, logger, warnings);
-                var xmp        = GetXmpMetadata(pdf, blobName, logger, warnings);
+                var info          = pdf.Information;
+                var bookmarks     = TryGetBookmarks(pdf, blobName, logger, warnings);
+                var formFields    = TryGetFormFields(pdf, blobName, logger, warnings);
+                var embeddedFiles = TryGetEmbeddedFiles(pdf, blobName, logger, warnings);
+                var xmp           = GetXmpMetadata(pdf, blobName, logger, warnings);
 
                 var title     = string.IsNullOrWhiteSpace(info.Title)     ? null : info.Title;
                 var author    = string.IsNullOrWhiteSpace(info.Author)    ? null : info.Author;
@@ -88,9 +90,10 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                     Keywords:   keywords,
                     PageCount:  pdf.NumberOfPages,
                     Bookmarks:  bookmarks,
-                    IsEncrypted: pdf.IsEncrypted,
-                    FormFields: formFields,
-                    Xmp:        xmp);
+                    IsEncrypted:    pdf.IsEncrypted,
+                    FormFields:     formFields,
+                    EmbeddedFiles:  embeddedFiles,
+                    Xmp:            xmp);
 
                 logger.LogDebug(
                     "PdfNativeMetadataExtractor: '{Blob}' — {Pages} page(s), title={Title}, author={Author}, created={Created}, modified={Modified}, producer={Producer}",
@@ -143,7 +146,7 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                 var fields = form.Fields
                     .Select(f => new AcroFormField(
                         f.Information.PartialName, f.Information.AlternateName, f.Information.MappingName,
-                        f.FieldType.ToString(), f.FieldFlags, f.PageNumber))
+                        f.FieldType.ToString(), f.FieldFlags, f.PageNumber, GetFieldValue(f)))
                     .ToList();
 
                 if (fields.Count > 0)
@@ -155,6 +158,50 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             {
                 logger.LogWarning(ex, "AcroForm extraction failed for '{Blob}'; continuing without form fields.", blobName);
                 Warn(warnings, blobName, $"AcroForm extraction failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        // The entered/selected value, if any - lives on the field-type-specific
+        // subclass, not AcroFieldBase itself, so this has to type-switch. Checkbox/
+        // radio only report their CurrentValue when actually checked/selected (an
+        // unchecked box has a CurrentValue too - the "off" state name - which isn't
+        // meaningful as "the value"). Push buttons and signature fields carry no
+        // value-bearing data at all.
+        private static string? GetFieldValue(AcroFieldBase field) => field switch
+        {
+            AcroTextField      text                     => NullIfEmpty(text.Value),
+            AcroCheckboxField  { IsChecked: true }    cb => cb.CurrentValue?.Data,
+            AcroRadioButtonField { IsSelected: true } rb => rb.CurrentValue?.Data,
+            AcroListBoxField   list                      => list.SelectedOptions.Count > 0 ? string.Join("; ", list.SelectedOptions) : null,
+            AcroComboBoxField  combo                     => combo.SelectedOptions.Count > 0 ? string.Join("; ", combo.SelectedOptions) : null,
+            _                                             => null,
+        };
+
+        // Embedded file attachments - PdfPig only, best-effort, same pattern as
+        // TryGetBookmarks/TryGetFormFields. Name/FileSpecification only - never the
+        // attachment's own bytes, which don't belong in a metadata report.
+        private static IReadOnlyList<EmbeddedFileInfo>? TryGetEmbeddedFiles(
+            PdfDocument pdf, string blobName, ILogger logger, List<ExtractionWarning> warnings)
+        {
+            try
+            {
+                if (!pdf.Advanced.TryGetEmbeddedFiles(out var files))
+                    return Array.Empty<EmbeddedFileInfo>();
+
+                var result = files
+                    .Select(f => new EmbeddedFileInfo(f.Name, f.FileSpecification))
+                    .ToList();
+
+                if (result.Count > 0)
+                    Warn(warnings, blobName, $"{result.Count} embedded file attachment(s) found.");
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Embedded-file extraction failed for '{Blob}'; continuing without attachments.", blobName);
+                Warn(warnings, blobName, $"Embedded-file extraction failed: {ex.Message}");
                 return null;
             }
         }
