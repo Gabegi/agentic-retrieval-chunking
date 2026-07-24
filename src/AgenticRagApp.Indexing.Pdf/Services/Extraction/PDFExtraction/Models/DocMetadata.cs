@@ -17,10 +17,4 @@ public record DocMetadata(
     string? Title, string? Author, DateTimeOffset? CreatedAt, DateTimeOffset? ModDate,
     string? Producer, string? Creator, string? Subject, string? Keywords,
     int PageCount, IReadOnlyList<Bookmark>? Bookmarks,
-    bool IsEncrypted, IReadOnlyList<AcroFormField>? FormFields,
-    // Form-level (not per-field): PdfPig's AcroForm.SignatureFlags has the
-    // SignaturesExist bit set when the form contains at least one digital-signature
-    // field - null when the PDF has no AcroForm at all (FormFields is also empty in
-    // that case), distinct from false (has a form, just no signature fields).
-    bool? FormHasSignatureFields,
-    XmpFacts? Xmp);
+    bool IsEncrypted, IReadOnlyList<AcroFormField>? FormFields, XmpFacts? Xmp);

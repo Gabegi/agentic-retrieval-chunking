@@ -32,10 +32,10 @@ namespace AgenticRagApp.Indexing.Pdf.Services
             {
                 var warnings = new List<ExtractionWarning>();
 
-                var info      = pdf.Information;
-                var bookmarks = TryGetBookmarks(pdf, blobName, logger, warnings);
+                var info       = pdf.Information;
+                var bookmarks  = TryGetBookmarks(pdf, blobName, logger, warnings);
                 var formFields = TryGetFormFields(pdf, blobName, logger, warnings);
-                var xmp       = GetXmpMetadata(pdf, blobName, logger, warnings);
+                var xmp        = GetXmpMetadata(pdf, blobName, logger, warnings);
 
                 var title     = string.IsNullOrWhiteSpace(info.Title)     ? null : info.Title;
                 var author    = string.IsNullOrWhiteSpace(info.Author)    ? null : info.Author;
@@ -143,7 +143,9 @@ namespace AgenticRagApp.Indexing.Pdf.Services
                     return Array.Empty<AcroFormField>();
 
                 var fields = form.Fields
-                    .Select(f => new AcroFormField(f.Information.PartialName, f.FieldType.ToString(), f.PageNumber))
+                    .Select(f => new AcroFormField(
+                        f.Information.PartialName, f.Information.AlternateName, f.Information.MappingName,
+                        f.FieldType.ToString(), f.FieldFlags, f.PageNumber))
                     .ToList();
 
                 if (fields.Count > 0)
