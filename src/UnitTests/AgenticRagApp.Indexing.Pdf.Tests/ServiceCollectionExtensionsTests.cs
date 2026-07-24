@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using AgenticRagApp.Infrastructure.Configuration;
+using AgenticRagApp.Indexing.Pdf;
 using AgenticRagApp.Indexing.Pdf.Services;
 
 namespace RagApp.UnitTests.PdfExtraction;

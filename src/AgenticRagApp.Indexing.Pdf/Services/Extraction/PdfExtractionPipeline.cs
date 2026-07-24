@@ -90,12 +90,15 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
         List<PdfExtractionDiagnostics> diagnostics = new();
         PdfValidationReport?           validation  = null;
         PdfCleanResult?                cleanResult = null;
+        List<PDFExtractionResult>?     fileResults = null;
         Exception?                     failure     = null;
 
         try
         {
             // 1/ Extract Data from PDFs
-            var (fileResults, lastModifiedByBlob, zenyaByBlob) = await ExtractPdfsFromBlobAsync(sourceIdsToProcess, ct);
+            Dictionary<string, DateTimeOffset> lastModifiedByBlob;
+            Dictionary<string, ZenyaMetadata>  zenyaByBlob;
+            (fileResults, lastModifiedByBlob, zenyaByBlob) = await ExtractPdfsFromBlobAsync(sourceIdsToProcess, ct);
 
 
             // 2/ Clean pages

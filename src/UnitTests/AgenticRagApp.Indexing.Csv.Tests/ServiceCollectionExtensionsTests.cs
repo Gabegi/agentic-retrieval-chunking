@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using AgenticRagApp.Indexing.Csv;
 using AgenticRagApp.Indexing.Csv.Services;
 
 namespace RagApp.UnitTests.CsvExtraction;

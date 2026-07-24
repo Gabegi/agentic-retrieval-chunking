@@ -1,6 +1,7 @@
 using Azure.AI.DocumentIntelligence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using AgenticRagApp.Infrastructure;
 using AgenticRagApp.Infrastructure.Configuration;
 
 namespace RagApp.UnitTests.Infrastructure;
