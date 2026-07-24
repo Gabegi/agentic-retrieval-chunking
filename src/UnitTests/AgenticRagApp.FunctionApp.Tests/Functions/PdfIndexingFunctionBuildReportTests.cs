@@ -1,34 +1,18 @@
-using System.Reflection;
-using Microsoft.DurableTask;
-using Moq;
-using AgenticRagApp.Functions;
 using AgenticRagApp.Observability.Reports;
 
 namespace RagApp.UnitTests.Functions;
 
-// PdfIndexingFunction.BuildReport is a private static method - the single biggest risk hotspot
-// in the assembly (highest cyclomatic complexity, all null-coalescing over the three stage
-// results). It's pure data assembly with no I/O, so it's invoked directly via reflection
-// rather than exercising it indirectly through the orchestrator.
+// PdfIndexRunReport.FromResults is the single biggest risk hotspot in the assembly (highest
+// cyclomatic complexity, all null-coalescing over the three stage results). It's pure data
+// assembly with no I/O, so it's exercised directly rather than through the orchestrator.
 [TestClass]
-public class PdfIndexingFunctionBuildReportTests
+public class PdfIndexRunReportFromResultsTests
 {
-    private static readonly MethodInfo BuildReportMethod =
-        typeof(PdfIndexingFunction).GetMethod("BuildReport", BindingFlags.NonPublic | BindingFlags.Static)!;
-
-    private static Mock<TaskOrchestrationContext> MockContext(string instanceId, DateTime finishedAt)
-    {
-        var mock = new Mock<TaskOrchestrationContext>();
-        mock.SetupGet(c => c.InstanceId).Returns(instanceId);
-        mock.SetupGet(c => c.CurrentUtcDateTime).Returns(finishedAt);
-        return mock;
-    }
-
     private static PdfIndexRunReport Invoke(
-        TaskOrchestrationContext context, DateTimeOffset startedAt, IndexRequest input,
+        string instanceId, DateTimeOffset startedAt, DateTimeOffset finishedAt, bool forceReindex,
         ExtractionResults? ext, ChunkingResults? chunk, EmbedUploadingResults? embed,
         bool success, string? error) =>
-        (PdfIndexRunReport)BuildReportMethod.Invoke(null, [context, startedAt, input, ext, chunk, embed, success, error])!;
+        PdfIndexRunReport.FromResults(instanceId, startedAt, finishedAt, forceReindex, ext, chunk, embed, success, error);
 
     private static ExtractionResults Extraction(int docsNew = 1, IReadOnlyList<string>? staleIds = null, IReadOnlyList<string>? redFlags = null) => new(
         Source:                 "pdf",
@@ -86,10 +70,9 @@ public class PdfIndexingFunctionBuildReportTests
     public void AllStagesSucceeded_PopulatesEveryFieldFromTheirRespectiveResults()
     {
         var startedAt = DateTimeOffset.Parse("2024-01-01T00:00:00Z");
-        var finishedAt = new DateTime(2024, 1, 1, 1, 0, 0, DateTimeKind.Utc);
-        var context = MockContext("instance-1", finishedAt);
+        var finishedAt = DateTimeOffset.Parse("2024-01-01T01:00:00Z");
 
-        var report = Invoke(context.Object, startedAt, new IndexRequest(ForceReindex: true),
+        var report = Invoke("instance-1", startedAt, finishedAt, forceReindex: true,
             Extraction(), Chunking(), EmbedUpload(), success: true, error: null);
 
         Assert.AreEqual("instance-1", report.InstanceId);
@@ -111,9 +94,7 @@ public class PdfIndexingFunctionBuildReportTests
     [TestMethod]
     public void AllStagesNull_ProducesZeroedReportRatherThanThrowing()
     {
-        var context = MockContext("instance-2", DateTime.UtcNow);
-
-        var report = Invoke(context.Object, DateTimeOffset.UtcNow, new IndexRequest(ForceReindex: false),
+        var report = Invoke("instance-2", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, forceReindex: false,
             ext: null, chunk: null, embed: null, success: false, error: "boom");
 
         Assert.IsFalse(report.Success);
@@ -132,9 +113,7 @@ public class PdfIndexingFunctionBuildReportTests
     [TestMethod]
     public void OnlyExtractionSucceeded_ChunkAndEmbedFieldsAreZeroed()
     {
-        var context = MockContext("instance-3", DateTime.UtcNow);
-
-        var report = Invoke(context.Object, DateTimeOffset.UtcNow, new IndexRequest(ForceReindex: false),
+        var report = Invoke("instance-3", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, forceReindex: false,
             Extraction(), chunk: null, embed: null, success: false, error: "chunk activity failed");
 
         Assert.AreEqual(1, report.DocsToProcess);
@@ -146,9 +125,7 @@ public class PdfIndexingFunctionBuildReportTests
     [TestMethod]
     public void RedFlags_AreMergedFromExtractionAndEmbedStages()
     {
-        var context = MockContext("instance-4", DateTime.UtcNow);
-
-        var report = Invoke(context.Object, DateTimeOffset.UtcNow, new IndexRequest(ForceReindex: false),
+        var report = Invoke("instance-4", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, forceReindex: false,
             Extraction(redFlags: ["extract flag"]), Chunking(), EmbedUpload(redFlags: ["upload flag"]),
             success: true, error: null);
 
@@ -158,9 +135,7 @@ public class PdfIndexingFunctionBuildReportTests
     [TestMethod]
     public void NoRedFlagsFromEitherStage_ResultsInEmptyList()
     {
-        var context = MockContext("instance-5", DateTime.UtcNow);
-
-        var report = Invoke(context.Object, DateTimeOffset.UtcNow, new IndexRequest(ForceReindex: false),
+        var report = Invoke("instance-5", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, forceReindex: false,
             Extraction(redFlags: []), Chunking(), EmbedUpload(redFlags: []), success: true, error: null);
 
         Assert.AreEqual(0, report.RedFlags.Count);
@@ -169,9 +144,7 @@ public class PdfIndexingFunctionBuildReportTests
     [TestMethod]
     public void ForceReindex_IsPropagatedFromInput()
     {
-        var context = MockContext("instance-6", DateTime.UtcNow);
-
-        var report = Invoke(context.Object, DateTimeOffset.UtcNow, new IndexRequest(ForceReindex: true),
+        var report = Invoke("instance-6", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, forceReindex: true,
             ext: null, chunk: null, embed: null, success: true, error: null);
 
         Assert.IsTrue(report.ForceReindex);
