@@ -35,6 +35,21 @@ public class PdfSectionBreadCrumbBuilderTests
     }
 
     [TestMethod]
+    public void AllBookmarksUnresolvable_ReturnsEmptyWithoutOutOfRangeOrEmptyWarnings()
+    {
+        // Every bookmark fails the PageNumber > 0 filter - ordered.Count hits 0 and the
+        // method returns early, before the out-of-range/skipped-level/empty-result warnings
+        // (which only make sense once at least one bookmark resolved to a page) ever run.
+        var bookmarks = new[] { Bm("Broken", 0, null) };
+
+        var (breadcrumbs, diagnostics) = PdfSectionBreadCrumbBuilder.BuildSectionBreadcrumbs(bookmarks, pageCount: 5, "doc.pdf");
+
+        Assert.AreEqual(0, breadcrumbs.Count);
+        Assert.IsTrue(diagnostics.Warnings.Any(w => w.Message.Contains("1 bookmark(s) skipped - no resolvable page")));
+        Assert.IsFalse(diagnostics.Warnings.Any(w => w.Message.Contains("existed but none resolved")));
+    }
+
+    [TestMethod]
     public void BookmarkBeyondPageCount_ProducesOutOfRangeWarning_AndNoBreadcrumbAssigned()
     {
         var bookmarks = new[] { Bm("Chapter 1", 0, 10) };
