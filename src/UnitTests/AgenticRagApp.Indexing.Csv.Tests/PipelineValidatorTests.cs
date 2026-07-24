@@ -190,6 +190,69 @@ public class PipelineValidatorTests
     }
 
     [TestMethod]
+    public void ControlCharacterInContent_IsTextQualityError()
+    {
+        var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "Corrupted  text") };
+        var clean = BuildCleaner().Clean(joined);
+        var pages = Empty<PageRecord>();
+        var index = Empty<IndexRecord>();
+        var join  = new JoinResult();
+
+        var report = BuildValidator().Validate(pages, index, join, clean);
+
+        Assert.IsTrue(report.Issues.Any(i => i.Stage == "TextQuality" && i.Severity == "Error" && i.Message.Contains("control/unassigned")));
+        Assert.IsFalse(report.Passed);
+    }
+
+    [TestMethod]
+    public void WhitespaceControlCharacters_AreNotFlaggedAsCorruption()
+    {
+        // \n, \r, \t are explicitly excluded from the control-character check - only
+        // non-whitespace control/unassigned characters indicate corruption.
+        var joined = new List<JoinedPageRecord> { JoinedPage("doc1", "Line one\nLine two\r\n\tIndented") };
+        var clean = BuildCleaner().Clean(joined);
+        var pages = Empty<PageRecord>();
+        var index = Empty<IndexRecord>();
+        var join  = new JoinResult();
+
+        var report = BuildValidator().Validate(pages, index, join, clean);
+
+        Assert.IsFalse(report.Issues.Any(i => i.Message.Contains("control/unassigned")));
+    }
+
+    [TestMethod]
+    public void MarkdownTableWithInconsistentColumnCounts_ProducesWarningAndCountsAsDetectedTable()
+    {
+        var joined = new List<JoinedPageRecord> { JoinedPage("doc1",
+            "| A | B | C |\n| --- | --- | --- |\n| 1 | 2 |\n") };
+        var clean = BuildCleaner().Clean(joined);
+        var pages = Empty<PageRecord>();
+        var index = Empty<IndexRecord>();
+        var join  = new JoinResult();
+
+        var report = BuildValidator().Validate(pages, index, join, clean);
+
+        Assert.IsTrue(report.Issues.Any(i => i.Stage == "TextQuality" && i.Severity == "Warning" && i.Message.Contains("inconsistent column counts")));
+        Assert.AreEqual(1, report.DetectedTableCount);
+    }
+
+    [TestMethod]
+    public void MarkdownTableWithConsistentColumnCounts_NoInconsistencyWarning()
+    {
+        var joined = new List<JoinedPageRecord> { JoinedPage("doc1",
+            "| A | B |\n| --- | --- |\n| 1 | 2 |\n") };
+        var clean = BuildCleaner().Clean(joined);
+        var pages = Empty<PageRecord>();
+        var index = Empty<IndexRecord>();
+        var join  = new JoinResult();
+
+        var report = BuildValidator().Validate(pages, index, join, clean);
+
+        Assert.IsFalse(report.Issues.Any(i => i.Message.Contains("inconsistent column counts")));
+        Assert.AreEqual(1, report.DetectedTableCount);
+    }
+
+    [TestMethod]
     public void MagnitudeShiftBeyondThreshold_FailsButPassedExcludingMagnitudeIsTrue()
     {
         var (pages, index, join, clean) = HappyPath(); // 1 cleaned record
