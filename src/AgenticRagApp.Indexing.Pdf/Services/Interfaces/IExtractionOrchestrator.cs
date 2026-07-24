@@ -15,5 +15,5 @@ public interface IExtractionOrchestrator
     // changed. Passing the entries themselves (not just the ids) means the orchestrator never
     // needs to list the container a second time. Ids outside this set produce no
     // ExtractionDocuments.
-    Task<PdfExtractionOutput> ExtractDocumentsAsync(IReadOnlyDictionary<string, PdfBlobInfo> sourceEntries, CancellationToken ct = default);
+    Task<PdfExtractionOutput> ExtractDocumentsAsync(IReadOnlyDictionary<string, PdfBlobInfo> sourceIdsToProcess, CancellationToken ct = default);
 }
