@@ -5,4 +5,4 @@ namespace AgenticRagApp.Indexing.Pdf.Models;
 // full listing to diff against the index; only the entries it decides are new/updated get
 // passed on to IExtractionOrchestrator.ExtractDocumentsAsync, which uses this same data
 // instead of listing the container a second time.
-public record BlobListingEntry(DateTimeOffset LastModified, long? ContentLength, ZenyaMetadata Zenya);
+public record PdfBlobInfo(DateTimeOffset LastModified, long? ContentLength, ZenyaMetadata Zenya);
