@@ -78,7 +78,7 @@ public class PdfExtractionPipeline : IExtractionOrchestrator
     }
 
     public async Task<PdfExtractionOutput> ExtractDocumentsAsync(
-        IReadOnlySet<string> sourceIdsToProcess, CancellationToken ct = default)
+        IReadOnlyDictionary<string, PdfBlobInfo> sourceEntries, CancellationToken ct = default)
     {
         var runAt = DateTimeOffset.UtcNow;
 
